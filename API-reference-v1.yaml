@@ -1,0 +1,286 @@
+openapi: 3.0.0
+
+info:
+  title: Dataset service
+  description: 'API to manage datasets.'
+  version: "1.0.0"
+  contact:
+    email: palollo@i3m.upv.es
+  license:
+    name: Apache 2.0
+    url: 'http://www.apache.org/licenses/LICENSE-2.0.html'
+
+externalDocs:
+  description: Project source code
+  url: https://github.com/chaimeleon-eu/dataset-service
+
+servers:
+  # Added by API Auto Mocking Plugin
+  - description: SwaggerHub API Auto Mocking
+    url: https://virtserver.swaggerhub.com/UPV-CHAIMELEON/Dataset-service/1.0.0
+    
+tags:
+  - name: dataset
+    description: Operations with datasets
+    
+security: 
+  - bearerAuth: []
+    
+paths:
+  /dataset:
+    post:
+      tags:
+        - dataset
+      summary: creates a new dataset
+      operationId: createDataset
+      description: Creates a new dataset into the system
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DatasetDetails'
+      responses:
+        '201':
+          description: item created
+        '400':
+          description: 'invalid input, object invalid'
+        '401':
+          description: unauthorized user or access token is missing or invalid
+        '409':
+          description: an existing item already exists
+  
+  /dataset/{id}:
+    get:
+      tags:
+        - dataset
+      summary: gets a dataset by id
+      operationId: getDataset
+      description: |
+        Returns the details of a dataset specified by its id.
+      parameters:
+        - name: id
+          description: the id of the dataset
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: studiesSkip
+          description: "(optional, default=0) number of studies to skip for pagination"
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+        - name: studiesLimit
+          description: "(optional, default=30) maximum number of studies to return (records per page), value of 0 means no limit"
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+      responses:
+        '200':
+          description: "successful operation"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetDetails'
+        '400':
+          description: "bad input parameter"
+        '401':
+          description: "unauthorized user or access token is missing or invalid"
+        '404':
+          description: "not found"
+    delete:
+      tags:
+        - dataset
+      summary: invalidates a dataset specified by its id
+      operationId: deleteDataset
+      description: "invalidates a dataset in the system, it will be hidden"
+      parameters:
+        - name: id
+          description: "the id of the dataset to invalidate"
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+        '400':
+          description: bad input parameter
+        '401':
+          description: unauthorized user or access token is missing or invalid
+        
+  /datasets:
+    get:
+      tags:
+        - dataset
+      summary: list datasets
+      operationId: listDatasets
+      description: |
+        By passing in the appropriate options, you can search for
+        available datasets in the system. 
+        If not searchString or empty, then all datasets are listed.
+      parameters:
+        - name: searchString
+          description: "(optional, default is empty) pass an optional search string (case insensitive) for looking up inventory"
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: skip
+          description: "(optional, default=0) number of records to skip for pagination"
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+        - name: limit
+          description: "(optional, default=30) maximum number of records to return (records per page), value of 0 means no limit"
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+      responses:
+        '200':
+          description: search results matching criteria
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DatasetListItem'
+        '400':
+          description: bad input parameter
+        '401':
+          description: unauthorized user or access token is missing or invalid
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  
+  schemas:
+    DatasetListItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "d290f1ee-6c54-4b01-90e6-d701748f0851"
+        name:
+          type: string
+          description: short descriptive name
+          example: Lung cancer v3
+        authorName:
+          type: string
+          description: the name of the user wich created the dataset
+          example: James Gordon
+        creationDate:
+          type: string
+          format: date-time
+          example: '2016-08-29T09:12:33.001Z'
+        studiesCount:
+          type: integer
+          description: the number of studies contained in the dataset
+        patientsCount:
+          type: integer
+          description: the number of different patients which are related with the studies contained in the dataset
+    DatasetDetails:
+      type: object
+      required:
+        - name
+        - description
+        - studies
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: (not required and ignored in creation of dataset)
+          example: "d290f1ee-6c54-4b01-90e6-d701748f0851"
+        name:
+          type: string
+          minLength: 3
+          maxLength: 128
+          description: short descriptive name
+          example: Lung cancer v3
+        previousId:
+          type: string
+          format: uuid
+          description: (optional) specified when is a new version of a previous dataset
+          example: "d290f1ee-6c54-4b01-90e6-d701748f0851"
+        authorId:
+          type: string
+          description: (not required and ignored in creation of dataset, it is extracted from the authToken) the unique id of the user wich created the dataset, it is not for showing but it can be useful to a possible new feature to show all datasets from an author
+          example: "d290f1ee-6c54-4b01-90e6-d701748f0851"
+        authorName:
+          type: string
+          minLength: 3
+          maxLength: 128
+          description: (not required and ignored in creation of dataset, it is extracted from the authToken) the name of the user wich created the dataset
+          example: James Gordon
+        authorEmail:
+          type: string
+          minLength: 3
+          maxLength: 128
+          format: email
+          description: (not required and ignored in creation of dataset, it is extracted from the authToken) the email of the user wich created the dataset
+          example: james@email.com
+        creationDate:
+          type: string
+          format: date-time
+          description: (not required and ignored in creation of dataset)
+          example: '2016-08-29T09:12:33.001Z'
+        description:
+          type: string
+          description: Long explanation of dataset details, statistics, links, references, improvements/modifications if it's a new version, etc.
+        studies:
+          type: array
+          items:
+            $ref: '#/components/schemas/Study'
+        gid:
+          type: integer
+          description: (not required and ignored in creation of dataset) group id with the permissions to see the directories of studies selected for this dataset
+        public:
+          type: boolean
+          description: (optional, default false) if false then the dataset will be only visible to users with the role view_all_datasets (consortium researchers), if true then the dataset will be also visible to users with the role view_public_datasets (all users, including external researchers) 
+        studiesCount:
+          type: integer
+          description: the number of studies contained in the dataset
+        patientsCount:
+          type: integer
+          description: the number of different patients which are related with the studies contained in the dataset
+    Study:
+      type: object
+      properties:
+        studyId:
+          type: string
+          example: "5e5629835938d12160636353"
+        studyName:
+          type: string
+          maxLength: 128
+          example: "TCPEDITRICOABDOMINOPLVICOCONCONTRASTE"
+        subjectName:
+          type: string
+          maxLength: 128
+          description: "the subject name, which is anonymized"
+          example: "17B76FEW"
+        path:
+          type: string
+          maxLength: 256
+          description: "Path to the folder of the study in the datalake (the structure usually should be: <userName>/<subjectName>_<trial>/<studyName><studyDate>/)"
+          example: "blancagomez/01_Neuroblastoma_4_Neuroblastoma/TCPEDITRICOABDOMINOPLVICOCONCONTRASTE20150129/"
+        url:
+          type: string
+          maxLength: 256
+          format: url
+          description: "link to the study in the case explorer web portal" 
+          example: 'https://www.quibim.com/studies?id=5e5629835938d12160636353'

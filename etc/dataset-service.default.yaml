@@ -1,0 +1,29 @@
+
+db: 
+  host: "localhost"
+  port: "5432"
+  dbname: "db"
+  user: "dssuser"
+  password: "XXXXXX"
+
+auth: 
+  token_issuer_public_keys_url: "https://myDomain.com/auth/realms/MYREALM/protocol/openid-connect/certs"
+  kid: "U2yU60He9Irc8iNJ7zCBVUQEkXe9yq0XrHLu4f3i1gT"
+  # the client ID
+  audience: ["dataset-service", "account"]
+  issuer: "https://myDomain.com/auth/realms/MYREALM"
+  roles:
+    view_public_datasets: view_public_datasets
+    view_all_datasets: view_all_datasets
+    admin_datasets: admin_datasets
+
+
+self: 
+  name: "dataset-service"
+  host: "0.0.0.0"
+  port: 11000
+  log: 
+    level: "DEBUG"
+    file: "/var/log/dataset-service/dataset-service.log"
+    file_max_size: 10485760
+
