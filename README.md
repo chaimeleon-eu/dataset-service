@@ -6,10 +6,10 @@ The API is described in detail using OpenAPI v3 specification standad format in 
 Authentication is required to access to the service using the OpenId-Connect standard protocol. Basically the client application must initially redirect the user to the authentication service, to obtain a bearer token. Then, that token must be included in the "Authorization" header of any request done to the dataset-service.
 
 Basic operations:
-POST /dataset
-GET /dataset/{id}
-DELETE /dataset/{id}
-GET /datasets
+ - POST /dataset
+ - GET /dataset/{id}
+ - DELETE /dataset/{id}
+ - GET /datasets
 
 Below is a walkthrough by examples with CURL.
 
@@ -17,13 +17,14 @@ Below is a walkthrough by examples with CURL.
 ## Usage
 
 **Previous authentication to obtain a bearer token**
+
 It is recommended to use an OpenID-Connect library for the programming language of your client application, it will ease your work providing things like the automatic refresh of the token. You can use a generic library or a particular library for the implementation used in your project. For example, if Keycloak is used, you can use the "client adapter": https://www.keycloak.org/docs/latest/securing_apps/#supported-platforms
+
 If you use React: https://www.npmjs.com/package/@react-keycloak/web
 
-Basically the user will be redirected to the authentication service with a URL like this:
-https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/auth/?scope=openid+email+profile&response_type=id_token&client_id=dataset-service&redirect_uri=https://chaimeleon-eu.i3m.upv.es/dataset-service/
+Basically the user will be redirected to the authentication service with a URL like this: https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/auth/?scope=openid+email+profile&response_type=id_token&client_id=dataset-service&redirect_uri=https://chaimeleon-eu.i3m.upv.es/dataset-service/
 
-The last parameter ('redirect_uri') contains the URI of our client application.
+The last parameter ("redirect_uri") contains the URI of our client application.
 When the user comes back to our client application, the bearer token will be included in the URL as a parameter named 'id_token'.
 
 For development purposes you can use curl to obtain a token:
@@ -58,15 +59,23 @@ curl -i -X DELETE -H "Authorization: bearer eyJh...9rw" http://localhost:11000/d
 
 
 
-# Build the image
+## Build the image
+```
+docker build -t chaimeleon-eu.i3m.upv.es:10443/chaimeleon-services/dataset-service-backend:0.2 .
+```
+## Upload the image
+```
+docker login -u registryUser chaimeleon-eu.i3m.upv.es:10443
+docker push chaimeleon-eu.i3m.upv.es:10443/chaimeleon-services/dataset-service-backend:0.2
+docker logout chaimeleon-eu.i3m.upv.es:10443
+```
 
-docker build 
-
-# Deploy with Kubernetes
-
+## Deploy with Kubernetes
+```
 kubectl apply -f kubernetes.yaml
+```
 
-# Run locally for development purposes:
+## Run locally for development purposes:
 
 Deploy database with docker:
 ```
@@ -86,33 +95,29 @@ Once database is ready, you can run the main service with a local configuration 
 python .\start_dataset_service.py .\etc\dataset-service-local.yaml
 ```
 
-# Configuration
+## Configuration
 
-First of all, *default configuration values* will be loaded from a file located in (the first that exists):
- - './etc/dataset-service.default.yaml'
- - '/etc/dataset-service/dataset-service.default.yaml'
+First of all, **default configuration values** will be loaded from a file located in (the first that exists):
+ - `./etc/dataset-service.default.yaml`
+ - `/etc/dataset-service/dataset-service.default.yaml`
 
-You should change at least the password values...
-Please do not modify the default config file for that, it is useful as a template to always see the full configuration keys available. 
+You should change at least the password values... Please **do not modify the default config file** for that, it is useful as a template to always see the full configuration keys available. 
 To set your own configuration you should make a copy of the file or better just write only the keys you want to change to a new file.
-The configuration file will be loaded from path (the first that exists):
- - './etc/dataset-service.yaml'
- - '/etc/dataset-service/dataset-service.yaml'
 
-Optional: you can set the location of the configuration file in the *first parameter* of the execution line.
+The **configuration file** will be loaded from path (the first that exists):
+ - `./etc/dataset-service.yaml`
+ - `/etc/dataset-service/dataset-service.yaml`
+
+Optional: you can set the location of the configuration file in the **first parameter** of the execution line. Example:
 ```
 python .\start_dataset_service.py .\etc\dataset-service-local.yaml
 ```
 
-The keys defined in the configuration file takes precedence over the same keys which are defined in default configuration file.
+The keys defined in the **configuration file** takes precedence over the same keys which are defined in **default configuration file**.
 
-Finally you can override in the same way some (or all) of the configuration keys with the environment variable DATASET_SERVICE_CONFIG.
-``` win cmd
-set DATASET_SERVICE_CONFIG={ db:  { host: "mydbhost" } }
-```
-``` bash
-export DATASET_SERVICE_CONFIG={ db:  { host: "mydbhost" } }
-```
+Finally you can override in the same way some (or all) of the configuration keys with the **environment variable DATASET_SERVICE_CONFIG**.
+Using win cmd: `set DATASET_SERVICE_CONFIG={ db: { host: "mydbhost" } }`
+Using bash: `export DATASET_SERVICE_CONFIG={ db: { host: "mydbhost" } }`
 
 Please note it is JSON format this time, and takes precedence over all configuration files.
 

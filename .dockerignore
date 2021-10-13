@@ -1,0 +1,6 @@
+etc/*local.yaml
+log/*
+
+.vscode
+__pycache__
+

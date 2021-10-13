@@ -5,13 +5,13 @@ import bottle
 import threading
 import logging
 import json
-from kubernetes.client import exceptions
+#from kubernetes.client import exceptions
 import yaml
 import base64
 import time
 from dataset_service.storage import DB
-from kubernetes import client, config
-from kubernetes.client.rest import ApiException
+#from kubernetes import client, config
+#from kubernetes.client.rest import ApiException
 import jwt
 from jwt import PyJWKClient
 import urllib
@@ -110,13 +110,13 @@ def run(host, port, config):
         LOG.exception(e)
         raise e
 
-    LOG.info("Loading Kubernetes configuration...")
-    KUBERNETES_CONFIG = client.Configuration()
-    KUBERNETES_CONFIG.verify_ssl = False
-    KUBERNETES_CONFIG.host = CONFIG.kubernetes.endpoint
-    KUBERNETES_CONFIG.api_key = {"authorization": "Bearer " + CONFIG.kubernetes.auth_token}
+#   LOG.info("Loading Kubernetes configuration...")
+#   KUBERNETES_CONFIG = client.Configuration()
+#   KUBERNETES_CONFIG.verify_ssl = False
+#   KUBERNETES_CONFIG.host = CONFIG.kubernetes.endpoint
+#   KUBERNETES_CONFIG.api_key = {"authorization": "Bearer " + CONFIG.kubernetes.auth_token}
 
-    KUBERNETES_API_CLIENT = client.ApiClient(KUBERNETES_CONFIG)
+#   KUBERNETES_API_CLIENT = client.ApiClient(KUBERNETES_CONFIG)
         
     thisRESTServer = RESTServer(host=host, port=port)
     LOG.info("Running the service in %s:%s..." % (host, port))

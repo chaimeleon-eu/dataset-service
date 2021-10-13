@@ -24,6 +24,6 @@ self:
   port: 11000
   log: 
     level: "DEBUG"
-    file: "/var/log/dataset-service/dataset-service.log"
+    file: "./log/dataset-service.log"
     file_max_size: 10485760
 
