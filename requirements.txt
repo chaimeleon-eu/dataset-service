@@ -1,5 +1,6 @@
 bottle==0.12.19      # REST-API framework
+cheroot==8.5.2      # HTTP service
 PyYAML==5.4.1
 # kubernetes==18.20.0
-psycopg2-binary==2.9.1     # postgres client
-pyjwt[crypto]        # to validate authentication tokens (crypto is needed to get RS256 algorithm)
+psycopg2-binary==2.9.1         # postgres client
+pyjwt[crypto]==2.2.0      # to validate authentication tokens (crypto is needed to get RS256 algorithm)

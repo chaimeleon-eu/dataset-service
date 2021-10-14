@@ -139,9 +139,9 @@ def validate_token(token):
     LOG.debug("Token key id (kid header):" + headers['kid'])
 
     #AUTH_PUBLIC_KEY = "-----BEGIN PUBLIC KEY-----\n" + CONFIG.auth.token_issuer_public_key + "\n-----END PUBLIC KEY-----"
-    decodedToken = jwt.decode(token, AUTH_PUBLIC_KEY.key, algorithms=['RS256'], verify_signature=True, 
-                              require=["exp", "iat", "iss", "aud"],
-                              issuer=CONFIG.auth.issuer, audience=CONFIG.auth.audience)
+    decodedToken = jwt.decode(token, AUTH_PUBLIC_KEY.key, algorithms=['RS256'],  
+                              issuer=CONFIG.auth.issuer, audience=CONFIG.auth.audience, 
+                              options={'verify_signature': True, 'require': ["exp", "iat", "iss", "aud"]})
     LOG.debug(json.dumps(decodedToken))
     return decodedToken
 

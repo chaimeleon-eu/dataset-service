@@ -71,9 +71,15 @@ docker logout chaimeleon-eu.i3m.upv.es:10443
 ```
 
 ## Deploy with Kubernetes
-```
-kubectl apply -f kubernetes.yaml
-```
+
+Copy the template: `cp kubernetes.yaml kubernetes.mine.yaml`
+
+Configure: edit `kubernetes.mine.yaml` (set passwords, urls, etc.)
+
+Create a namespace: `kubectl create namespace dataset-service`
+
+And finally: `kubectl apply -f kubernetes.mine.yaml`
+
 
 ## Run locally for development purposes:
 
@@ -84,7 +90,7 @@ docker run -d -e POSTGRES_DB=db -e POSTGRES_USER=dssuser -e POSTGRES_PASSWORD=XX
 Now you can explore database with psql:
 ```
 docker exec -it my-postgres bash
-    psql db dsuser
+    psql db dssuser
         \dt
         select * from metadata;
         \q
@@ -116,8 +122,8 @@ python .\start_dataset_service.py .\etc\dataset-service-local.yaml
 The keys defined in the **configuration file** takes precedence over the same keys which are defined in **default configuration file**.
 
 Finally you can override in the same way some (or all) of the configuration keys with the **environment variable DATASET_SERVICE_CONFIG**.
-Using win cmd: `set DATASET_SERVICE_CONFIG={ db: { host: "mydbhost" } }`
-Using bash: `export DATASET_SERVICE_CONFIG={ db: { host: "mydbhost" } }`
+ - Using win cmd: `set DATASET_SERVICE_CONFIG={ db: { host: "mydbhost" } }`
+ - Using bash: `export DATASET_SERVICE_CONFIG={ db: { host: "mydbhost" } }`
 
 Please note it is JSON format this time, and takes precedence over all configuration files.
 

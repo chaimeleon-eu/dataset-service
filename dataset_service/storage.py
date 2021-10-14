@@ -36,11 +36,11 @@ class DB:
         if version ==1: self.updateDB_v1To2()
 
     def getSchemaVersion(self):
-        try:
-            self.cursor.execute("SELECT schema_version FROM metadata limit 1")
-            return self.cursor.fetchone()[0]
-        except psycopg2.errors.UndefinedTable:
+        self.cursor.execute("SELECT EXISTS ( SELECT FROM information_schema.tables WHERE table_name = 'metadata');")
+        if self.cursor.fetchone()[0] == False: 
             return 0
+        self.cursor.execute("SELECT schema_version FROM metadata limit 1")
+        return self.cursor.fetchone()[0]
 
     def createSchema(self):
         #with open("schema.sql", 'r') as inputStream:

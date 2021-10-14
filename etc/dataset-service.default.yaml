@@ -8,6 +8,8 @@ db:
 
 auth: 
   token_issuer_public_keys_url: "https://myDomain.com/auth/realms/MYREALM/protocol/openid-connect/certs"
+  # The key ID (kid) is just for selecting which key have to be downloaded from the token_issuer_public_keys_url in the initialization in order to validate later the coming tokens. 
+  # Usually there is only one key, so just go to the URL and copy the kid.
   kid: "U2yU60He9Irc8iNJ7zCBVUQEkXe9yq0XrHLu4f3i1gT"
   # the client ID
   audience: ["dataset-service", "account"]

@@ -1,4 +1,5 @@
 etc/*local.yaml
+kubernetes.mine.yaml
 log/*
 
 .vscode
