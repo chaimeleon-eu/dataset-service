@@ -1,23 +1,26 @@
 
-db: 
+db:    # The parameters needed to access to a Postgres database service that must be running.
   host: "localhost"
   port: "5432"
   dbname: "db"
   user: "dssuser"
   password: "XXXXXX"
 
-auth: 
+auth:   # These are the parameters for the validation of auth tokens received.
+  # The URL to the public keys of the authentication service that issue the tokens.
   token_issuer_public_keys_url: "https://myDomain.com/auth/realms/MYREALM/protocol/openid-connect/certs"
   # The key ID (kid) is just for selecting which key have to be downloaded from the token_issuer_public_keys_url in the initialization in order to validate later the coming tokens. 
   # Usually there is only one key, so just go to the URL and copy the kid.
   kid: "U2yU60He9Irc8iNJ7zCBVUQEkXe9yq0XrHLu4f3i1gT"
-  # the client ID
+  # The accepted values for the "audience" claim.
+  # You should write here the client ID configured in the authentication service for that application (the dataset-service).
   audience: ["dataset-service", "account"]
+  # The accepted value for the "issuer" claim.
   issuer: "https://myDomain.com/auth/realms/MYREALM"
-  roles:
-    view_public_datasets: view_public_datasets
-    view_all_datasets: view_all_datasets
-    admin_datasets: admin_datasets
+  roles:   # Here you can customize the string that defines every role that can be included in the token to allow the user to do things.
+    view_public_datasets: "view_public_datasets"
+    view_all_datasets: "view_all_datasets"
+    admin_datasets: "admin_datasets"
 
 
 self: 

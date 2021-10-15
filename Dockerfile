@@ -1,7 +1,7 @@
 FROM ubuntu:20.04
 LABEL name="dataset-service-backend"
 LABEL description="dataset-service-backend"
-LABEL version="0.5"
+LABEL version="0.6"
 LABEL maintainer="palollo@i3m.upv.es"
 
 RUN apt-get update && \

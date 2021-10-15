@@ -27,34 +27,110 @@ Basically the user will be redirected to the authentication service with a URL l
 The last parameter ("redirect_uri") contains the URI of our client application.
 When the user comes back to our client application, the bearer token will be included in the URL as a parameter named 'id_token'.
 
-For development purposes you can use curl to obtain a token:
+For development/testing purposes you can use curl to obtain a token:
 ```
 curl -i -d "client_id=dataset-service" -d "username=user" -d "password=pass" -d "grant_type=password" "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token"
 ```
 
+Every invocation to the dataset-service must include a header like this:
+`Authorization: bearer <token>`
+
+The <token> is the JWT (JSON Web Token) provided by the authorization service that will be verified (sign, expiration time, etc.) by the dataset-service. Also the user data will be extracted from the token in order to set the author of the dataset (in case of creation) and the author of the operation to send to the tracer service.
+
 **Creation of a dataset**
+
+POST /dataset
+
+With the authorization header and the dataset properties within the body in JSON format. If success, the code 201 will be returned. If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
+
+Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/dataset/createDataset
+
+Example:
 ```
-curl -i -X POST -H "Authorization: bearer eyJhbG...N9rw" -H "Content-Type: application/json" -d "{\"name\": \"TestDataset1\",\"description\": \"This is a dataset for testing.\", \"studies\": [{     \"studyId\": \"5e57a4356af19d299c17026d\",     \"studyName\": \"GMIBG2DECUERPOENTERO\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/GMIBG2DECUERPOENTERO20160225\",     \"url\": \"\"   },   {     \"studyId\": \"5e5629835938d32160636353\",     \"studyName\": \"RM431RMRENAL\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/RM431RMRENAL20130820\",     \"url\": \"\"   },   {     \"studyId\": \"5e6a422939b892367c8a5c23\",     \"studyName\": \"TCPEDITRICOABDOMINOPLVICOCONCONTRASTE\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/TCPEDITRICOABDOMINOPLVICOCONCONTRASTE20150129\",     \"url\": \"\"   },   {     \"studyId\": \"5e6b449a3144dc2bc0841efc\",     \"studyName\": \"RM411RMABDOMEN\",     \"subjectName\": \"21N56F7T\",     \"path\": \"blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20100804\",     \"url\": \"\"   },   {     \"studyId\": \"5e6a3d41c9065c475c32b3fe\",     \"studyName\": \"RM411RMABDOMEN\",     \"subjectName\": \"21N56F7T\",     \"path\": \"blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20150109\",     \"url\": \"\"   },   {     \"studyId\": \"5eeba960903aec091076c180\",     \"studyName\": \"RM815RMDORSAL\",     \"subjectName\": \"1GB90F75\",     \"path\": \"blancagomez/1GB90F75_Neuroblastoma/RM815RMDORSAL20121123\",     \"url\": \"\"   }]}" http://localhost:11000/dataset
+$ curl -i -X POST -H "Authorization: bearer eyJhbG...N9rw" -H "Content-Type: application/json" -d "{\"name\": \"TestDataset3\",\"description\": \"This is a dataset for testing.\", \"studies\": [{     \"studyId\": \"5e57a4356af19d299c17026d\",     \"studyName\": \"GMIBG2DECUERPOENTERO\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/GMIBG2DECUERPOENTERO20160225\",     \"url\": \"\"   },   {     \"studyId\": \"5e5629835938d32160636353\",     \"studyName\": \"RM431RMRENAL\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/RM431RMRENAL20130820\",     \"url\": \"\"   },   {     \"studyId\": \"5e6a422939b892367c8a5c23\",     \"studyName\": \"TCPEDITRICOABDOMINOPLVICOCONCONTRASTE\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/TCPEDITRICOABDOMINOPLVICOCONCONTRASTE20150129\",     \"url\": \"\"   },   {     \"studyId\": \"5e6b449a3144dc2bc0841efc\",     \"studyName\": \"RM411RMABDOMEN\",     \"subjectName\": \"21N56F7T\",     \"path\": \"blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20100804\",     \"url\": \"\"   },   {     \"studyId\": \"5e6a3d41c9065c475c32b3fe\",     \"studyName\": \"RM411RMABDOMEN\",     \"subjectName\": \"21N56F7T\",     \"path\": \"blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20150109\",     \"url\": \"\"   },   {     \"studyId\": \"5eeba960903aec091076c180\",     \"studyName\": \"RM815RMDORSAL\",     \"subjectName\": \"1GB90F75\",     \"path\": \"blancagomez/1GB90F75_Neuroblastoma/RM815RMDORSAL20121123\",     \"url\": \"\"   }]}" "http://localhost:11000/dataset"
+HTTP/1.1 100 Continue
+
+HTTP/1.1 201 Created
+Content-Length: 0
+Content-Type: text/html; charset=UTF-8
 ```
 
 **List of all datasets**
+
+GET /datasets
+
+With the authorization header and some parameters accepted in the URL for pagination. If success the code 200 will be returned and a JSON array in the body of the response. If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
+
+Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/dataset/listDatasets
+
+Example:
 ```
-curl -i -X GET -H "Authorization: bearer eyJh...9rw" http://localhost:11000/datasets?limit=30
+$ curl -i -X GET -H "Authorization: bearer eyJh...9rw" "http://localhost:11000/datasets?limit=30&skip=0"
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 728
+
+[{"id": "f99017af-9015-4222-b064-77f3c1b49d8b", "name": "TestDataset3", "authorName": "test test", "creationDate": "2021-10-05 12:29:11.932542", "studiesCount": 6, "patientsCount": 3}, 
+ {"id": "00e821c4-e92b-48f7-a034-ba2df547e2bf", "name": "TestDataset2", "authorName": "test test", "creationDate": "2021-10-04 14:50:47.214108", "studiesCount": 1, "patientsCount": 1}, 
+ {"id": "efa2cba6-4a17-4612-8074-7e9eb9c9d7ca", "name": "TestDataset1", "authorName": "test test", "creationDate": "2021-10-04 14:42:37.725548", "studiesCount": 1, "patientsCount": 1}]
 ```
 
 **Search of datasets by name**
+
+This is the same operation as the previous example but with the parameter `searchString` (case-insensitive). 
+
+Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/dataset/listDatasets
+
+Example:
 ```
-curl -i -X GET -H "Authorization: bearer eyJh...9rw" http://localhost:11000/datasets?searchString=test
+$ curl -i -X GET -H "Authorization: bearer eyJh...9rw" "http://localhost:11000/datasets?searchString=dataset3"
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 182
+
+[{"id": "f99017af-9015-4222-b064-77f3c1b49d8b", "name": "TestDataset3", "authorName": "test test", "creationDate": "2021-10-05 12:29:11.932542", "studiesCount": 6, "patientsCount": 3}]
 ```
 
 **Get details of a dataset by its id**
+
+GET /dataset/{id}
+
+With the authorization header and some parameters accepted in the URL for pagination of studies in the dataset. Returns a JSON object. If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
+
+Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/dataset/getDataset
+
+Example:
 ```
-curl -i -X GET -H "Authorization: bearer eyJh...9rw" http://localhost:11000/dataset/20024e8b-f5ff-41b1-8a43-31d18e4eb649
+$ curl -i -X GET -H "Authorization: bearer eyJh...9rw" "http://localhost:11000/dataset/f99017af-9015-4222-b064-77f3c1b49d8b?studiesLimit=30"
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 1506
+
+{"id": "f99017af-9015-4222-b064-77f3c1b49d8b", "name": "TestDataset3", "previousId": null, "authorId": "a43d426c-11aa-41cb-ab15-616d68627c77", "authorName": "test test", "authorEmail": "test@upv.es", "creationDate": "2021-10-05 22:29:11.932542", "description": "This is a dataset for testing.", "gid": 1, "public": false, "studiesCount": 6, "patientsCount": 3, 
+"studies": [
+    {"studyId": "5e57a4356af19d299c17026d", "studyName": "GMIBG2DECUERPOENTERO", "subjectName": "17B76FEW", "path": "blancagomez/17B76FEW_Neuroblastoma/GMIBG2DECUERPOENTERO20160225", "url": ""}, 
+    {"studyId": "5e5629835938d32160636353", "studyName": "RM431RMRENAL", "subjectName": "17B76FEW", "path": "blancagomez/17B76FEW_Neuroblastoma/RM431RMRENAL20130820", "url": ""}, 
+    {"studyId": "5e6a422939b892367c8a5c23", "studyName": "TCPEDITRICOABDOMINOPLVICOCONCONTRASTE", "subjectName": "17B76FEW", "path": "blancagomez/17B76FEW_Neuroblastoma/TCPEDITRICOABDOMINOPLVICOCONCONTRASTE20150129", "url": ""}, 
+    {"studyId": "5e6b449a3144dc2bc0841efc", "studyName": "RM411RMABDOMEN", "subjectName": "21N56F7T", "path": "blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20100804", "url": ""}, 
+    {"studyId": "5e6a3d41c9065c475c32b3fe", "studyName": "RM411RMABDOMEN", "subjectName": "21N56F7T", "path": "blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20150109", "url": ""}, 
+    {"studyId": "5eeba960903aec091076c180", "studyName": "RM815RMDORSAL", "subjectName": "1GB90F75", "path": "blancagomez/1GB90F75_Neuroblastoma/RM815RMDORSAL20121123", "url": ""}
+]}
 ```
 
 **Invalidate a dataset by its id**
+
+DELETE /dataset/{id}
+
+With the authorization header. If success the code 200 will be returned. If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
+
+Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/dataset/deleteDataset
+
+Example:
 ```
-curl -i -X DELETE -H "Authorization: bearer eyJh...9rw" http://localhost:11000/dataset/20024e8b-f5ff-41b1-8a43-31d18e4eb649
+$ curl -i -X DELETE -H "Authorization: bearer eyJh...9rw" "http://localhost:11000/dataset/00e821c4-e92b-48f7-a034-ba2df547e2bf"
+HTTP/1.1 200 OK
+Content-Length: 0
+Content-Type: text/html; charset=UTF-8
 ```
 
 
@@ -107,7 +183,7 @@ First of all, **default configuration values** will be loaded from a file locate
  - `./etc/dataset-service.default.yaml`
  - `/etc/dataset-service/dataset-service.default.yaml`
 
-You should change at least the password values... Please **do not modify the default config file** for that, it is useful as a template to always see the full configuration keys available. 
+You should change at least the password values... Please **do not modify the default config file** for that, it is useful as a template to always see the full configuration keys available with descriptive comments. 
 To set your own configuration you should make a copy of the file or better just write only the keys you want to change to a new file.
 
 The **configuration file** will be loaded from path (the first that exists):
@@ -127,5 +203,46 @@ Finally you can override in the same way some (or all) of the configuration keys
 
 Please note it is JSON format this time, and takes precedence over all configuration files.
 
+## Authorization
 
+The capabilities of a user (which operations can do) are defined in the "application roles" included in the token received (i.e. in 'resource_access.dataset-service.roles'). Example:
+```
+{
+  "exp": ...,
+  "iat": ...,
+  ...
+  "iss": ...,
+  "aud": ...,
+  "sub": ...,
+  ...
+  "realm_access": {
+    "roles": [
+      ...
+    ]
+  },
+  "resource_access": {
+    "account": {
+      "roles": [
+        ...
+      ]
+    },
+    "dataset-service": {
+      "roles": [
+        "view_public_datasets"
+      ]
+    }
+  },
+  ...
+  "name": ...,
+  "preferred_username": ...,
+  "email": ...
+}
+```
+
+These are the known roles:
+ - view_public_datasets (0)
+ - view_all_datasets (1)
+ - admin_datasets (2)
+
+The name of each one can be customized in the configuration file. The number is just a hint, not part of the name: you can see them as security levels, each level include the previous levels.
 

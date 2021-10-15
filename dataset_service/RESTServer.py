@@ -150,6 +150,9 @@ def setErrorResponse(code, message):
     bottle.response.content_type = "application/json"
     return json.dumps(dict(error = message, status_code = code))
 
+def appendIfNotExists(array, item):
+    if item not in array: array.append(item)
+
 def checkAuthorizationHeader():
     try:
         encodedToken = bottle.request.headers["authorization"][7:]
@@ -163,6 +166,14 @@ def checkAuthorizationHeader():
         user_info["appRoles"] = user_info["resource_access"]["dataset-service"]["roles"]
     except:
         return False, setErrorResponse(401,"invalid access token: missing 'resource_access.dataset-service.roles'")
+
+    # ensure roles included in other roles
+    if CONFIG.auth.roles.view_all_datasets in user_info["appRoles"]:
+        appendIfNotExists(user_info["appRoles"], CONFIG.auth.roles.view_public_datasets)
+    if CONFIG.auth.roles.admin_datasets in user_info["appRoles"]:
+        appendIfNotExists(user_info["appRoles"], CONFIG.auth.roles.view_public_datasets)
+        appendIfNotExists(user_info["appRoles"], CONFIG.auth.roles.view_all_datasets)
+
     return True, user_info
 
 def get_header_media_types(header):

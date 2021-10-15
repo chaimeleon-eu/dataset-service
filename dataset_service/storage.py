@@ -190,7 +190,7 @@ class DB:
         )
         res = []
         for row in self.cursor:
-            res.append(dict(id = row[0], name = row[1], authName = row[2], creationDate = str(row[3]), 
+            res.append(dict(id = row[0], name = row[1], authorName = row[2], creationDate = str(row[3]), 
                             studiesCount = row[4], patientsCount = row[5]))
         return res
         
