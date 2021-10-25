@@ -16,6 +16,7 @@ import jwt
 from jwt import PyJWKClient
 import urllib
 import uuid
+import tracer
 
 #LOG = logging.getLogger('kube-authorizer')
 LOG = logging.root
@@ -199,13 +200,23 @@ def get_header_media_types(header):
 
 
 @app.route('/', method='GET')
-def RESTGetInfrastructureIsudonfo():
+def RESTGetWebUI():
     LOG.debug("Received GET /")
+    return bottle.static_file('app.js', CONFIG.self.static_files_dir_path)
+
+@app.route('/<filename:re:.*\.(css|jpg|png|gif|ico|svg)>', method='GET')
+def RESTGetWebUI(filename):
+    LOG.debug("Received GET /"+filename)
+    return bottle.static_file(filename, CONFIG.self.static_files_dir_path)
+
+@app.route('/api/', method='GET')
+def RESTGetHello():
+    LOG.debug("Received GET /api/")
     bottle.response.content_type = "text/plain"
     return "Hello from Dataset Service"
 
 
-@app.route('/dataset', method='POST')
+@app.route('/api/dataset', method='POST')
 def postDataset():
     LOG.debug("Received POST /dataset")
     ok, ret = checkAuthorizationHeader()
@@ -259,6 +270,8 @@ def postDataset():
             for study in dataset["studies"]:
                 db.createStudy(study, datasetId)
 
+        tracer.traceDatasetCreation(CONFIG.tracer.auth_url, CONFIG.tracer.client_id, CONFIG.tracer.client_secret, CONFIG.tracer.url, 
+                                    dataset, userId)
         bottle.response.status = 201
 
     except Exception as e:
@@ -267,7 +280,7 @@ def postDataset():
         return setErrorResponse(400,"invalid input, object invalid")
         
 
-@app.route('/dataset/<id>', method='GET')
+@app.route('/api/dataset/<id>', method='GET')
 def getDataset(id):
     LOG.debug("Received GET /dataset/%s" % id)
     ok, ret = checkAuthorizationHeader()
@@ -300,7 +313,7 @@ def getDataset(id):
     return json.dumps(dataset)
 
     
-@app.route('/dataset/<id>', method='DELETE')
+@app.route('/api/dataset/<id>', method='DELETE')
 def deleteDataset(id):
     LOG.debug("Received DELETE /dataset/%s" % id)
     ok, ret = checkAuthorizationHeader()
@@ -317,7 +330,7 @@ def deleteDataset(id):
     bottle.response.status = 200
 
 
-@app.route('/datasets', method='GET')
+@app.route('/api/datasets', method='GET')
 def getDatasets():
     LOG.debug("Received GET /datasets")
     ok, ret = checkAuthorizationHeader()

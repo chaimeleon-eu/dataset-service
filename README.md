@@ -16,7 +16,7 @@ Below is a walkthrough by examples with CURL.
 
 ## Usage
 
-**Previous authentication to obtain a bearer token**
+### Previous authentication to obtain a bearer token
 
 It is recommended to use an OpenID-Connect library for the programming language of your client application, it will ease your work providing things like the automatic refresh of the token. You can use a generic library or a particular library for the implementation used in your project. For example, if Keycloak is used, you can use the "client adapter": https://www.keycloak.org/docs/latest/securing_apps/#supported-platforms
 
@@ -37,7 +37,7 @@ Every invocation to the dataset-service must include a header like this:
 
 The <token> is the JWT (JSON Web Token) provided by the authorization service that will be verified (sign, expiration time, etc.) by the dataset-service. Also the user data will be extracted from the token in order to set the author of the dataset (in case of creation) and the author of the operation to send to the tracer service.
 
-**Creation of a dataset**
+### Creation of a dataset
 
 POST /dataset
 
@@ -47,7 +47,7 @@ Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/d
 
 Example:
 ```
-$ curl -i -X POST -H "Authorization: bearer eyJhbG...N9rw" -H "Content-Type: application/json" -d "{\"name\": \"TestDataset3\",\"description\": \"This is a dataset for testing.\", \"studies\": [{     \"studyId\": \"5e57a4356af19d299c17026d\",     \"studyName\": \"GMIBG2DECUERPOENTERO\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/GMIBG2DECUERPOENTERO20160225\",     \"url\": \"\"   },   {     \"studyId\": \"5e5629835938d32160636353\",     \"studyName\": \"RM431RMRENAL\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/RM431RMRENAL20130820\",     \"url\": \"\"   },   {     \"studyId\": \"5e6a422939b892367c8a5c23\",     \"studyName\": \"TCPEDITRICOABDOMINOPLVICOCONCONTRASTE\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/TCPEDITRICOABDOMINOPLVICOCONCONTRASTE20150129\",     \"url\": \"\"   },   {     \"studyId\": \"5e6b449a3144dc2bc0841efc\",     \"studyName\": \"RM411RMABDOMEN\",     \"subjectName\": \"21N56F7T\",     \"path\": \"blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20100804\",     \"url\": \"\"   },   {     \"studyId\": \"5e6a3d41c9065c475c32b3fe\",     \"studyName\": \"RM411RMABDOMEN\",     \"subjectName\": \"21N56F7T\",     \"path\": \"blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20150109\",     \"url\": \"\"   },   {     \"studyId\": \"5eeba960903aec091076c180\",     \"studyName\": \"RM815RMDORSAL\",     \"subjectName\": \"1GB90F75\",     \"path\": \"blancagomez/1GB90F75_Neuroblastoma/RM815RMDORSAL20121123\",     \"url\": \"\"   }]}" "http://localhost:11000/dataset"
+$ curl -i -X POST -H "Authorization: bearer eyJhbG...N9rw" -H "Content-Type: application/json" -d "{\"name\": \"TestDataset3\",\"description\": \"This is a dataset for testing.\", \"studies\": [{     \"studyId\": \"5e57a4356af19d299c17026d\",     \"studyName\": \"GMIBG2DECUERPOENTERO\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/GMIBG2DECUERPOENTERO20160225\",     \"url\": \"\"   },   {     \"studyId\": \"5e5629835938d32160636353\",     \"studyName\": \"RM431RMRENAL\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/RM431RMRENAL20130820\",     \"url\": \"\"   },   {     \"studyId\": \"5e6a422939b892367c8a5c23\",     \"studyName\": \"TCPEDITRICOABDOMINOPLVICOCONCONTRASTE\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/TCPEDITRICOABDOMINOPLVICOCONCONTRASTE20150129\",     \"url\": \"\"   },   {     \"studyId\": \"5e6b449a3144dc2bc0841efc\",     \"studyName\": \"RM411RMABDOMEN\",     \"subjectName\": \"21N56F7T\",     \"path\": \"blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20100804\",     \"url\": \"\"   },   {     \"studyId\": \"5e6a3d41c9065c475c32b3fe\",     \"studyName\": \"RM411RMABDOMEN\",     \"subjectName\": \"21N56F7T\",     \"path\": \"blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20150109\",     \"url\": \"\"   },   {     \"studyId\": \"5eeba960903aec091076c180\",     \"studyName\": \"RM815RMDORSAL\",     \"subjectName\": \"1GB90F75\",     \"path\": \"blancagomez/1GB90F75_Neuroblastoma/RM815RMDORSAL20121123\",     \"url\": \"\"   }]}" "http://localhost:11000/api/dataset"
 HTTP/1.1 100 Continue
 
 HTTP/1.1 201 Created
@@ -55,7 +55,7 @@ Content-Length: 0
 Content-Type: text/html; charset=UTF-8
 ```
 
-**List of all datasets**
+### List of all datasets
 
 GET /datasets
 
@@ -65,7 +65,7 @@ Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/d
 
 Example:
 ```
-$ curl -i -X GET -H "Authorization: bearer eyJh...9rw" "http://localhost:11000/datasets?limit=30&skip=0"
+$ curl -i -X GET -H "Authorization: bearer eyJh...9rw" "http://localhost:11000/api/datasets?limit=30&skip=0"
 HTTP/1.1 200 OK
 Content-Type: application/json
 Content-Length: 728
@@ -75,7 +75,7 @@ Content-Length: 728
  {"id": "efa2cba6-4a17-4612-8074-7e9eb9c9d7ca", "name": "TestDataset1", "authorName": "test test", "creationDate": "2021-10-04 14:42:37.725548", "studiesCount": 1, "patientsCount": 1}]
 ```
 
-**Search of datasets by name**
+### Search of datasets by name
 
 This is the same operation as the previous example but with the parameter `searchString` (case-insensitive). 
 
@@ -83,7 +83,7 @@ Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/d
 
 Example:
 ```
-$ curl -i -X GET -H "Authorization: bearer eyJh...9rw" "http://localhost:11000/datasets?searchString=dataset3"
+$ curl -i -X GET -H "Authorization: bearer eyJh...9rw" "http://localhost:11000/api/datasets?searchString=dataset3"
 HTTP/1.1 200 OK
 Content-Type: application/json
 Content-Length: 182
@@ -91,7 +91,7 @@ Content-Length: 182
 [{"id": "f99017af-9015-4222-b064-77f3c1b49d8b", "name": "TestDataset3", "authorName": "test test", "creationDate": "2021-10-05 12:29:11.932542", "studiesCount": 6, "patientsCount": 3}]
 ```
 
-**Get details of a dataset by its id**
+### Get details of a dataset by its id
 
 GET /dataset/{id}
 
@@ -101,7 +101,7 @@ Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/d
 
 Example:
 ```
-$ curl -i -X GET -H "Authorization: bearer eyJh...9rw" "http://localhost:11000/dataset/f99017af-9015-4222-b064-77f3c1b49d8b?studiesLimit=30"
+$ curl -i -X GET -H "Authorization: bearer eyJh...9rw" "http://localhost:11000/api/dataset/f99017af-9015-4222-b064-77f3c1b49d8b?studiesLimit=30"
 HTTP/1.1 200 OK
 Content-Type: application/json
 Content-Length: 1506
@@ -117,7 +117,7 @@ Content-Length: 1506
 ]}
 ```
 
-**Invalidate a dataset by its id**
+### Invalidate a dataset by its id
 
 DELETE /dataset/{id}
 
@@ -127,7 +127,7 @@ Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/d
 
 Example:
 ```
-$ curl -i -X DELETE -H "Authorization: bearer eyJh...9rw" "http://localhost:11000/dataset/00e821c4-e92b-48f7-a034-ba2df547e2bf"
+$ curl -i -X DELETE -H "Authorization: bearer eyJh...9rw" "http://localhost:11000/api/dataset/00e821c4-e92b-48f7-a034-ba2df547e2bf"
 HTTP/1.1 200 OK
 Content-Length: 0
 Content-Type: text/html; charset=UTF-8
