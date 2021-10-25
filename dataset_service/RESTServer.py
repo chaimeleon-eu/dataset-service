@@ -270,10 +270,14 @@ def postDataset():
             for study in dataset["studies"]:
                 db.createStudy(study, datasetId)
 
-        tracer.traceDatasetCreation(CONFIG.tracer.auth_url, CONFIG.tracer.client_id, CONFIG.tracer.client_secret, CONFIG.tracer.url, 
-                                    dataset, userId)
+            # tracer.traceDatasetCreation(CONFIG.tracer.auth_url, CONFIG.tracer.client_id, CONFIG.tracer.client_secret, CONFIG.tracer.url, 
+            #                             dataset, userId)
+            # # Note if tracer call fails the database changes will be reverted (transaction rollback).
+
         bottle.response.status = 201
 
+    except tracer.TraceException as e:
+        return setErrorResponse(500, str(e))
     except Exception as e:
         LOG.exception(e)
         LOG.error("Wrong body of the request: %s" % read_data)

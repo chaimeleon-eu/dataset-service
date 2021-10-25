@@ -22,6 +22,15 @@ auth:   # These are the parameters for the validation of auth tokens received.
     view_all_datasets: "view_all_datasets"
     admin_datasets: "admin_datasets"
 
+tracer:
+  # the url of authentication service for accessing to tracer service
+  auth_url: "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token"
+  # the client id of the service that we want to access (it will be in the audience claim of the token)
+  client_id: "tracer-service"
+  # the client secret to authenticate as a "service account" (usually it is in the dataset-service client)
+  client_secret: "XXXXXXXXXXXXXXXXXXXXXXX"
+  url: "https://chaimeleon-eu.i3m.upv.es/tracer-service/"
+
 self: 
   name: "dataset-service"
   host: "0.0.0.0"
