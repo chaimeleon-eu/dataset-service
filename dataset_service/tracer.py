@@ -51,14 +51,19 @@ def traceDatasetCreation(authUrl, clientId, clientSecret, tracerUrl, dataset, us
                  resourceType = 'PATIENT_INFO',
                  data = '')
         ])
+
     if dataset["previousId"] != None:
         body['userAction'] = 'CREATE_VERSION_DATASET'
         body['previousId'] = dataset["previousId"]
 
-    studiesListStr = ''
-    for study in dataset["studies"]:
-        studiesListStr += study["studyId"] + ","
-    body['resources']['datasetList']['data'] = base64.b64encode(bytes(studiesListStr, 'utf-8'))
+    # studiesListStr = ''
+    # for study in dataset["studies"]:
+    #     studiesListStr += study["studyId"] + ","
+    # body['resources']['datasetList']['data'] = base64.b64encode(bytes(studiesListStr, 'utf-8'))
+
+    body['resources'][0]['data'] = base64.b64encode(bytes(json.dumps(dataset["studies"]), 'utf-8'))
+    body['resources'][1]['data'] = base64.b64encode(bytes(json.dumps(dataset["patients"]), 'utf-8'))
+
     payload = json.dumps(body)
     connection.request("POST", tracer.path, payload, headers)
     res = connection.getresponse()

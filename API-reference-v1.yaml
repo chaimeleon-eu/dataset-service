@@ -38,16 +38,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DatasetDetails'
+              $ref: '#/components/schemas/DatasetCreationObject'
       responses:
         '201':
           description: item created
         '400':
           description: 'invalid input, object invalid'
         '401':
-          description: unauthorized user or access token is missing or invalid
-        '409':
-          description: an existing item already exists
+          $ref: '#/components/responses/Unauthorized'
   
   /dataset/{id}:
     get:
@@ -87,10 +85,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DatasetDetails'
-        '400':
-          description: "bad input parameter"
         '401':
-          description: "unauthorized user or access token is missing or invalid"
+          $ref: '#/components/responses/Unauthorized'
         '404':
           description: "not found"
     delete:
@@ -109,10 +105,8 @@ paths:
       responses:
         '200':
           description: successful operation
-        '400':
-          description: bad input parameter
         '401':
-          description: unauthorized user or access token is missing or invalid
+          $ref: '#/components/responses/Unauthorized'
         
   /datasets:
     get:
@@ -126,7 +120,7 @@ paths:
         If not searchString or empty, then all datasets are listed.
       parameters:
         - name: searchString
-          description: "(optional, default is empty) pass an optional search string (case insensitive) for looking up inventory"
+          description: "(optional, default is empty) pass an optional search string (case-insensitive) for looking up inventory"
           in: query
           required: false
           schema:
@@ -156,18 +150,16 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/DatasetListItem'
-        '400':
-          description: bad input parameter
         '401':
-          description: unauthorized user or access token is missing or invalid
-
+          $ref: '#/components/responses/Unauthorized'
+          
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-  
+
   schemas:
     DatasetListItem:
       type: object
@@ -194,17 +186,43 @@ components:
         patientsCount:
           type: integer
           description: the number of different patients which are related with the studies contained in the dataset
+          
+    DatasetCreationObject:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 128
+          description: short descriptive name
+          example: Lung cancer v3
+        previousId:
+          type: string
+          format: uuid
+          description: (optional) specified when is a new version of a previous dataset
+          example: "d290f1ee-6c54-4b01-90e6-d701748f0851"
+        description:
+          type: string
+          description: Long explanation of dataset details, statistics, links, references, improvements/modifications if it's a new version, etc.
+        studies:
+          type: array
+          items:
+            $ref: '#/components/schemas/Study'
+        patients:
+          type: array
+          description: 'subjects of studies and their clinical data'
+          items:
+            $ref: '#/components/schemas/Patient'
+        public:
+          type: boolean
+          description: "(optional, default false) if false then the dataset will be only visible to users with the role view_all_datasets (consortium researchers), if true then the dataset will be also visible to users with the role view_public_datasets (all users, including external researchers)"
+    
     DatasetDetails:
       type: object
-      required:
-        - name
-        - description
-        - studies
       properties:
         id:
           type: string
           format: uuid
-          description: (not required and ignored in creation of dataset)
           example: "d290f1ee-6c54-4b01-90e6-d701748f0851"
         name:
           type: string
@@ -219,25 +237,24 @@ components:
           example: "d290f1ee-6c54-4b01-90e6-d701748f0851"
         authorId:
           type: string
-          description: (not required and ignored in creation of dataset, it is extracted from the authToken) the unique id of the user wich created the dataset, it is not for showing but it can be useful to a possible new feature to show all datasets from an author
+          description: the unique id of the user wich created the dataset, it is not for showing but it can be useful to a possible new feature to show all datasets from an author
           example: "d290f1ee-6c54-4b01-90e6-d701748f0851"
         authorName:
           type: string
           minLength: 3
           maxLength: 128
-          description: (not required and ignored in creation of dataset, it is extracted from the authToken) the name of the user wich created the dataset
+          description: the name of the user wich created the dataset
           example: James Gordon
         authorEmail:
           type: string
           minLength: 3
           maxLength: 128
           format: email
-          description: (not required and ignored in creation of dataset, it is extracted from the authToken) the email of the user wich created the dataset
+          description: the email of the user wich created the dataset
           example: james@email.com
         creationDate:
           type: string
           format: date-time
-          description: (not required and ignored in creation of dataset)
           example: '2016-08-29T09:12:33.001Z'
         description:
           type: string
@@ -248,16 +265,17 @@ components:
             $ref: '#/components/schemas/Study'
         gid:
           type: integer
-          description: (not required and ignored in creation of dataset) group id with the permissions to see the directories of studies selected for this dataset
+          description: group id with the permissions to see the directories of studies selected for this dataset
         public:
           type: boolean
-          description: (optional, default false) if false then the dataset will be only visible to users with the role view_all_datasets (consortium researchers), if true then the dataset will be also visible to users with the role view_public_datasets (all users, including external researchers) 
+          description: "(optional, default false) if false then the dataset will be only visible to users with the role view_all_datasets (consortium researchers), if true then the dataset will be also visible to users with the role view_public_datasets (all users, including external researchers)"
         studiesCount:
           type: integer
           description: the number of studies contained in the dataset
         patientsCount:
           type: integer
           description: the number of different patients which are related with the studies contained in the dataset
+        
     Study:
       type: object
       properties:
@@ -271,7 +289,7 @@ components:
         subjectName:
           type: string
           maxLength: 128
-          description: "the subject name, which is anonymized"
+          description: "The subject name, which is anonymized and unique: there should be an entry in the patients array with that code."
           example: "17B76FEW"
         path:
           type: string
@@ -284,3 +302,33 @@ components:
           format: url
           description: "link to the study in the case explorer web portal" 
           example: 'https://www.quibim.com/studies?id=5e5629835938d12160636353'
+          
+    Patient:
+      type: object
+      properties:
+        subjectName:
+          type: string
+          maxLength: 128
+          description: "The subject name, which is anonymized and unique"
+        path:
+          type: string
+          maxLength: 256
+          description: "Path to the folder of the patient in the datalake (the structure usually should be: <userName>/<subjectName>_<trial>/)"
+          example: "blancagomez/01_Neuroblastoma_4_Neuroblastoma/"
+        eForm:
+          type: string
+          description: 'JSON formatted string with the clinical data of the subject'
+      
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: descriptive message
+        status_code:
+          type: string
+          description: HTTP status code
+          
+  responses:
+    Unauthorized:
+      description: "unauthorized user or access token is missing or invalid"
