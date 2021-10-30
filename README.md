@@ -16,6 +16,11 @@ Below is a walkthrough by examples with CURL.
 
 ## Usage
 
+```
+REM set DSS_ENDPOINT=http://localhost:11000/api
+set DSS_ENDPOINT=https://chaimeleon-eu.i3m.upv.es/dataset-service/api
+```
+
 ### Previous authentication to obtain a bearer token
 
 It is recommended to use an OpenID-Connect library for the programming language of your client application, it will ease your work providing things like the automatic refresh of the token. You can use a generic library or a particular library for the implementation used in your project. For example, if Keycloak is used, you can use the "client adapter": https://www.keycloak.org/docs/latest/securing_apps/#supported-platforms
@@ -30,6 +35,7 @@ When the user comes back to our client application, the bearer token will be inc
 For development/testing purposes you can use curl to obtain a token:
 ```
 curl -i -d "client_id=dataset-service" -d "username=user" -d "password=pass" -d "grant_type=password" "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token"
+set DSS_TOKEN=eyJ...79w1rA
 ```
 
 Every invocation to the dataset-service must include a header like this:
@@ -47,7 +53,7 @@ Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/d
 
 Example:
 ```
-$ curl -i -X POST -H "Authorization: bearer eyJhbG...N9rw" -H "Content-Type: application/json" -d "{\"name\": \"TestDataset3\",\"description\": \"This is a dataset for testing.\", \"studies\": [{     \"studyId\": \"5e57a4356af19d299c17026d\",     \"studyName\": \"GMIBG2DECUERPOENTERO\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/GMIBG2DECUERPOENTERO20160225\",     \"url\": \"\"   },   {     \"studyId\": \"5e5629835938d32160636353\",     \"studyName\": \"RM431RMRENAL\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/RM431RMRENAL20130820\",     \"url\": \"\"   },   {     \"studyId\": \"5e6a422939b892367c8a5c23\",     \"studyName\": \"TCPEDITRICOABDOMINOPLVICOCONCONTRASTE\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/TCPEDITRICOABDOMINOPLVICOCONCONTRASTE20150129\",     \"url\": \"\"   },   {     \"studyId\": \"5e6b449a3144dc2bc0841efc\",     \"studyName\": \"RM411RMABDOMEN\",     \"subjectName\": \"21N56F7T\",     \"path\": \"blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20100804\",     \"url\": \"\"   },   {     \"studyId\": \"5e6a3d41c9065c475c32b3fe\",     \"studyName\": \"RM411RMABDOMEN\",     \"subjectName\": \"21N56F7T\",     \"path\": \"blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20150109\",     \"url\": \"\"   },   {     \"studyId\": \"5eeba960903aec091076c180\",     \"studyName\": \"RM815RMDORSAL\",     \"subjectName\": \"1GB90F75\",     \"path\": \"blancagomez/1GB90F75_Neuroblastoma/RM815RMDORSAL20121123\",     \"url\": \"\"   }], \"patients\": [{\"subjectName\": \"17B76FEW\", \"path\": \"blancagomez/17B76FEW_Neuroblastoma\", \"eForm\": \"{}\"}, {\"subjectName\": \"21N56F7T\", \"path\": \"blancagomez/21N56F7T_Neuroblastoma\", \"eForm\": \"{}\"}, {\"subjectName\": \"1GB90F75\", \"path\": \"blancagomez/1GB90F75_Neuroblastoma\", \"eForm\": \"{}\"}]}" "http://localhost:11000/api/dataset"
+$ curl -i -X POST -H "Authorization: bearer %DSS_TOKEN%" -H "Content-Type: application/json" -d "{\"name\": \"TestDataset3\",\"description\": \"This is a dataset for testing.\", \"studies\": [{     \"studyId\": \"5e57a4356af19d299c17026d\",     \"studyName\": \"GMIBG2DECUERPOENTERO\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/GMIBG2DECUERPOENTERO20160225\",     \"url\": \"\"   },   {     \"studyId\": \"5e5629835938d32160636353\",     \"studyName\": \"RM431RMRENAL\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/RM431RMRENAL20130820\",     \"url\": \"\"   },   {     \"studyId\": \"5e6a422939b892367c8a5c23\",     \"studyName\": \"TCPEDITRICOABDOMINOPLVICOCONCONTRASTE\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/TCPEDITRICOABDOMINOPLVICOCONCONTRASTE20150129\",     \"url\": \"\"   },   {     \"studyId\": \"5e6b449a3144dc2bc0841efc\",     \"studyName\": \"RM411RMABDOMEN\",     \"subjectName\": \"21N56F7T\",     \"path\": \"blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20100804\",     \"url\": \"\"   },   {     \"studyId\": \"5e6a3d41c9065c475c32b3fe\",     \"studyName\": \"RM411RMABDOMEN\",     \"subjectName\": \"21N56F7T\",     \"path\": \"blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20150109\",     \"url\": \"\"   },   {     \"studyId\": \"5eeba960903aec091076c180\",     \"studyName\": \"RM815RMDORSAL\",     \"subjectName\": \"1GB90F75\",     \"path\": \"blancagomez/1GB90F75_Neuroblastoma/RM815RMDORSAL20121123\",     \"url\": \"\"   }], \"patients\": [{\"subjectName\": \"17B76FEW\", \"path\": \"blancagomez/17B76FEW_Neuroblastoma\", \"eForm\": \"{}\"}, {\"subjectName\": \"21N56F7T\", \"path\": \"blancagomez/21N56F7T_Neuroblastoma\", \"eForm\": \"{}\"}, {\"subjectName\": \"1GB90F75\", \"path\": \"blancagomez/1GB90F75_Neuroblastoma\", \"eForm\": \"{}\"}]}" "%DSS_ENDPOINT%/dataset"
 HTTP/1.1 100 Continue
 
 HTTP/1.1 201 Created
@@ -65,7 +71,7 @@ Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/d
 
 Example:
 ```
-$ curl -i -X GET -H "Authorization: bearer eyJh...9rw" "http://localhost:11000/api/datasets?limit=30&skip=0"
+$ curl -i -X GET -H "Authorization: bearer %DSS_TOKEN%" "%DSS_ENDPOINT%/datasets?limit=30&skip=0"
 HTTP/1.1 200 OK
 Content-Type: application/json
 Content-Length: 728
@@ -83,7 +89,7 @@ Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/d
 
 Example:
 ```
-$ curl -i -X GET -H "Authorization: bearer eyJh...9rw" "http://localhost:11000/api/datasets?searchString=dataset3"
+$ curl -i -X GET -H "Authorization: bearer %DSS_TOKEN%" "%DSS_ENDPOINT%/datasets?searchString=dataset3"
 HTTP/1.1 200 OK
 Content-Type: application/json
 Content-Length: 182
@@ -101,7 +107,7 @@ Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/d
 
 Example:
 ```
-$ curl -i -X GET -H "Authorization: bearer eyJh...9rw" "http://localhost:11000/api/dataset/f99017af-9015-4222-b064-77f3c1b49d8b?studiesLimit=30"
+$ curl -i -X GET -H "Authorization: bearer %DSS_TOKEN%" "%DSS_ENDPOINT%/dataset/f99017af-9015-4222-b064-77f3c1b49d8b?studiesLimit=30"
 HTTP/1.1 200 OK
 Content-Type: application/json
 Content-Length: 1506
@@ -127,7 +133,7 @@ Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/d
 
 Example:
 ```
-$ curl -i -X DELETE -H "Authorization: bearer eyJh...9rw" "http://localhost:11000/api/dataset/00e821c4-e92b-48f7-a034-ba2df547e2bf"
+$ curl -i -X DELETE -H "Authorization: bearer %DSS_TOKEN%" "%DSS_ENDPOINT%/dataset/00e821c4-e92b-48f7-a034-ba2df547e2bf"
 HTTP/1.1 200 OK
 Content-Length: 0
 Content-Type: text/html; charset=UTF-8

@@ -42,3 +42,6 @@ self:
   # Absolute directory path where the web UI static files are.
   # They will be served when a request of root path ("/") is received.
   static_files_dir_path: "/var/www/static"
+  datalake_mount_path: "/mnt/datalake"
+  datasets_mount_path: "/mnt/datasets"
+  eforms_file_name: "eForms.json"

@@ -1,14 +1,15 @@
 FROM ubuntu:20.04
 LABEL name="dataset-service-backend"
 LABEL description="dataset-service-backend"
-LABEL version="0.6"
+LABEL version="0.9"
 LABEL maintainer="palollo@i3m.upv.es"
 
 RUN apt-get update && \
-    apt-get install --no-install-recommends -y python3 python3-pip && \
+    apt-get install --no-install-recommends -y python3 python3-pip acl && \
     apt autoclean -y && \
     apt autoremove -y && \
     rm -rf /var/lib/apt/lists/*
+# acl package provides the commands getfacl and setfacl to manage ACL on datalake files
 
 ARG MAIN_DIR="/dataset-service"
 

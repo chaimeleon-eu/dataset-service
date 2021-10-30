@@ -16,7 +16,8 @@ import jwt
 from jwt import PyJWKClient
 import urllib
 import uuid
-import tracer
+import dataset_service.tracer as tracer
+from dataset_service.dataset import *
 
 #LOG = logging.getLogger('kube-authorizer')
 LOG = logging.root
@@ -110,6 +111,24 @@ def run(host, port, config):
     except Exception as e:
         LOG.exception(e)
         raise e
+
+    if CONFIG.self.datasets_mount_path == '':
+        LOG.warn("datasets_mount_path is empty: datasets will not be created on disk, they will be only stored in database.")
+    else:
+        LOG.info("Checking mount paths...")
+        if os.path.isdir(CONFIG.self.datalake_mount_path):
+            LOG.info("OK - datalake_mount_path: " + CONFIG.self.datalake_mount_path)
+        else: 
+            e = Exception("datalake_mount_path is not an existing directory: " + CONFIG.self.datalake_mount_path)
+            LOG.exception(e)
+            raise e
+        if os.path.isdir(CONFIG.self.datasets_mount_path):
+            LOG.info("OK - datasets_mount_path: " + CONFIG.self.datasets_mount_path)
+        else: 
+            e = Exception("datasets_mount_path is not an existing directory: " + CONFIG.self.datasets_mount_path)
+            LOG.exception(e)
+            raise e
+
 
 #   LOG.info("Loading Kubernetes configuration...")
 #   KUBERNETES_CONFIG = client.Configuration()
@@ -265,23 +284,37 @@ def postDataset():
             dataset["studiesCount"] = studiesCount
             dataset["patientsCount"] = len(differentPatients)
 
+            LOG.debug('Creating dataset in DB...')
             db.createDataset(dataset, userId)
 
+            LOG.debug('Creating studies in DB...')
             for study in dataset["studies"]:
-                db.createStudy(study, datasetId)
+                db.createOrUpdateStudy(study, datasetId)
 
+            if CONFIG.self.datasets_mount_path != '':
+                LOG.debug('Creating symbolic links...')
+                datasetDirName = datasetId
+                create_dataset(CONFIG.self.datasets_mount_path, datasetDirName, CONFIG.self.datalake_mount_path, dataset["studies"], 'rx', '1500', 0, 0)
+                
+                LOG.debug('Writing ' + CONFIG.self.eforms_file_name)
+                with open(os.path.join(CONFIG.self.datasets_mount_path, datasetDirName, CONFIG.self.eforms_file_name) , 'w') as outputStream:
+                    json.dump(dataset["patients"], outputStream)
+                
+            # # Note this tracer call is inside of "with db" because if tracer fails the database changes will be reverted (transaction rollback).
             # tracer.traceDatasetCreation(CONFIG.tracer.auth_url, CONFIG.tracer.client_id, CONFIG.tracer.client_secret, CONFIG.tracer.url, 
             #                             dataset, userId)
-            # # Note if tracer call fails the database changes will be reverted (transaction rollback).
-
+            
+        LOG.debug('Dataset successfully created.')
         bottle.response.status = 201
 
     except tracer.TraceException as e:
         return setErrorResponse(500, str(e))
+    except DatasetException as e:
+        return setErrorResponse(500, str(e))
     except Exception as e:
         LOG.exception(e)
-        LOG.error("Wrong body of the request: %s" % read_data)
-        return setErrorResponse(400,"invalid input, object invalid")
+        LOG.error("May be the body of the request is wrong: %s" % read_data)
+        return setErrorResponse(500,"Unexpected error, may be the input is wrong")
         
 
 @app.route('/api/dataset/<id>', method='GET')
@@ -329,7 +362,9 @@ def deleteDataset(id):
 
     datasetId = id
     with DB(CONFIG.db) as db:
-        dataset = db.invalidateDataset(datasetId)
+        db.invalidateDataset(datasetId)
+
+        #invalidate_dataset()
 
     bottle.response.status = 200
 

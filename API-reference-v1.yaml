@@ -309,15 +309,10 @@ components:
         subjectName:
           type: string
           maxLength: 128
-          description: "The subject name, which is anonymized and unique"
-        path:
-          type: string
-          maxLength: 256
-          description: "Path to the folder of the patient in the datalake (the structure usually should be: <userName>/<subjectName>_<trial>/)"
-          example: "blancagomez/01_Neuroblastoma_4_Neuroblastoma/"
+          description: "the subject name, which is anonymized and unique"
         eForm:
-          type: string
-          description: 'JSON formatted string with the clinical data of the subject'
+          type: object
+          description: "the clinical data of the subject"
       
     ErrorResponse:
       type: object

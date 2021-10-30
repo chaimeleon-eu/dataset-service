@@ -126,7 +126,7 @@ class DB:
              dataset["gid"], dataset["public"],
              dataset["studiesCount"], dataset["patientsCount"]))
 
-    def createStudy(self, study, datasetId):
+    def createOrUpdateStudy(self, study, datasetId):
         self.cursor.execute("""
             INSERT INTO study (id, name, subject_name, path, url)
             VALUES (%s,%s,%s,%s,%s)

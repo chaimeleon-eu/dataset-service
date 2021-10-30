@@ -75,7 +75,15 @@ spec:
     port: 5432
     targetPort: 5432
 
-
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dataset-service-ceph-user-secret
+type: Opaque
+stringData:
+  key: "XXXXXXXX"
+  
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -92,18 +100,44 @@ spec:
         app: dataset-service-backend
     spec:
       volumes:
-        - name: dataset-service-data-pv
+        - name: dataset-service-data-volume
           persistentVolumeClaim:
             claimName: dataset-service-data
+        - name: datalake-volume
+          cephfs:
+            path: "/data"
+            monitors: 
+              - "192.168.3.8:6789"
+            user: dataset-service
+            secretRef:
+              name: dataset-service-ceph-user-secret
+            readOnly: false
+        - name: datasets-volume
+          cephfs:
+            path: "/datasets"
+            monitors: 
+              - "192.168.3.8:6789"
+            user: dataset-service
+            secretRef:
+              name: dataset-service-ceph-user-secret
+            readOnly: false
       containers:
         - name: dataset-service-backend
-          image:  chaimeleon-eu.i3m.upv.es:10443/chaimeleon-services/dataset-service-backend:0.3
+          image:  chaimeleon-eu.i3m.upv.es:10443/chaimeleon-services/dataset-service-backend:0.9
           ports:
             - containerPort: 11000
               name: dssport
           volumeMounts:
           - mountPath: "/dataset-service/log"
-            name: dataset-service-data-pv
+            subPath: "log"
+            name: dataset-service-data-volume
+          - mountPath: "/var/www/ui"
+            subPath: "ui"
+            name: dataset-service-data-volume
+          - mountPath: "/mnt/datalake"
+            name: datalake-volume
+          - mountPath: "/mnt/datasets"
+            name: datasets-volume
           env:
           - name: DATASET_SERVICE_CONFIG
             value: |
@@ -116,7 +150,10 @@ spec:
                 },
                 "self": { 
                     "port": 11000, 
-                    "log": { "level": "DEBUG", "file": "./log/dataset-service.log" } 
+                    "log": { "level": "DEBUG", "file": "./log/dataset-service.log" },
+                    "static_files_dir_path": "/var/www/ui",
+                    "datalake_mount_path": "/mnt/datalake",
+                    "datasets_mount_path": "/mnt/datasets"
                 }
               }
       restartPolicy: Always
