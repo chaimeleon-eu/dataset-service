@@ -131,7 +131,7 @@ spec:
           - mountPath: "/dataset-service/log"
             subPath: "log"
             name: dataset-service-data-volume
-          - mountPath: "/var/www/ui"
+          - mountPath: "/var/www/dataset-service-ui"
             subPath: "ui"
             name: dataset-service-data-volume
           - mountPath: "/mnt/datalake"
@@ -145,13 +145,19 @@ spec:
                 "auth": {
                     "token_issuer_public_keys_url": "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/certs",
                     "kid": "T7yU60He9Irc8iNJ7zCBVUQEkXe9yq0XrHLu4fBi1gU",
-                    "audience": ["dataset-service", "account"],
+                    "audience": ["dataset-service"],
                     "issuer": "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON"
+                },
+                "tracer": {
+                    "url": "https://chaimeleon-eu.i3m.upv.es/tracer-service/",
+                    "auth_url": "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token",
+                    "client_id": "dataset-service",
+                    "client_secret": "XXXXXXXX"
                 },
                 "self": { 
                     "port": 11000, 
                     "log": { "level": "DEBUG", "file": "./log/dataset-service.log" },
-                    "static_files_dir_path": "/var/www/ui",
+                    "static_files_dir_path": "/var/www/dataset-service-ui",
                     "datalake_mount_path": "/mnt/datalake",
                     "datasets_mount_path": "/mnt/datasets"
                 }

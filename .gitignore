@@ -1,6 +1,7 @@
 etc/*local.yaml
 kubernetes.mine.yaml
 log/*
+var/*
 
 .vscode
 __pycache__

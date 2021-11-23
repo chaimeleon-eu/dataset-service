@@ -27,14 +27,14 @@ It is recommended to use an OpenID-Connect library for the programming language 
 
 If you use React: https://www.npmjs.com/package/@react-keycloak/web
 
-Basically the user will be redirected to the authentication service with a URL like this: https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/auth/?scope=openid+email+profile&response_type=id_token&client_id=dataset-service&redirect_uri=https://chaimeleon-eu.i3m.upv.es/dataset-service/
+Basically the user will be redirected to the authentication service with a URL like this: https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/auth/?scope=openid+email+profile&response_type=id_token&client_id=dataset-service-ui&redirect_uri=https://chaimeleon-eu.i3m.upv.es/dataset-service/
 
 The last parameter ("redirect_uri") contains the URI of our client application.
 When the user comes back to our client application, the bearer token will be included in the URL as a parameter named 'id_token'.
 
 For development/testing purposes you can use curl to obtain a token:
 ```
-curl -i -d "client_id=dataset-service" -d "username=user" -d "password=pass" -d "grant_type=password" "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token"
+curl -i -d "client_id=dataset-service-ui" -d "username=user" -d "password=pass" -d "grant_type=password" "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token"
 set DSS_TOKEN=eyJ...79w1rA
 ```
 

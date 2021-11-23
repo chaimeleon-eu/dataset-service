@@ -173,15 +173,16 @@ def setErrorResponse(code, message):
 def appendIfNotExists(array, item):
     if item not in array: array.append(item)
 
-def checkAuthorizationHeader():
+def checkAuthorizationHeader(serviceAccount=False):
     try:
         encodedToken = bottle.request.headers["authorization"][7:]
     except Exception as e:
         return False, setErrorResponse(401, "authorization header is missing or invalid")
     user_info = validate_token(encodedToken)
     if not "sub" in user_info.keys(): return False, setErrorResponse(401,"invalid access token: missing 'sub'")
-    if not "name" in user_info.keys(): return False, setErrorResponse(401,"invalid access token: missing 'name'")
-    if not "email" in user_info.keys(): return False, setErrorResponse(401,"invalid access token: missing 'email'")
+    if not serviceAccount:
+        if not "name" in user_info.keys(): return False, setErrorResponse(401,"invalid access token: missing 'name'")
+        if not "email" in user_info.keys(): return False, setErrorResponse(401,"invalid access token: missing 'email'")
     try:
         user_info["appRoles"] = user_info["resource_access"]["dataset-service"]["roles"]
     except:
@@ -221,9 +222,9 @@ def get_header_media_types(header):
 @app.route('/', method='GET')
 def RESTGetWebUI():
     LOG.debug("Received GET /")
-    return bottle.static_file('app.js', CONFIG.self.static_files_dir_path)
+    return bottle.static_file('index.html', CONFIG.self.static_files_dir_path)
 
-@app.route('/<filename:re:.*\.(css|jpg|png|gif|ico|svg)>', method='GET')
+@app.route('/<filename:re:.*\.(html|js|css|jpg|png|gif|ico|svg)>', method='GET')
 def RESTGetWebUI(filename):
     LOG.debug("Received GET /"+filename)
     return bottle.static_file(filename, CONFIG.self.static_files_dir_path)
