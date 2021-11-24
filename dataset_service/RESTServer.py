@@ -363,10 +363,11 @@ def deleteDataset(id):
 
     datasetId = id
     with DB(CONFIG.db) as db:
+        authorId = db.getDataset(datasetId)["authorId"]
+        if not CONFIG.auth.roles.superadmin_datasets in user_info["appRoles"] and not user_info["sub"] == authorId :
+            return setErrorResponse(401,"unauthorized user (only the author can invalidate the dataset)")
+
         db.invalidateDataset(datasetId)
-
-        #invalidate_dataset()
-
     bottle.response.status = 200
 
 
