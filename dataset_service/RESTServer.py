@@ -224,7 +224,7 @@ def RESTGetWebUI():
     LOG.debug("Received GET /")
     return bottle.static_file('index.html', CONFIG.self.static_files_dir_path)
 
-@app.route('/<filename:re:.*\.(html|js|css|jpg|png|gif|ico|svg)>', method='GET')
+@app.route('/<filename:re:.*\.(html|js|json|txt|map|css|jpg|png|gif|ico|svg)>', method='GET')
 def RESTGetWebUI(filename):
     LOG.debug("Received GET /"+filename)
     return bottle.static_file(filename, CONFIG.self.static_files_dir_path)
@@ -235,6 +235,19 @@ def RESTGetHello():
     bottle.response.content_type = "text/plain"
     return "Hello from Dataset Service"
 
+@app.route('/api/set-ui', method='POST')
+def postDataset():
+    LOG.debug("Received POST /api/set-ui")
+    if CONFIG.self.dev_token == "":
+        return setErrorResponse(404, "Not found: '%s'" % bottle.request.path)
+    if bottle.request.headers["devToken"] != CONFIG.self.dev_token:
+        return setErrorResponse(401,"unauthorized user")
+    sourceUrl = bottle.request.body.read().decode('UTF-8')
+    LOG.debug("BODY: " + sourceUrl )
+    from dataset_service.utils import execute_cmd
+    output, status = execute_cmd("wget -O \"" + CONFIG.self.static_files_dir_path + "/build.zip\" '" + sourceUrl + "'")
+    output, status = execute_cmd("unzip -uo \"" + CONFIG.self.static_files_dir_path + "/build.zip\" -d \"" + CONFIG.self.static_files_dir_path + "/\"")
+    return output
 
 @app.route('/api/dataset', method='POST')
 def postDataset():

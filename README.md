@@ -139,7 +139,16 @@ Content-Length: 0
 Content-Type: text/html; charset=UTF-8
 ```
 
+### [Only for developers] Set or update the web UI
 
+POST /set-ui
+
+To set the web UI static files from any URL with a ZIP package.
+
+Example:
+```
+$ curl -i -H "devToken: SECRET-TOKEN" -d "http://158.42.154.23:19000/build.zip" "https://chaimeleon-eu.i3m.upv.es/dataset-service/api/set-ui"
+```
 
 ## Build the image
 ```
