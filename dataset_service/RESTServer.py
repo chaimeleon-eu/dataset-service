@@ -194,6 +194,10 @@ def checkAuthorizationHeader(serviceAccount=False):
     if CONFIG.auth.roles.admin_datasets in user_info["appRoles"]:
         appendIfNotExists(user_info["appRoles"], CONFIG.auth.roles.view_public_datasets)
         appendIfNotExists(user_info["appRoles"], CONFIG.auth.roles.view_all_datasets)
+    if CONFIG.auth.roles.superadmin_datasets in user_info["appRoles"]:
+        appendIfNotExists(user_info["appRoles"], CONFIG.auth.roles.view_public_datasets)
+        appendIfNotExists(user_info["appRoles"], CONFIG.auth.roles.view_all_datasets)
+        appendIfNotExists(user_info["appRoles"], CONFIG.auth.roles.admin_datasets)
 
     return True, user_info
 

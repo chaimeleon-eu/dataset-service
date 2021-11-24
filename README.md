@@ -1,9 +1,12 @@
 # dataset-service
 
 It is a backend service providing a REST API to manage datasets.
-The API is described in detail using OpenAPI v3 specification standad format in the file `API-reference-v1.yaml` (also in swagger: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0).
+The API is described in detail using OpenAPI v3 specification standad format in the file `API-reference-v1.yaml` 
+(also in swagger: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0).
 
-Authentication is required to access to the service using the OpenId-Connect standard protocol. Basically the client application must initially redirect the user to the authentication service, to obtain a bearer token. Then, that token must be included in the "Authorization" header of any request done to the dataset-service.
+Authentication is required to access to the service using the OpenId-Connect standard protocol. 
+Basically the client application must initially redirect the user to the authentication service, to obtain a bearer token. 
+Then, that token must be included in the "Authorization" header of any request done to the dataset-service.
 
 Basic operations:
  - POST /dataset
@@ -23,11 +26,15 @@ set DSS_ENDPOINT=https://chaimeleon-eu.i3m.upv.es/dataset-service/api
 
 ### Previous authentication to obtain a bearer token
 
-It is recommended to use an OpenID-Connect library for the programming language of your client application, it will ease your work providing things like the automatic refresh of the token. You can use a generic library or a particular library for the implementation used in your project. For example, if Keycloak is used, you can use the "client adapter": https://www.keycloak.org/docs/latest/securing_apps/#supported-platforms
+It is recommended to use an OpenID-Connect library for the programming language of your client application, 
+it will ease your work providing things like the automatic refresh of the token. 
+You can use a generic library or a particular library for the implementation used in your project. 
+For example, if Keycloak is used, you can use the "client adapter": https://www.keycloak.org/docs/latest/securing_apps/#supported-platforms
 
 If you use React: https://www.npmjs.com/package/@react-keycloak/web
 
-Basically the user will be redirected to the authentication service with a URL like this: https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/auth/?scope=openid+email+profile&response_type=id_token&client_id=dataset-service-ui&redirect_uri=https://chaimeleon-eu.i3m.upv.es/dataset-service/
+Basically the user will be redirected to the authentication service with a URL like this: 
+https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/auth/?scope=openid+email+profile&response_type=id_token&client_id=dataset-service-ui&redirect_uri=https://chaimeleon-eu.i3m.upv.es/dataset-service/
 
 The last parameter ("redirect_uri") contains the URI of our client application.
 When the user comes back to our client application, the bearer token will be included in the URL as a parameter named 'id_token'.
@@ -41,19 +48,24 @@ set DSS_TOKEN=eyJ...79w1rA
 Every invocation to the dataset-service must include a header like this:
 `Authorization: bearer <token>`
 
-The <token> is the JWT (JSON Web Token) provided by the authorization service that will be verified (sign, expiration time, etc.) by the dataset-service. Also the user data will be extracted from the token in order to set the author of the dataset (in case of creation) and the author of the operation to send to the tracer service.
+The <token> is the JWT (JSON Web Token) provided by the authorization service that will be verified (sign, expiration time, etc.) by the dataset-service. 
+Also the user data will be extracted from the token in order to set the author of the dataset (in case of creation) and the author of the operation to 
+send to the tracer service.
 
 ### Creation of a dataset
 
 POST /dataset
 
-With the authorization header and the dataset properties within the body in JSON format. If success, the code 201 will be returned. If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
+With the authorization header and the dataset properties within the body in JSON format. If success, the code 201 will be returned. 
+If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
 
 Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/dataset/createDataset
 
 Example:
 ```
-$ curl -i -X POST -H "Authorization: bearer %DSS_TOKEN%" -H "Content-Type: application/json" -d "{\"name\": \"TestDataset3\",\"description\": \"This is a dataset for testing.\", \"studies\": [{     \"studyId\": \"5e57a4356af19d299c17026d\",     \"studyName\": \"GMIBG2DECUERPOENTERO\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/GMIBG2DECUERPOENTERO20160225\",     \"url\": \"\"   },   {     \"studyId\": \"5e5629835938d32160636353\",     \"studyName\": \"RM431RMRENAL\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/RM431RMRENAL20130820\",     \"url\": \"\"   },   {     \"studyId\": \"5e6a422939b892367c8a5c23\",     \"studyName\": \"TCPEDITRICOABDOMINOPLVICOCONCONTRASTE\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/TCPEDITRICOABDOMINOPLVICOCONCONTRASTE20150129\",     \"url\": \"\"   },   {     \"studyId\": \"5e6b449a3144dc2bc0841efc\",     \"studyName\": \"RM411RMABDOMEN\",     \"subjectName\": \"21N56F7T\",     \"path\": \"blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20100804\",     \"url\": \"\"   },   {     \"studyId\": \"5e6a3d41c9065c475c32b3fe\",     \"studyName\": \"RM411RMABDOMEN\",     \"subjectName\": \"21N56F7T\",     \"path\": \"blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20150109\",     \"url\": \"\"   },   {     \"studyId\": \"5eeba960903aec091076c180\",     \"studyName\": \"RM815RMDORSAL\",     \"subjectName\": \"1GB90F75\",     \"path\": \"blancagomez/1GB90F75_Neuroblastoma/RM815RMDORSAL20121123\",     \"url\": \"\"   }], \"patients\": [{\"subjectName\": \"17B76FEW\", \"path\": \"blancagomez/17B76FEW_Neuroblastoma\", \"eForm\": \"{}\"}, {\"subjectName\": \"21N56F7T\", \"path\": \"blancagomez/21N56F7T_Neuroblastoma\", \"eForm\": \"{}\"}, {\"subjectName\": \"1GB90F75\", \"path\": \"blancagomez/1GB90F75_Neuroblastoma\", \"eForm\": \"{}\"}]}" "%DSS_ENDPOINT%/dataset"
+$ curl -i -X POST -H "Authorization: bearer %DSS_TOKEN%" -H "Content-Type: application/json" ^
+       -d "{\"name\": \"TestDataset3\", \"description\": \"This is a dataset for testing.\", \"studies\": [{     \"studyId\": \"5e57a4356af19d299c17026d\",     \"studyName\": \"GMIBG2DECUERPOENTERO\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/GMIBG2DECUERPOENTERO20160225\",     \"url\": \"\"   },   {     \"studyId\": \"5e5629835938d32160636353\",     \"studyName\": \"RM431RMRENAL\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/RM431RMRENAL20130820\",     \"url\": \"\"   },   {     \"studyId\": \"5e6a422939b892367c8a5c23\",     \"studyName\": \"TCPEDITRICOABDOMINOPLVICOCONCONTRASTE\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/TCPEDITRICOABDOMINOPLVICOCONCONTRASTE20150129\",     \"url\": \"\"   },   {     \"studyId\": \"5e6b449a3144dc2bc0841efc\",     \"studyName\": \"RM411RMABDOMEN\",     \"subjectName\": \"21N56F7T\",     \"path\": \"blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20100804\",     \"url\": \"\"   },   {     \"studyId\": \"5e6a3d41c9065c475c32b3fe\",     \"studyName\": \"RM411RMABDOMEN\",     \"subjectName\": \"21N56F7T\",     \"path\": \"blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20150109\",     \"url\": \"\"   },   {     \"studyId\": \"5eeba960903aec091076c180\",     \"studyName\": \"RM815RMDORSAL\",     \"subjectName\": \"1GB90F75\",     \"path\": \"blancagomez/1GB90F75_Neuroblastoma/RM815RMDORSAL20121123\",     \"url\": \"\"   }], \"patients\": [{\"subjectName\": \"17B76FEW\", \"path\": \"blancagomez/17B76FEW_Neuroblastoma\", \"eForm\": \"{}\"}, {\"subjectName\": \"21N56F7T\", \"path\": \"blancagomez/21N56F7T_Neuroblastoma\", \"eForm\": \"{}\"}, {\"subjectName\": \"1GB90F75\", \"path\": \"blancagomez/1GB90F75_Neuroblastoma\", \"eForm\": \"{}\"}]}" ^
+       "%DSS_ENDPOINT%/dataset"
 HTTP/1.1 100 Continue
 
 HTTP/1.1 201 Created
@@ -71,7 +83,7 @@ Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/d
 
 Example:
 ```
-$ curl -i -X GET -H "Authorization: bearer %DSS_TOKEN%" "%DSS_ENDPOINT%/datasets?limit=30&skip=0"
+$ curl -i -X GET -H "Authorization: bearer %DSS_TOKEN%" "%DSS_ENDPOINT%/datasets?limit=30^&skip=0"
 HTTP/1.1 200 OK
 Content-Type: application/json
 Content-Length: 728
@@ -127,7 +139,8 @@ Content-Length: 1506
 
 DELETE /dataset/{id}
 
-With the authorization header. If success the code 200 will be returned. If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
+With the authorization header. If success the code 200 will be returned. 
+If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
 
 Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/dataset/deleteDataset
 
@@ -198,7 +211,8 @@ First of all, **default configuration values** will be loaded from a file locate
  - `./etc/dataset-service.default.yaml`
  - `/etc/dataset-service/dataset-service.default.yaml`
 
-You should change at least the password values... Please **do not modify the default config file** for that, it is useful as a template to always see the full configuration keys available with descriptive comments. 
+You should change at least the password values... Please **do not modify the default config file** for that, 
+it is useful as a template to always see the full configuration keys available with descriptive comments. 
 To set your own configuration you should make a copy of the file or better just write only the keys you want to change to a new file.
 
 The **configuration file** will be loaded from path (the first that exists):
@@ -220,7 +234,8 @@ Please note it is JSON format this time, and takes precedence over all configura
 
 ## Authorization
 
-The capabilities of a user (which operations can do) are defined in the "application roles" included in the token received (i.e. in 'resource_access.dataset-service.roles'). Example:
+The capabilities of a user (which operations can do) are defined in the "application roles" included in the 
+token received (i.e. in 'resource_access.dataset-service.roles'). Example:
 ```
 {
   "exp": ...,
@@ -255,9 +270,11 @@ The capabilities of a user (which operations can do) are defined in the "applica
 ```
 
 These are the known roles:
- - view_public_datasets (0)
- - view_all_datasets (1)
- - admin_datasets (2)
+ - view_public_datasets (0): only can list and see details of public datasets
+ - view_all_datasets (1): also can list and see details of protected datasets
+ - admin_datasets (2): also can create, update and invalidate own datasets
+ - superadmin_datasets (3): also can update and invalidate any dataset (not owned datasets)
 
-The name of each one can be customized in the configuration file. The number is just a hint, not part of the name: you can see them as security levels, each level include the previous levels.
+The name of each one can be customized in the configuration file. 
+The number is just a hint, not part of the name: you can see them as security levels, each level include the previous levels.
 
