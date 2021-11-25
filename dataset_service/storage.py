@@ -34,6 +34,7 @@ class DB:
             return
 
         if version ==1: self.updateDB_v1To2()
+        if version ==2: self.updateDB_v2To3()
 
     def getSchemaVersion(self):
         self.cursor.execute("SELECT EXISTS ( SELECT FROM information_schema.tables WHERE table_name = 'metadata');")
@@ -47,23 +48,33 @@ class DB:
         #    self.cursor.execute(inputStream.read())
 
         self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS metadata (
+            CREATE TABLE metadata (
                 id integer DEFAULT 1 NOT NULL CHECK (id = 1),
                 schema_version integer NOT NULL,
                 constraint pk_metadata primary key (id)
             );
             INSERT INTO metadata (schema_version) 
-            VALUES ('2')
+            VALUES ('3')
             ON CONFLICT (id) DO UPDATE
                 SET schema_version = excluded.schema_version;
                 
-            CREATE TABLE IF NOT EXISTS author (
+            CREATE SEQUENCE gid_sequence increment 1 start 2000;
+            CREATE TABLE author (
                 id varchar(64),
+                username varchar(64) DEFAULT NULL,
+                gid integer NOT NULL DEFAULT nextval('gid_sequence'),
                 name varchar(128),
                 email varchar(128),
-                constraint pk_user primary key (id)
+                constraint pk_user primary key (id),
+                constraint un_user unique (username),
+                constraint un_gid unique (gid)
             );
-            CREATE TABLE IF NOT EXISTS study (
+            CREATE TABLE user_group (
+                user_id varchar(64),
+                group_name varchar(128),
+                constraint pk_user_group primary key (user_id, group_name)
+            );
+            CREATE TABLE study (
                 id varchar(32),
                 name varchar(128) NOT NULL,
                 subject_name varchar(128) NOT NULL,
@@ -71,7 +82,7 @@ class DB:
                 url varchar(256),
                 constraint pk_study primary key (id)
             );
-            CREATE TABLE IF NOT EXISTS dataset (
+            CREATE TABLE dataset (
                 id varchar(40),
                 name varchar(256) NOT NULL,
                 previous_id varchar(32) DEFAULT NULL,
@@ -87,7 +98,7 @@ class DB:
                 constraint fk_author foreign key (author_id) references author(id)
             );
             /* A dataset can contain multiple studies and a study can be contained in multiple datasets. */
-            CREATE TABLE IF NOT EXISTS dataset_study (
+            CREATE TABLE dataset_study (
                 dataset_id varchar(40),
                 study_id varchar(32),
                 constraint pk_dataset_study primary key (dataset_id, study_id),
@@ -103,18 +114,65 @@ class DB:
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN patients_count integer NOT NULL DEFAULT 0;")
         self.cursor.execute("ALTER TABLE dataset ALTER COLUMN studies_count DROP DEFAULT;")
         self.cursor.execute("ALTER TABLE dataset ALTER COLUMN patients_count DROP DEFAULT;")
+        ### Finally update schema_version
         self.cursor.execute("UPDATE metadata set schema_version = 2;")
 
-    def createOrUpdateAuthor(self, userId, name, email):
+    def updateDB_v2To3(self):
+        logging.root.info("Updating database from v2 to v3...")
+        self.cursor.execute("ALTER TABLE author ADD COLUMN username varchar(64) DEFAULT NULL;")
+        self.cursor.execute("ALTER TABLE author ADD constraint un_user unique (username);")
+        self.cursor.execute("CREATE SEQUENCE gid_sequence increment 1 start 2000;")
+        self.cursor.execute("ALTER TABLE author ADD COLUMN gid integer;")
+        self.cursor.execute("SELECT id FROM author;")
+        ids = []
+        for row in self.cursor:
+            ids.append(row[0])
+        for id in ids:
+            self.cursor.execute("UPDATE author SET gid=nextval('gid_sequence') WHERE id=%s;", (id,))
+        self.cursor.execute("ALTER TABLE author ALTER COLUMN gid SET NOT NULL;")
+        self.cursor.execute("ALTER TABLE author ADD constraint un_gid unique (gid);")
+        self.cursor.execute("ALTER TABLE author ALTER COLUMN gid SET DEFAULT nextval('gid_sequence');")
+        self.cursor.execute("""CREATE TABLE user_group (
+                                    user_id varchar(64),
+                                    group_name varchar(128),
+                                    constraint pk_user_group primary key (user_id, group_name)
+                                );""")
+        ### Finally update schema_version
+        self.cursor.execute("UPDATE metadata set schema_version = 3;")
+
+    def createOrUpdateAuthor(self, userId, username, name, email):
         self.cursor.execute("""
-            INSERT INTO author (id, name, email) 
-            VALUES (%s, %s, %s)
+            INSERT INTO author (id, username, name, email) 
+            VALUES (%s, %s, %s, %s)
             ON CONFLICT (id) DO UPDATE
-                SET name = excluded.name,
+                SET username = excluded.username,
+                    name = excluded.name,
                     email = excluded.email;""", 
-            (userId, name, email)
+            (userId, username, name, email)
         )
     
+    def createOrUpdateUser(self, userId, userName, groups):
+        self.cursor.execute("""
+            INSERT INTO author (id, username) 
+            VALUES (%s, %s)
+            ON CONFLICT (id) DO UPDATE
+                SET username = excluded.username;""", 
+            (userId, userName)
+        )
+        # delete and reintroduce the groups because they can have been changed
+        self.cursor.execute("DELETE FROM user_group WHERE user_id=%s;", (userId,))
+        for group in groups:
+            self.cursor.execute("""
+                INSERT INTO user_group (user_id, group_name) 
+                VALUES (%s, %s);""", 
+                (userId, group)
+            )
+
+    def getUserGID(self, userName):
+        self.cursor.execute("SELECT gid FROM author WHERE username=%s LIMIT 1;", (userName,))
+        row = self.cursor.fetchone()
+        if row is None: return None
+        return row[0]
     
     def createDataset(self, dataset, userId):
         self.cursor.execute("""
@@ -157,7 +215,7 @@ class DB:
             LIMIT 1;""",
             (id,))
         row = self.cursor.fetchone()
-        if row == None: return None
+        if row is None: return None
         return dict(id = row[0], name = row[1], previousId = row[2], 
                     authorId = row[3], authorName = row[4], authorEmail = row[5], 
                     creationDate = str(row[6]), description = row[7], gid = row[8], public = row[9],

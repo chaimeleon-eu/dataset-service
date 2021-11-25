@@ -1,11 +1,11 @@
 FROM ubuntu:20.04
 LABEL name="dataset-service-backend"
 LABEL description="dataset-service-backend"
-LABEL version="0.13"
+LABEL version="0.17"
 LABEL maintainer="palollo@i3m.upv.es"
 
 RUN apt-get update && \
-    apt-get install --no-install-recommends -y python3 python3-pip acl wget unzip && \
+    apt-get install --no-install-recommends -y python3 python3-pip acl wget unzip less && \
     apt autoclean -y && \
     apt autoremove -y && \
     rm -rf /var/lib/apt/lists/*

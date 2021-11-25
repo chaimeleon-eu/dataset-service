@@ -181,8 +181,10 @@ def checkAuthorizationHeader(serviceAccount=False):
     user_info = validate_token(encodedToken)
     if not "sub" in user_info.keys(): return False, setErrorResponse(401,"invalid access token: missing 'sub'")
     if not serviceAccount:
+        if not "preferred_username" in user_info.keys(): return False, setErrorResponse(401,"invalid access token: missing 'preferred_username'")
         if not "name" in user_info.keys(): return False, setErrorResponse(401,"invalid access token: missing 'name'")
         if not "email" in user_info.keys(): return False, setErrorResponse(401,"invalid access token: missing 'email'")
+
     try:
         user_info["appRoles"] = user_info["resource_access"]["dataset-service"]["roles"]
     except:
@@ -261,6 +263,7 @@ def postDataset():
     else: user_info = ret
 
     userId = user_info["sub"]
+    userUsername = user_info["preferred_username"]
     userName = user_info["name"]
     userEmail = user_info["email"]
     if not CONFIG.auth.roles.admin_datasets in user_info["appRoles"]:
@@ -275,8 +278,8 @@ def postDataset():
         LOG.debug("BODY: " + read_data)
         dataset = json.loads( read_data )
         with DB(CONFIG.db) as db:
-            LOG.debug("Updating author: %s, %s, %s" % (userId, userName, userEmail))
-            db.createOrUpdateAuthor(userId, userName, userEmail)
+            LOG.debug("Updating author: %s, %s, %s, %s" % (userId, userUsername, userName, userEmail))
+            db.createOrUpdateAuthor(userId, userUsername, userName, userEmail)
 
             if 'previousId' in dataset.keys():
                 if not db.existDataset(dataset["previousId"]):
@@ -355,7 +358,7 @@ def getDataset(id):
 
     with DB(CONFIG.db) as db:
         dataset = db.getDataset(datasetId)
-        if dataset == None:
+        if dataset is None:
             return setErrorResponse(404,"not found")
 
         # check if dataset is not public and the user do not have permission to view it
@@ -413,3 +416,55 @@ def getDatasets():
     bottle.response.content_type = "application/json"
     return json.dumps(datasets)
 
+@app.route('/api/user/<userName>', method='POST')
+def postUser(userName):
+    LOG.debug("Received POST %s" % bottle.request.path)
+    ok, ret = checkAuthorizationHeader(serviceAccount=True)
+    if not ok: return ret
+    else: user_info = ret
+
+    if not CONFIG.auth.roles.admin_users in user_info["appRoles"]:
+        return setErrorResponse(401,"unauthorized user")
+
+    content_types = get_header_media_types('Content-Type')
+    if not 'application/json' in content_types:
+        return setErrorResponse(400,"invalid 'Content-Type' header, required 'application/json'")
+
+    try:
+        read_data = bottle.request.body.read().decode('UTF-8')
+        LOG.debug("BODY: " + read_data)
+        user_info = json.loads(read_data)
+        userId = user_info["uid"]
+        userGroups = user_info["groups"]
+
+        with DB(CONFIG.db) as db:
+            LOG.debug("Creating or updating user: %s, %s, %s" % (userId, userName, userGroups))
+            db.createOrUpdateUser(userId, userName, userGroups)
+                        
+        LOG.debug('User successfully created or updated.')
+        bottle.response.status = 201
+
+    except DatasetException as e:
+        return setErrorResponse(500, str(e))
+    except Exception as e:
+        LOG.exception(e)
+        LOG.error("May be the body of the request is wrong: %s" % read_data)
+        return setErrorResponse(500,"Unexpected error, may be the input is wrong")
+
+@app.route('/api/user/<userName>', method='GET')
+def getUser(userName):
+    LOG.debug("Received GET %s" % bottle.request.path)
+    ok, ret = checkAuthorizationHeader(serviceAccount=True)
+    if not ok: return ret
+    else: user_info = ret
+
+    if not CONFIG.auth.roles.admin_users in user_info["appRoles"]:
+        return setErrorResponse(401,"unauthorized user")
+    
+    with DB(CONFIG.db) as db:
+        userGid = db.getUserGID(userName)
+
+    if userGid is None: return setErrorResponse(404, "not found")
+
+    bottle.response.content_type = "application/json"
+    return json.dumps(dict(gid = userGid))

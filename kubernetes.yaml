@@ -123,7 +123,7 @@ spec:
             readOnly: false
       containers:
         - name: dataset-service-backend
-          image:  chaimeleon-eu.i3m.upv.es:10443/chaimeleon-services/dataset-service-backend:0.9
+          image:  chaimeleon-eu.i3m.upv.es:10443/chaimeleon-services/dataset-service-backend:0.17
           ports:
             - containerPort: 11000
               name: dssport

@@ -59,7 +59,7 @@ POST /dataset
 With the authorization header and the dataset properties within the body in JSON format. If success, the code 201 will be returned. 
 If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
 
-Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/dataset/createDataset
+Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/datasets/createDataset
 
 Example:
 ```
@@ -77,9 +77,11 @@ Content-Type: text/html; charset=UTF-8
 
 GET /datasets
 
-With the authorization header and some parameters accepted in the URL for pagination. If success the code 200 will be returned and a JSON array in the body of the response. If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
+With the authorization header and some parameters accepted in the URL for pagination. 
+If success the code 200 will be returned and a JSON array in the body of the response. 
+If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
 
-Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/dataset/listDatasets
+Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/datasets/listDatasets
 
 Example:
 ```
@@ -97,7 +99,7 @@ Content-Length: 728
 
 This is the same operation as the previous example but with the parameter `searchString` (case-insensitive). 
 
-Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/dataset/listDatasets
+Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/datasets/listDatasets
 
 Example:
 ```
@@ -113,9 +115,11 @@ Content-Length: 182
 
 GET /dataset/{id}
 
-With the authorization header and some parameters accepted in the URL for pagination of studies in the dataset. Returns a JSON object. If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
+With the authorization header and some parameters accepted in the URL for pagination of studies in the dataset. 
+Returns a JSON object. 
+If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
 
-Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/dataset/getDataset
+Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/datasets/getDataset
 
 Example:
 ```
@@ -142,7 +146,7 @@ DELETE /dataset/{id}
 With the authorization header. If success the code 200 will be returned. 
 If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
 
-Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/dataset/deleteDataset
+Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/datasets/deleteDataset
 
 Example:
 ```
@@ -151,6 +155,52 @@ HTTP/1.1 200 OK
 Content-Length: 0
 Content-Type: text/html; charset=UTF-8
 ```
+
+### Create user
+
+POST /user/{userName}
+
+With the authorization header and the user properties within the body in JSON format. 
+If success, the code 201 will be returned. 
+If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
+
+Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/users/createUser
+
+Example authenticating previously with a service account:
+```
+$ curl -i -d "client_id=kubeauthorizer-pod" -d "client_secret=XXXX-XXXX-XXXX" -d "grant_type=client_credentials" "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token"
+$ set DSS_TOKEN=eyJ...79w1rA
+```
+```
+$ curl -i -X POST -H "Authorization: bearer %DSS_TOKEN%" -H "Content-Type: application/json" ^
+       -d "{\"uid\": \"d290f1ee-6c54-4b01-90e6-d701748f0851\", \"groups\": [\"data-scientists\", \"dataset-administrator\"]}" ^
+       "%DSS_ENDPOINT%/user/user1"
+HTTP/1.1 201 Created
+Content-Length: 0
+Content-Type: text/html; charset=UTF-8
+```
+
+### Get user GID
+
+GET /user/{userName}
+
+With the authorization header. 
+Returns a JSON object. 
+If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
+
+Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/users/getUser
+
+Example:
+```
+$ curl -i -X GET -H "Authorization: bearer %DSS_TOKEN%" "%DSS_ENDPOINT%/user/user1"
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 13
+
+{"gid": 2002}
+```
+
+
 
 ### [Only for developers] Set or update the web UI
 
@@ -277,4 +327,6 @@ These are the known roles:
 
 The name of each one can be customized in the configuration file. 
 The number is just a hint, not part of the name: you can see them as security levels, each level include the previous levels.
+
+There is another role 'admin_users' required for the operations in '/user'.
 

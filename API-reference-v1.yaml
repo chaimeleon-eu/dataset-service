@@ -30,10 +30,10 @@ paths:
   /dataset:
     post:
       tags:
-        - dataset
+        - datasets
       summary: creates a new dataset
       operationId: createDataset
-      description: Creates a new dataset into the system
+      description: Creates a new dataset into the system.
       requestBody:
         content:
           application/json:
@@ -50,11 +50,10 @@ paths:
   /dataset/{id}:
     get:
       tags:
-        - dataset
-      summary: gets a dataset by id
+        - datasets
+      summary: gets a dataset by its id
       operationId: getDataset
-      description: |
-        Returns the details of a dataset specified by its id.
+      description: Returns the details of a dataset specified by its id.
       parameters:
         - name: id
           description: the id of the dataset
@@ -91,10 +90,10 @@ paths:
           description: "not found"
     delete:
       tags:
-        - dataset
-      summary: invalidates a dataset specified by its id
+        - datasets
+      summary: invalidates a dataset by its id
       operationId: deleteDataset
-      description: "invalidates a dataset in the system, it will be hidden"
+      description: "Invalidates a dataset in the system, it will be hidden."
       parameters:
         - name: id
           description: "the id of the dataset to invalidate"
@@ -111,12 +110,11 @@ paths:
   /datasets:
     get:
       tags:
-        - dataset
+        - datasets
       summary: list datasets
       operationId: listDatasets
       description: |
-        By passing in the appropriate options, you can search for
-        available datasets in the system. 
+        You can list all available datasets in the system or search by name. 
         If not searchString or empty, then all datasets are listed.
       parameters:
         - name: searchString
@@ -153,6 +151,195 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
           
+  /user/{userName}:
+    post:
+      tags:
+        - users
+      summary: new user
+      operationId: createUser
+      description: |
+        Creates a new user if not exists assigning a new unique GID. The user will be able to access dataset files depending on the groups (s)he belongs."
+      parameters:
+        - name: userName
+          description: the unique userName of the user
+          example: "user1"
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            example: '{uid: "d290f1ee-6c54-4b01-90e6-d701748f0851", groups: ["data-scientists", "dataset-administrator"]}'
+            schema:
+              type: object
+              properties:
+                uid:
+                  type: string
+                  description: The unique ID of the user.
+                groups:
+                  type: array
+                  description: Array of the groups which the user belongs to.
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: item created
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    get:
+      tags:
+        - users
+      summary: gets user GID
+      operationId: getUser
+      description: "Returns the gid of a user"
+      parameters:
+        - name: userName
+          description: "The userName of the user"
+          example: "user1"
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: "successful operation"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  gid:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: "not found"
+
+  /datasetAccessCheck:
+    post:
+      tags:
+        - datasets
+      summary: 'check the access to datasets'
+      operationId: checkDatasetAccess
+      description: |
+        It is called when a user wants to access to one or more datasets. The access will be granted or denied according to the groups of the user."
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userName:
+                  type: string
+                  description: the unique userName of the user
+                  example: "user1"
+                datasets:
+                  type: array
+                  description: the ids of datasets to access
+                  items:
+                    type: string
+                    format: uuid
+                    example: "00e821c4-e92b-48f7-a034-ba2df547e2bf"
+      responses:
+        '204':
+          description: access granted
+        '403':
+          description: access denied
+          content:
+            application/json:
+              schema:
+                type: array
+                description: the ids of datasets which the user do not have access
+                items:
+                  type: string
+                  format: uuid
+                  example: "00e821c4-e92b-48f7-a034-ba2df547e2bf"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /datasetAccess/{id}:
+    post:
+      tags:
+        - datasets
+      summary: new access to datasets
+      operationId: createDatasetAccess
+      description: |
+        It is called when a user access to one or more datasets. The access will be granted (and annotated in tracer) or denied according to the groups of the user."
+      parameters:
+        - name: id
+          description: "The id of the datasetAccess, it can be the uid of the kubernetes object (deployment, job, pod...). When the user finishes the access, the DELETE operation should be called with that same id."
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userName:
+                  type: string
+                  description: the unique userName of the user
+                  example: "user1"
+                datasets:
+                  type: array
+                  description: the ids of datasets to access
+                  items:
+                    type: string
+                    format: uuid
+                    example: "00e821c4-e92b-48f7-a034-ba2df547e2bf"
+                toolName:
+                  type: string
+                  description: the name of application, framework, docker image or helm chart used to analyze or process the datasets
+                  example: "tensorflow-workstation"
+                toolVersion:
+                  type: string
+                  description: the version of application, framework, docker image or helm chart used to analyze or process the datasets
+                  example: "1.1"
+      responses:
+        '201':
+          description: item created, access granted
+#         content:
+#           application/json:
+#             schema:
+#               type: object
+#               properties:
+#                 status_code:
+#                   type: string
+#                   description: HTTP status code
+#                 msg:
+#                   type: string
+#                   description: descriptive message
+#                 datasetAccessId:
+#                   type: string
+#                   format: uuid
+#                   description: the id of the datasetAccess created
+#                   example: "00e821c4-e92b-48f7-a034-ba2df547e2bf"
+        '403':
+          description: access denied
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    delete:
+      tags:
+        - datasets
+      summary: closes a previous access to datasets
+      operationId: closeDatasetAccess
+      description: "It is called when a user ends the work over one o more datasets whose access have been required previously."
+      parameters:
+        - name: id
+          description: "The id of the datasetAccess created previously, usually the uid of the kubernetes object (deployment, job, pod...)."
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -167,7 +354,7 @@ components:
         id:
           type: string
           format: uuid
-          example: "d290f1ee-6c54-4b01-90e6-d701748f0851"
+          example: "00e821c4-e92b-48f7-a034-ba2df547e2bf"
         name:
           type: string
           description: short descriptive name
@@ -200,7 +387,7 @@ components:
           type: string
           format: uuid
           description: (optional) specified when is a new version of a previous dataset
-          example: "d290f1ee-6c54-4b01-90e6-d701748f0851"
+          example: "00e821c4-e92b-48f7-a034-ba2df547e2bf"
         description:
           type: string
           description: Long explanation of dataset details, statistics, links, references, improvements/modifications if it's a new version, etc.
@@ -223,7 +410,7 @@ components:
         id:
           type: string
           format: uuid
-          example: "d290f1ee-6c54-4b01-90e6-d701748f0851"
+          example: "00e821c4-e92b-48f7-a034-ba2df547e2bf"
         name:
           type: string
           minLength: 3
@@ -234,7 +421,7 @@ components:
           type: string
           format: uuid
           description: (optional) specified when is a new version of a previous dataset
-          example: "d290f1ee-6c54-4b01-90e6-d701748f0851"
+          example: "efa2cba6-4a17-4612-8074-7e9eb9c9d7ca"
         authorId:
           type: string
           description: the unique id of the user wich created the dataset, it is not for showing but it can be useful to a possible new feature to show all datasets from an author
