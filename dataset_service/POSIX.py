@@ -12,6 +12,19 @@ def create_dir(path, uid=-1, gid=-1, permissions=0o700):
 
 def chmod(path, permissions=0o700):
     os.chmod(path, permissions)
+
+def chmod_recursive(path, dirs_permissions=0o700, files_permissions=0o600):
+    # path must be a dir, ortherwise listdir fails
+    for name in os.listdir(path):
+        complete_path = os.path.join(path, name)
+        if os.path.islink(complete_path):
+            chmod(complete_path, files_permissions)
+        elif os.path.isfile(complete_path):
+            chmod(complete_path, files_permissions)
+        elif os.path.isdir(complete_path):
+            chmod_recursive(complete_path, dirs_permissions, files_permissions)
+    chmod(path, dirs_permissions)   # we put this after listdir to ensure path is a dir
+
     
 def chown(path, uid=-1, gid=-1, recursive=True, follow_symlinks=False):
     os.chown(path, int(uid), int(gid), follow_symlinks=follow_symlinks)
@@ -19,9 +32,9 @@ def chown(path, uid=-1, gid=-1, recursive=True, follow_symlinks=False):
         for name in os.listdir(path):
             complete_path = os.path.join(path, name)
             if os.path.islink(complete_path):
-                chown(path, int(uid), int(gid), recursive=False, follow_symlinks=follow_symlinks)   
+                chown(complete_path, int(uid), int(gid), recursive=False, follow_symlinks=follow_symlinks)   
             elif os.path.isfile(complete_path):
-                chown(path, int(uid), int(gid), recursive=False)   
+                chown(complete_path, int(uid), int(gid), recursive=False)   
             elif os.path.isdir(complete_path):
                 chown(complete_path, int(uid), int(gid), recursive=True, follow_symlinks=follow_symlinks)
     

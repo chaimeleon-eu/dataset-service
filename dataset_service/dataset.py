@@ -20,7 +20,7 @@ def create_dataset (datasets_dir_path, dataset_dir_name, datalake_dir_path, stud
     # Create dataset directory
     #os.mkdir(dataset_dir)
     create_dir(dataset_dir, uid=owner_uid, gid=owner_gid, permissions=0o700)
-    # Now only root have access. The access to users will be granted later with ACLs.
+    # Now only root have access. The access to normal users will be granted later with ACLs.
     
     for study in studies:
         # study['path'] example: blancagomez/01_Neuroblastoma_4_Neuroblastoma/TCPEDITRICOABDOMINOPLVICO20150129/
@@ -29,7 +29,7 @@ def create_dataset (datasets_dir_path, dataset_dir_name, datalake_dir_path, stud
         subjectDirPath = os.path.join(dataset_dir, subjectDirName)
         if not os.path.exists(subjectDirPath):
             create_dir(subjectDirPath, uid=owner_uid, gid=owner_gid, permissions=0o705)
-            # At this level all the people have read access, the control with ACLs is done in other levels
+            # At this level all the people have read access, the control with ACLs is done in the upper level.
 
         linkLocation = os.path.join(subjectDirPath, studyDirName)
         linkDestination = os.path.join(datalake_dir_path, study['path'])
@@ -37,8 +37,12 @@ def create_dataset (datasets_dir_path, dataset_dir_name, datalake_dir_path, stud
         if not ok: 
             logging.root.error("Error creating symlink: " + linkLocation + " -> " + linkDestination)
             raise DatasetException("Error creating symlink")
-        #ok = chmod_recursive(linkDestination + "*", 
-        
+        chmod(linkDestination, 0o700)
+        # Ensure only root have access. The access to normal users will be granted later with ACLs.
+        for name in os.listdir(linkDestination):
+            chmod_recursive(os.path.join(linkDestination, name), dirs_permissions=0o705, files_permissions=0o604)
+            # At this level all the people have read access, the control with ACLs is done in the upper level.
+
 
 def give_access_to_dataset (datasets_dir_path, dataset_dir_name, datalake_dir_path, studies, acl_gid):
     '''
@@ -62,7 +66,7 @@ def give_access_to_dataset (datasets_dir_path, dataset_dir_name, datalake_dir_pa
         # study['path'] example: blancagomez/01_Neuroblastoma_4_Neuroblastoma/TCPEDITRICOABDOMINOPLVICO20150129/
         linkDestination = os.path.join(datalake_dir_path, study['path'])
         # ACL to the destination study directory (not the symbolic link)
-        ok = set_acl_group(str(acl_gid), acl_permissions, linkDestination, recursive=True) 
+        ok = set_acl_group(str(acl_gid), acl_permissions, linkDestination, recursive=False) 
         if not ok: 
             logging.root.error("Error in set acl to: " + linkDestination)
             raise DatasetException("Error in set acl.")
