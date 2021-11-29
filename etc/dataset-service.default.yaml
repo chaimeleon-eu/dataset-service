@@ -23,6 +23,7 @@ auth:   # These are the parameters for the validation of auth tokens received.
     admin_datasets: "admin_datasets"
     superadmin_datasets: "superadmin_datasets"
     admin_users: "admin_users"
+    admin_datasetAccess: "admin_datasetAccess"
 
 tracer:
   url: "https://chaimeleon-eu.i3m.upv.es/tracer-service/"

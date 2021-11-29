@@ -35,6 +35,7 @@ class DB:
 
         if version ==1: self.updateDB_v1To2()
         if version ==2: self.updateDB_v2To3()
+        if version ==3: self.updateDB_v3To4()
 
     def getSchemaVersion(self):
         self.cursor.execute("SELECT EXISTS ( SELECT FROM information_schema.tables WHERE table_name = 'metadata');")
@@ -54,7 +55,7 @@ class DB:
                 constraint pk_metadata primary key (id)
             );
             INSERT INTO metadata (schema_version) 
-            VALUES ('3')
+            VALUES ('4')
             ON CONFLICT (id) DO UPDATE
                 SET schema_version = excluded.schema_version;
                 
@@ -72,7 +73,8 @@ class DB:
             CREATE TABLE user_group (
                 user_id varchar(64),
                 group_name varchar(128),
-                constraint pk_user_group primary key (user_id, group_name)
+                constraint pk_user_group primary key (user_id, group_name),
+                constraint fk_user foreign key (user_id) references author(id)
             );
             CREATE TABLE study (
                 id varchar(32),
@@ -89,7 +91,6 @@ class DB:
                 author_id varchar(64) NOT NULL,
                 creation_date timestamp NOT NULL,
                 description text NOT NULL DEFAULT '',
-                gid integer NOT NULL,
                 public boolean NOT NULL DEFAULT false,
                 invalidated boolean NOT NULL DEFAULT false,
                 studies_count integer NOT NULL,
@@ -104,6 +105,20 @@ class DB:
                 constraint pk_dataset_study primary key (dataset_id, study_id),
                 constraint fk_dataset foreign key (dataset_id) references dataset(id),
                 constraint fk_study foreign key (study_id) references study(id)
+            );
+            CREATE TABLE dataset_access (
+                id varchar(40),
+                user_gid integer,
+                tool_name varchar(256),
+                tool_version varchar(256),
+                constraint pk_dataset_access primary key (id),
+                constraint fk_user foreign key (user_gid) references author(gid)
+            );
+            CREATE TABLE dataset_access_dataset (
+                dataset_access_id varchar(128),
+                dataset_id varchar(40),
+                constraint pk_dataset_access_dataset primary key (dataset_access_id, dataset_id),
+                constraint fk_dataset foreign key (dataset_id) references dataset(id)
             );
         """)
     
@@ -140,6 +155,28 @@ class DB:
         ### Finally update schema_version
         self.cursor.execute("UPDATE metadata set schema_version = 3;")
 
+    def updateDB_v3To4(self):
+        logging.root.info("Updating database from v3 to v4...")
+        self.cursor.execute("""CREATE TABLE dataset_access (
+                                    id varchar(40),
+                                    user_gid integer,
+                                    tool_name varchar(256),
+                                    tool_version varchar(256),
+                                    constraint pk_dataset_access primary key (id),
+                                    constraint fk_user foreign key (user_gid) references author(gid)
+                                );""")
+        self.cursor.execute("""CREATE TABLE dataset_access_dataset (
+                                    dataset_access_id varchar(128),
+                                    dataset_id varchar(40),
+                                    constraint pk_dataset_access_dataset primary key (dataset_access_id, dataset_id),
+                                    constraint fk_dataset foreign key (dataset_id) references dataset(id)
+                                );""")
+        self.cursor.execute("ALTER TABLE dataset DROP COLUMN gid;")
+        self.cursor.execute("ALTER TABLE user_group ADD constraint fk_user foreign key (user_id) references author(id);")
+        ### Finally update schema_version
+        self.cursor.execute("UPDATE metadata set schema_version = 4;")
+                    
+
     def createOrUpdateAuthor(self, userId, username, name, email):
         self.cursor.execute("""
             INSERT INTO author (id, username, name, email) 
@@ -173,15 +210,26 @@ class DB:
         row = self.cursor.fetchone()
         if row is None: return None
         return row[0]
-    
+
+    def getUserGroups(self, userName):
+        self.cursor.execute("""
+            SELECT user_group.group_name 
+            FROM author, user_group 
+            WHERE author.username=%s AND author.id = user_group.user_id;""", 
+            (userName,))
+        res = []
+        for row in self.cursor:
+            res.append(row[0])
+        return res
+
     def createDataset(self, dataset, userId):
         self.cursor.execute("""
-            INSERT INTO dataset (id, name, previous_id, author_id, creation_date, description, gid, public,
+            INSERT INTO dataset (id, name, previous_id, author_id, creation_date, description, public,
                                  studies_count, patients_count)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s);""",
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s);""",
             (dataset["id"], dataset["name"], dataset["previousId"], 
              userId, dataset["creationDate"], dataset["description"], 
-             dataset["gid"], dataset["public"],
+             dataset["public"],
              dataset["studiesCount"], dataset["patientsCount"]))
 
     def createOrUpdateStudy(self, study, datasetId):
@@ -200,15 +248,20 @@ class DB:
             VALUES (%s,%s);""",
             (datasetId, study["studyId"]))
 
+
     def existDataset(self, id):
+        """Note: invalidated datasets also exist.
+        """
         self.cursor.execute("SELECT id FROM dataset WHERE id=%s", (id,))
         return self.cursor.rowcount > 0
 
     def getDataset(self, id):
+        """Returns None if the dataset has been invalidated or not exists.
+        """
         self.cursor.execute("""
             SELECT dataset.id, dataset.name, dataset.previous_id, 
                    author.id, author.name, author.email, 
-                   dataset.creation_date, dataset.description, dataset.gid, dataset.public,
+                   dataset.creation_date, dataset.description, dataset.public,
                    dataset.studies_count, dataset.patients_count
             FROM dataset, author 
             WHERE dataset.id=%s AND author.id = dataset.author_id AND dataset.invalidated = false
@@ -218,8 +271,8 @@ class DB:
         if row is None: return None
         return dict(id = row[0], name = row[1], previousId = row[2], 
                     authorId = row[3], authorName = row[4], authorEmail = row[5], 
-                    creationDate = str(row[6]), description = row[7], gid = row[8], public = row[9],
-                    studiesCount = row[10], patientsCount = row[11])
+                    creationDate = str(row[6]), description = row[7], public = row[8],
+                    studiesCount = row[9], patientsCount = row[10])
 
     def getStudiesFromDataset(self, datasetId, limit = 'ALL', skip = 0):
         self.cursor.execute(sql.SQL("""
@@ -255,3 +308,16 @@ class DB:
     def invalidateDataset(self, id):
         # logging.root.debug(self.cursor.mogrify("UPDATE dataset SET invalidated = true WHERE id = %s;", (id,)))
         self.cursor.execute("UPDATE dataset SET invalidated = true WHERE id = %s;", (id,))
+
+    def createDatasetAccess(self, datasetAccessId, datasetIDs, userGID, toolName, toolVersion):
+        self.cursor.execute("""
+            INSERT INTO dataset_access (id, user_gid, tool_name, tool_version) 
+            VALUES (%s, %s, %s, %s);""", 
+            (datasetAccessId, userGID, toolName, toolVersion)
+        )
+        for id in datasetIDs:
+            self.cursor.execute("""
+                INSERT INTO dataset_access_dataset (dataset_access_id, dataset_id) 
+                VALUES (%s, %s);""", 
+                (datasetAccessId, id)
+            )

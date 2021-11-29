@@ -291,7 +291,6 @@ def postDataset():
             dataset["id"] = datasetId
             LOG.debug("UUID generated: " + dataset["id"])
             dataset["creationDate"] = datetime.now()
-            dataset["gid"] = 1
             if not "public" in dataset.keys(): 
                 dataset["public"] = False
 
@@ -315,7 +314,7 @@ def postDataset():
             if CONFIG.self.datasets_mount_path != '':
                 LOG.debug('Creating symbolic links...')
                 datasetDirName = datasetId
-                create_dataset(CONFIG.self.datasets_mount_path, datasetDirName, CONFIG.self.datalake_mount_path, dataset["studies"], 'rx', '1500', 0, 0)
+                create_dataset(CONFIG.self.datasets_mount_path, datasetDirName, CONFIG.self.datalake_mount_path, dataset["studies"])
                 
                 LOG.debug('Writing ' + CONFIG.self.eforms_file_name)
                 with open(os.path.join(CONFIG.self.datasets_mount_path, datasetDirName, CONFIG.self.eforms_file_name) , 'w') as outputStream:
@@ -388,6 +387,7 @@ def deleteDataset(id):
             return setErrorResponse(401,"unauthorized user (only the author can invalidate the dataset)")
 
         db.invalidateDataset(datasetId)
+        invalidate_dataset()
     bottle.response.status = 200
 
 
@@ -433,9 +433,9 @@ def postUser(userName):
     try:
         read_data = bottle.request.body.read().decode('UTF-8')
         LOG.debug("BODY: " + read_data)
-        user_info = json.loads(read_data)
-        userId = user_info["uid"]
-        userGroups = user_info["groups"]
+        userData = json.loads(read_data)
+        userId = userData["uid"]
+        userGroups = userData["groups"]
 
         with DB(CONFIG.db) as db:
             LOG.debug("Creating or updating user: %s, %s, %s" % (userId, userName, userGroups))
@@ -444,8 +444,6 @@ def postUser(userName):
         LOG.debug('User successfully created or updated.')
         bottle.response.status = 201
 
-    except DatasetException as e:
-        return setErrorResponse(500, str(e))
     except Exception as e:
         LOG.exception(e)
         LOG.error("May be the body of the request is wrong: %s" % read_data)
@@ -468,3 +466,108 @@ def getUser(userName):
 
     bottle.response.content_type = "application/json"
     return json.dumps(dict(gid = userGid))
+
+
+def checkDatasetListAccess(datasetIDs, userName):
+    badIDs = []
+    with DB(CONFIG.db) as db:
+        userGroups = db.getUserGroups(userName)
+        for id in datasetIDs:
+            dataset = db.getDataset(id)
+            if dataset is None:
+                # invalidated or not exists
+                badIDs.append(id)
+            elif not dataset["public"] and not "data-scientists" in userGroups:
+                    badIDs.append(id)
+    return badIDs
+
+@app.route('/api/datasetAccessCheck', method='POST')
+def postDatasetAccessCheck():
+    LOG.debug("Received POST %s" % bottle.request.path)
+    ok, ret = checkAuthorizationHeader(serviceAccount=True)
+    if not ok: return ret
+    else: user_info = ret
+
+    if not CONFIG.auth.roles.admin_datasetAccess in user_info["appRoles"]:
+        return setErrorResponse(401,"unauthorized user")
+
+    content_types = get_header_media_types('Content-Type')
+    if not 'application/json' in content_types:
+        return setErrorResponse(400,"invalid 'Content-Type' header, required 'application/json'")
+
+    try:
+        read_data = bottle.request.body.read().decode('UTF-8')
+        LOG.debug("BODY: " + read_data)
+        datasetAccess = json.loads(read_data)
+        userName = datasetAccess["userName"]
+        datasetIDs = datasetAccess["datasets"]    
+
+        badIds = checkDatasetListAccess(datasetIDs, userName)
+        if len(badIds) > 0:
+            bottle.response.status = 403
+            bottle.response.content_type = "application/json"
+            return json.dumps(badIds)
+                
+        LOG.debug('Dataset access granted.')
+        bottle.response.status = 204
+
+    except Exception as e:
+        LOG.exception(e)
+        LOG.error("May be the body of the request is wrong: %s" % read_data)
+        return setErrorResponse(500,"Unexpected error, may be the input is wrong")
+
+@app.route('/api/datasetAccess/<id>', method='POST')
+def postDatasetAccess(id):
+    LOG.debug("Received POST %s" % bottle.request.path)
+    ok, ret = checkAuthorizationHeader(serviceAccount=True)
+    if not ok: return ret
+    else: user_info = ret
+
+    if not CONFIG.auth.roles.admin_datasetAccess in user_info["appRoles"]:
+        return setErrorResponse(401,"unauthorized user")
+
+    content_types = get_header_media_types('Content-Type')
+    if not 'application/json' in content_types:
+        return setErrorResponse(400,"invalid 'Content-Type' header, required 'application/json'")
+
+    try:
+        read_data = bottle.request.body.read().decode('UTF-8')
+        LOG.debug("BODY: " + read_data)
+        datasetAccess = json.loads(read_data)
+        userName = datasetAccess["userName"]
+        datasetIDs = datasetAccess["datasets"]
+        toolName = datasetAccess["toolName"]
+        toolVersion = datasetAccess["toolVersion"]
+        datasetAccessId = id
+
+        badIds = checkDatasetListAccess(datasetIDs, userName)
+        if len(badIds) > 0:
+            return setErrorResponse(403,"access denied")
+
+        with DB(CONFIG.db) as db:
+            userGID = db.getUserGID(userName)
+            if CONFIG.self.datasets_mount_path != '':
+                for id in datasetIDs:
+                    studies = db.getStudiesFromDataset(id)
+                    LOG.debug('Setting ACLs in dataset %s for GID %s ...' % (id, userGID))
+                    datasetDirName = id
+                    give_access_to_dataset(CONFIG.self.datasets_mount_path, datasetDirName, CONFIG.self.datalake_mount_path, studies, userGID)
+
+            db.createDatasetAccess(datasetAccessId, datasetIDs, userGID, toolName, toolVersion)
+        # # Note this tracer call is inside of "with db" because if tracer fails the database changes will be reverted (transaction rollback).
+        # tracer.traceDatasetAccess(CONFIG.tracer.auth_url, CONFIG.tracer.client_id, CONFIG.tracer.client_secret, CONFIG.tracer.url, 
+        #                             dataset, userId, toolName, toolVersion)
+        
+        LOG.debug('Dataset access granted.')
+        bottle.response.status = 201
+
+    except Exception as e:
+        LOG.exception(e)
+        LOG.error("May be the body of the request is wrong: %s" % read_data)
+        return setErrorResponse(500,"Unexpected error, may be the input is wrong")
+
+@app.route('/api/datasetAccess/<id>', method='DELETE')
+def deleteDatasetAccess(id):
+    LOG.debug("Received DELETE %s" % bottle.request.path)
+    return setErrorResponse(404, "not implemented, not yet")
+

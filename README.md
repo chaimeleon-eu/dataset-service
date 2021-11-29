@@ -200,7 +200,49 @@ Content-Length: 13
 {"gid": 2002}
 ```
 
+### Check dataset access
 
+POST /datasetAccessCheck
+
+With the authorization header and the access properties (userName and datasets required) within the body in JSON format. 
+If success, the code 204 will be returned. 
+If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
+In case of fail due to any required dataset which is not available for the user, the code 403 is returned with a JSON array containing not available datasets.
+
+Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/datasets/checkDatasetAccess
+
+Example authenticating previously with a service account:
+```
+$ curl -i -d "client_id=kubernetes-operator" -d "client_secret=XXXX-XXXX-XXXX" -d "grant_type=client_credentials" "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token"
+$ set DSS_TOKEN=eyJ...79w1rA
+```
+```
+$ curl -i -X POST -H "Authorization: bearer %DSS_TOKEN%" -H "Content-Type: application/json" ^
+       -d "{\"userName\": \"user1\", \"datasets\": [\"00e821c4-e92b-48f7-a034-ba2df547e2bf\", \"f99017af-9015-4222-b064-77f3c1b49d8b\"]}" ^
+       "%DSS_ENDPOINT%/datasetAccessCheck"
+HTTP/1.1 204 No Content
+Content-Length: 0
+```
+
+### Create dataset access
+
+POST /datasetAccess/{id}
+
+With the authorization header and the access properties (userName, datasets required and tool info) within the body in JSON format. 
+If success, the code 201 will be returned. 
+If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
+In case of fail due to any required dataset which is not available for the user, the code 403 is returned.
+
+Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/datasets/createDatasetAccess
+
+Example:
+```
+$ curl -i -X POST -H "Authorization: bearer %DSS_TOKEN%" -H "Content-Type: application/json" ^
+       -d "{\"userName\": \"user1\", \"datasets\": [\"f99017af-9015-4222-b064-77f3c1b49d8b\"], \"toolName\": \"desktop-tensorflow\", \"toolVersion\": \"0.3.1\"}" ^
+       "%DSS_ENDPOINT%/datasetAccess/c0bd6506-219b-4fc2-8fdb-3deb1d1a4ac2"
+HTTP/1.1 201 Created
+Content-Length: 0
+```
 
 ### [Only for developers] Set or update the web UI
 
@@ -328,5 +370,7 @@ These are the known roles:
 The name of each one can be customized in the configuration file. 
 The number is just a hint, not part of the name: you can see them as security levels, each level include the previous levels.
 
-There is another role 'admin_users' required for the operations in '/user'.
+There are other special roles:
+ - 'admin_users': required for the operations in '/user'.
+ - 'admin_datasetAccess': required for the operations in '/datasetAccess' and '/datasetAccessCheck'.
 
