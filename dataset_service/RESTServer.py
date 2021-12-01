@@ -255,6 +255,40 @@ def postDataset():
     output, status = execute_cmd("unzip -uo \"" + CONFIG.self.static_files_dir_path + "/build.zip\" -d \"" + CONFIG.self.static_files_dir_path + "/\"")
     return output
 
+def completeDatasetFromCSV(dataset, csvdata):
+    dataset["studies"] = []
+    dataset["patients"] = []
+    import csv
+    #LOG.debug("======" + csvdata)
+    csvreader = csv.reader(csvdata) #, delimiter=',')
+    first = True
+    header = []
+    for row in csvreader:
+        if len(row) == 0: continue        
+        if first: 
+            first = False
+            header = row
+        else:
+            studyId = row[0]
+            path = "0-EXTERNAL-DATA/maastricht-university/" + row[0]
+            if CONFIG.self.datalake_mount_path != '':
+                studyDir = os.listdir(os.path.join(CONFIG.self.datalake_mount_path, path))[0]
+                path = os.path.join(path, studyDir)
+            dataset["studies"].append({
+                'studyId': studyId,
+                'studyName': row[0],
+                'subjectName': row[0],
+                'path': path,
+                'url': ""
+            })
+            eform = {}
+            for i in range(1, len(header)):
+                eform[header[i]] = row[i]
+            dataset["patients"].append({
+                'subjectName': row[0],
+                'eForm': eform 
+            })
+
 @app.route('/api/dataset', method='POST')
 def postDataset():
     LOG.debug("Received POST /dataset")
@@ -270,13 +304,32 @@ def postDataset():
         return setErrorResponse(401,"unauthorized user")
 
     content_types = get_header_media_types('Content-Type')
-    if not 'application/json' in content_types:
-        return setErrorResponse(400,"invalid 'Content-Type' header, required 'application/json'")
+    if bottle.request.params["external"]:
+        if not 'multipart/form-data' in content_types:
+            return setErrorResponse(400,"invalid 'Content-Type' header, required 'multipart/form-data'")
+    else:
+        if not 'application/json' in content_types:
+            return setErrorResponse(400,"invalid 'Content-Type' header, required 'application/json'")
 
     try:
-        read_data = bottle.request.body.read().decode('UTF-8')
-        LOG.debug("BODY: " + read_data)
-        dataset = json.loads( read_data )
+        if bottle.request.params["external"]:
+            clinicalDataFile = bottle.request.files["clinical_data"]
+            name, ext = os.path.splitext(clinicalDataFile.filename)
+            if ext != '.csv':
+                return setErrorResponse(400,'File extension not allowed, only CSV is supported.')
+            dataset = dict(
+                name = bottle.request.forms.get("name"),
+                description = bottle.request.forms.get("description")
+            )
+            if 'previousId' in bottle.request.forms: dataset['previousId'] = bottle.request.forms.get('previousId')
+            if 'public' in bottle.request.forms: dataset['public'] = bottle.request.forms.get('public')
+            completeDatasetFromCSV(dataset, clinicalDataFile.file.read().decode('UTF-8').splitlines())
+            #return  json.dumps(dataset)
+        else:
+            read_data = bottle.request.body.read().decode('UTF-8')
+            LOG.debug("BODY: " + read_data)
+            dataset = json.loads( read_data )
+
         with DB(CONFIG.db) as db:
             LOG.debug("Updating author: %s, %s, %s, %s" % (userId, userUsername, userName, userEmail))
             db.createOrUpdateAuthor(userId, userUsername, userName, userEmail)
@@ -333,7 +386,8 @@ def postDataset():
         return setErrorResponse(500, str(e))
     except Exception as e:
         LOG.exception(e)
-        LOG.error("May be the body of the request is wrong: %s" % read_data)
+        if not bottle.request.params["external"]:
+            LOG.error("May be the body of the request is wrong: %s" % read_data)
         return setErrorResponse(500,"Unexpected error, may be the input is wrong")
         
 

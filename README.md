@@ -73,6 +73,19 @@ Content-Length: 0
 Content-Type: text/html; charset=UTF-8
 ```
 
+Example of "external" dataset creation:
+```
+$ curl -i -X POST -H "Authorization: bearer %DSS_TOKEN%" ^
+       -F name="Maastricht Lung1" -F description="Test dataset from Maastricht University." ^
+       -F clinical_data=@"NSCLC Radiomics Lung1.clinical.csv" ^
+       "%DSS_ENDPOINT%/dataset?external=True"
+HTTP/1.1 100 Continue
+
+HTTP/1.1 201 Created
+Content-Length: 0
+Content-Type: text/html; charset=UTF-8
+```
+
 ### List of all datasets
 
 GET /datasets

@@ -40,7 +40,9 @@ def create_dataset (datasets_dir_path, dataset_dir_name, datalake_dir_path, stud
         chmod(linkDestination, 0o700)
         # Ensure only root have access. The access to normal users will be granted later with ACLs.
         for name in os.listdir(linkDestination):
-            chmod_recursive(os.path.join(linkDestination, name), dirs_permissions=0o705, files_permissions=0o604)
+            f = os.path.join(linkDestination, name)
+            if os.path.isdir(f): chmod_recursive(f, dirs_permissions=0o705, files_permissions=0o604)
+            else: chmod(f, 0o604)
             # At this level all the people have read access, the control with ACLs is done in the upper level.
 
 
