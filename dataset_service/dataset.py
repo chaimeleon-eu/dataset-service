@@ -1,9 +1,14 @@
+import shutil
 from dataset_service.POSIX import *
 import logging
 import dataset_service.utils
 
 class DatasetException(Exception):
     pass
+
+def remove_dataset(datasets_dir_path, dataset_dir_name):
+    dataset_dir_path = os.path.join(datasets_dir_path, dataset_dir_name)
+    shutil.rmtree(dataset_dir_path, ignore_errors=True)
 
 def create_dataset(datasets_dir_path, dataset_dir_name, datalake_dir_path, studies):
     '''

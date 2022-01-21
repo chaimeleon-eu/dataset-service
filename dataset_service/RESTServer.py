@@ -334,6 +334,7 @@ def postDataset():
         if not 'application/json' in content_types:
             return setErrorResponse(400,"invalid 'Content-Type' header, required 'application/json'")
 
+    datasetDirName = ''
     try:
         if "external" in bottle.request.params and bottle.request.params["external"].lower() == "true":
             # This is for manually create datasets out of the standard ingestion procedure 
@@ -417,13 +418,16 @@ def postDataset():
         bottle.response.status = 201
 
     except tracer.TraceException as e:
+        if datasetDirName != '': remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
         return setErrorResponse(500, str(e))
     except DatasetException as e:
+        if datasetDirName != '': remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
         return setErrorResponse(500, str(e))
     except Exception as e:
         LOG.exception(e)
         if not "external" in bottle.request.params or bottle.request.params["external"].lower() != "true":
             LOG.error("May be the body of the request is wrong: %s" % read_data)
+        if datasetDirName != '': remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
         return setErrorResponse(500,"Unexpected error, may be the input is wrong")
         
 
