@@ -297,11 +297,17 @@ def completeDatasetFromCSV(dataset, csvdata):
             if CONFIG.self.datalake_mount_path != '':
                 studyDir = os.listdir(os.path.join(CONFIG.self.datalake_mount_path, path))[0]
                 path = os.path.join(path, studyDir)
+                series = []
+                for name in os.listdir(path):
+                    filePath = os.path.join(path, name)
+                    if os.path.isdir(filePath):  series.append(name)
+
             dataset["studies"].append({
                 'studyId': studyId,
                 'studyName': row[0],
                 'subjectName': row[0],
                 'path': path,
+                'series': series,
                 'url': ""
             })
             eform = {}

@@ -1,6 +1,7 @@
 import logging
 import psycopg2
 from psycopg2 import sql
+import json
 
 class DB:
     def __init__(self, dbConfig):
@@ -32,10 +33,13 @@ class DB:
             logging.root.info("Creating tables...")
             self.createSchema()
             return
-
-        if version ==1: self.updateDB_v1To2()
-        if version ==2: self.updateDB_v2To3()
-        if version ==3: self.updateDB_v3To4()
+        else:
+            if version <=1: self.updateDB_v1To2()
+            if version <=2: self.updateDB_v2To3()
+            if version <=3: self.updateDB_v3To4()
+            if version <=4: self.updateDB_v4To5()
+            ### Finally update schema_version
+            self.cursor.execute("UPDATE metadata set schema_version = 5;")
 
     def getSchemaVersion(self):
         self.cursor.execute("SELECT EXISTS ( SELECT FROM information_schema.tables WHERE table_name = 'metadata');")
@@ -55,7 +59,7 @@ class DB:
                 constraint pk_metadata primary key (id)
             );
             INSERT INTO metadata (schema_version) 
-            VALUES ('4')
+            VALUES ('5')
             ON CONFLICT (id) DO UPDATE
                 SET schema_version = excluded.schema_version;
                 
@@ -102,6 +106,7 @@ class DB:
             CREATE TABLE dataset_study (
                 dataset_id varchar(40),
                 study_id varchar(32),
+                series text NOT NULL DEFAULT '[]',
                 constraint pk_dataset_study primary key (dataset_id, study_id),
                 constraint fk_dataset foreign key (dataset_id) references dataset(id),
                 constraint fk_study foreign key (study_id) references study(id)
@@ -129,8 +134,6 @@ class DB:
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN patients_count integer NOT NULL DEFAULT 0;")
         self.cursor.execute("ALTER TABLE dataset ALTER COLUMN studies_count DROP DEFAULT;")
         self.cursor.execute("ALTER TABLE dataset ALTER COLUMN patients_count DROP DEFAULT;")
-        ### Finally update schema_version
-        self.cursor.execute("UPDATE metadata set schema_version = 2;")
 
     def updateDB_v2To3(self):
         logging.root.info("Updating database from v2 to v3...")
@@ -152,8 +155,6 @@ class DB:
                                     group_name varchar(128),
                                     constraint pk_user_group primary key (user_id, group_name)
                                 );""")
-        ### Finally update schema_version
-        self.cursor.execute("UPDATE metadata set schema_version = 3;")
 
     def updateDB_v3To4(self):
         logging.root.info("Updating database from v3 to v4...")
@@ -173,9 +174,11 @@ class DB:
                                 );""")
         self.cursor.execute("ALTER TABLE dataset DROP COLUMN gid;")
         self.cursor.execute("ALTER TABLE user_group ADD constraint fk_user foreign key (user_id) references author(id);")
-        ### Finally update schema_version
-        self.cursor.execute("UPDATE metadata set schema_version = 4;")
                     
+    def updateDB_v4To5(self):
+        logging.root.info("Updating database from v4 to v5...")
+        self.cursor.execute("ALTER TABLE dataset_study ADD COLUMN series text NOT NULL DEFAULT '[]';")
+        
 
     def createOrUpdateAuthor(self, userId, username, name, email):
         self.cursor.execute("""
@@ -244,9 +247,9 @@ class DB:
             (study["studyId"], study["studyName"], study["subjectName"], 
              study["path"], study["url"]))
         self.cursor.execute("""
-            INSERT INTO dataset_study (dataset_id, study_id)
-            VALUES (%s,%s);""",
-            (datasetId, study["studyId"]))
+            INSERT INTO dataset_study (dataset_id, study_id, series)
+            VALUES (%s,%s,%s);""",
+            (datasetId, study["studyId"], json.dumps(study["series"])))
 
 
     def existDataset(self, id):
@@ -276,7 +279,7 @@ class DB:
 
     def getStudiesFromDataset(self, datasetId, limit = 'ALL', skip = 0):
         self.cursor.execute(sql.SQL("""
-            SELECT study.id, study.name, study.subject_name, study.path, study.url
+            SELECT study.id, study.name, study.subject_name, study.path, study.url, dataset_study.series
             FROM study, dataset_study 
             WHERE dataset_study.dataset_id = %s AND dataset_study.study_id = study.id
             LIMIT {} OFFSET {};""").format(sql.SQL(str(limit)), sql.SQL(str(skip))),
@@ -284,7 +287,8 @@ class DB:
         )
         res = []
         for row in self.cursor:
-            res.append(dict(studyId = row[0], studyName = row[1], subjectName = row[2], path = row[3], url = row[4]))
+            res.append(dict(studyId = row[0], studyName = row[1], subjectName = row[2], 
+                            path = row[3], series = json.loads(row[5]), url = row[4]))
         return res
 
     def getDatasets(self, skip, limit, onlyPublic, searchString):
