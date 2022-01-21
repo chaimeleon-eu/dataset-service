@@ -160,32 +160,33 @@ def traceDatasetCreation(authUrl, clientId, clientSecret, tracerUrl, datasetsDir
 
 
 def traceDatasetAccess(authUrl, clientId, clientSecret, tracerUrl, datasetsIds, userId, toolName, toolVersion):
-    #token = login(authUrl, clientId, clientSecret)
+    token = login(authUrl, clientId, clientSecret)
 
-    #tracer = urllib.parse.urlparse(tracerUrl)
-    #connection = http.client.HTTPSConnection(tracer.hostname, tracer.port)
+    tracer = urllib.parse.urlparse(tracerUrl)
+    connection = http.client.HTTPSConnection(tracer.hostname, tracer.port)
 
-    #headers = {'Authorization': 'bearer ' + token}
-    headers = {'Content-Type': 'application/json;charset=UTF-8'}
+    headers = {}
+    headers['Authorization'] = 'bearer ' + token
+    headers['Content-Type'] = 'application/json;charset=UTF-8'
     body = dict(
-        userId = userId, 
-        userAction = 'USE_DATASETS_POD', 
+        userId = userId,
+        userAction = 'USE_DATASETS_POD',
         datasetsIds = datasetsIds,
         toolName = toolName,
         toolVersion = toolVersion )
 
     payload = json.dumps(body)
     logging.root.debug("BODY: " + payload)
-    # connection.request("POST", tracer.path + "api/v1/traces", payload, headers)
-    # res = connection.getresponse()
-    # httpStatusCode = res.status
-    # msg = res.read()  # whole response must be readed in order to do more requests using the same connection
-    # if httpStatusCode != 200:
-    #     logging.root.error('Tracer error. Code: %d %s' % (httpStatusCode, res.reason))
-    #     raise TraceException('Internal server error: tracer call failed.')
-    # else:
-    #     logging.root.debug('Tracer call success.')
-    #     #response = json.loads(msg)
-    #     #print(response)
+    connection.request("POST", tracer.path + "api/v1/traces", payload, headers)
+    res = connection.getresponse()
+    httpStatusCode = res.status
+    msg = res.read()  # whole response must be readed in order to do more requests using the same connection
+    if httpStatusCode != 204 and httpStatusCode != 200:
+        logging.root.error('Tracer error. Code: %d %s' % (httpStatusCode, res.reason))
+        raise TraceException('Internal server error: tracer call failed.')
+    else:
+        logging.root.debug('Tracer call success.')
+        #response = json.loads(msg)
+        #print(response)
 
 
