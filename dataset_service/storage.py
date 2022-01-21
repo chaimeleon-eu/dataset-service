@@ -205,11 +205,11 @@ class DB:
                 (userId, group)
             )
 
-    def getUserGID(self, userName):
-        self.cursor.execute("SELECT gid FROM author WHERE username=%s LIMIT 1;", (userName,))
+    def getUserIDs(self, userName):
+        self.cursor.execute("SELECT id, gid FROM author WHERE username=%s LIMIT 1;", (userName,))
         row = self.cursor.fetchone()
         if row is None: return None
-        return row[0]
+        return row[0], row[1]
 
     def getUserGroups(self, userName):
         self.cursor.execute("""

@@ -170,7 +170,7 @@ paths:
       requestBody:
         content:
           application/json:
-            example: '{uid: "d290f1ee-6c54-4b01-90e6-d701748f0851", groups: ["data-scientists", "dataset-administrator"]}'
+            example: '{"uid": "d290f1ee-6c54-4b01-90e6-d701748f0851", "groups": ["data-scientists", "dataset-administrator"]}'
             schema:
               type: object
               properties:
@@ -250,7 +250,7 @@ paths:
             application/json:
               schema:
                 type: array
-                description: the ids of datasets which the user do not have access
+                description: the ids of datasets not found, invalidated or not available for the user
                 items:
                   type: string
                   format: uuid
@@ -400,6 +400,12 @@ components:
           description: 'subjects of studies and their clinical data'
           items:
             $ref: '#/components/schemas/Patient'
+        serieTags:
+          type: array
+          description: '(optional) type of series considered in the dataset'
+          example: '["T1W", "T2W"]'
+          items:
+            type: string
         public:
           type: boolean
           description: "(optional, default false) if false then the dataset will be only visible to users with the role view_all_datasets (consortium researchers), if true then the dataset will be also visible to users with the role view_public_datasets (all users, including external researchers)"
@@ -450,9 +456,9 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Study'
-        gid:
-          type: integer
-          description: group id with the permissions to see the directories of studies selected for this dataset
+#       gid:
+#         type: integer
+#         description: group id with the permissions to see the directories of studies selected for this dataset
         public:
           type: boolean
           description: "(optional, default false) if false then the dataset will be only visible to users with the role view_all_datasets (consortium researchers), if true then the dataset will be also visible to users with the role view_public_datasets (all users, including external researchers)"
@@ -482,7 +488,13 @@ components:
           type: string
           maxLength: 256
           description: "Path to the folder of the study in the datalake (the structure usually should be: <userName>/<subjectName>_<trial>/<studyName><studyDate>/)"
-          example: "blancagomez/01_Neuroblastoma_4_Neuroblastoma/TCPEDITRICOABDOMINOPLVICOCONCONTRASTE20150129/"
+          example: "blancagomez/17B76FEW_Neuroblastoma/TCPEDITRICOABDOMINOPLVICOCONCONTRASTE20150129/"
+        series:
+          type: array
+          description: 'Directory names of series considered in the dataset. This is needed because new series can be added later.'
+          example: '["AXT1XL", "SAGITALT1FSE"]'
+          items:
+            type: string
         url:
           type: string
           maxLength: 256

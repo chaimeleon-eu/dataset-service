@@ -129,6 +129,29 @@ def run(host, port, config):
             LOG.exception(e)
             raise e
 
+    if CONFIG.tracer.url == '':
+        LOG.warn("tracer.url is empty: actions will not be notified to the tracer-service.")
+    else:
+        LOG.info("Checking connection to tracer-service on %s..." % CONFIG.tracer.url)
+        try:
+            retries = 0
+            while retries < 5:
+                try:
+                    hash_codes = tracer.getSupportedHashAlgorithms(
+                        CONFIG.tracer.auth_url, CONFIG.tracer.client_id, CONFIG.tracer.client_secret, CONFIG.tracer.url)
+                    LOG.info("Accepted hash codes: %s" % json.dumps(hash_codes))
+                    break;
+                except urllib.error.HTTPError as e1:
+                    LOG.error("HTTPError: " + str(e1.code) + " - " + str(e1.reason))
+                except urllib.error.URLError as e2:
+                    LOG.error("URLError: "+ str(e2.reason))
+                retries += 1
+                LOG.info("Retrying in 5 seconds...")
+                time.sleep(5)
+            if retries >= 5: raise Exception("Unable to connect to tracer-service.")
+        except Exception as e:
+            LOG.exception(e)
+            raise e
 
 #   LOG.info("Loading Kubernetes configuration...")
 #   KUBERNETES_CONFIG = client.Configuration()
@@ -304,7 +327,7 @@ def postDataset():
         return setErrorResponse(401,"unauthorized user")
 
     content_types = get_header_media_types('Content-Type')
-    if bottle.request.params["external"]:
+    if "external" in bottle.request.params and bottle.request.params["external"].lower() == "true":
         if not 'multipart/form-data' in content_types:
             return setErrorResponse(400,"invalid 'Content-Type' header, required 'multipart/form-data'")
     else:
@@ -312,7 +335,8 @@ def postDataset():
             return setErrorResponse(400,"invalid 'Content-Type' header, required 'application/json'")
 
     try:
-        if bottle.request.params["external"]:
+        if "external" in bottle.request.params and bottle.request.params["external"].lower() == "true":
+            # This is for manually create datasets out of the standard ingestion procedure 
             clinicalDataFile = bottle.request.files["clinical_data"]
             name, ext = os.path.splitext(clinicalDataFile.filename)
             if ext != '.csv':
@@ -365,18 +389,30 @@ def postDataset():
                 db.createOrUpdateStudy(study, datasetId)
 
             if CONFIG.self.datasets_mount_path != '':
-                LOG.debug('Creating symbolic links...')
+                LOG.debug('Creating directory and symbolic links...')
                 datasetDirName = datasetId
                 create_dataset(CONFIG.self.datasets_mount_path, datasetDirName, CONFIG.self.datalake_mount_path, dataset["studies"])
                 
-                LOG.debug('Writing ' + CONFIG.self.eforms_file_name)
+                LOG.debug('Writing E-FORM:' + CONFIG.self.eforms_file_name)
                 with open(os.path.join(CONFIG.self.datasets_mount_path, datasetDirName, CONFIG.self.eforms_file_name) , 'w') as outputStream:
                     json.dump(dataset["patients"], outputStream)
+
+                LOG.debug('Writing INDEX: ' + CONFIG.self.index_file_name)
+                # dataset["studies"] contains just the information we want to save in the index.json file
+                # Set paths relative to the dataset directory
+                for study in dataset["studies"]:
+                    subjectDirName = study['subjectName']
+                    study["path"] = os.path.join(subjectDirName, os.path.basename(study['path']))
+                # And dump to the file in the dataset directory
+                with open(os.path.join(CONFIG.self.datasets_mount_path, datasetDirName, CONFIG.self.index_file_name) , 'w') as outputStream:
+                    json.dump(dataset["studies"], outputStream)
+
+                if CONFIG.tracer.url != '':
+                    LOG.debug('Calculating SHAs and notifying to tracer-service.')
+                    # Note this tracer call is inside of "with db" because if tracer fails the database changes will be reverted (transaction rollback).
+                    tracer.traceDatasetCreation(CONFIG.tracer.auth_url, CONFIG.tracer.client_id, CONFIG.tracer.client_secret, CONFIG.tracer.url, 
+                                                CONFIG.self.datasets_mount_path, datasetDirName, dataset, userId)
                 
-            # # Note this tracer call is inside of "with db" because if tracer fails the database changes will be reverted (transaction rollback).
-            # tracer.traceDatasetCreation(CONFIG.tracer.auth_url, CONFIG.tracer.client_id, CONFIG.tracer.client_secret, CONFIG.tracer.url, 
-            #                             dataset, userId)
-            
         LOG.debug('Dataset successfully created.')
         bottle.response.status = 201
 
@@ -386,7 +422,7 @@ def postDataset():
         return setErrorResponse(500, str(e))
     except Exception as e:
         LOG.exception(e)
-        if not bottle.request.params["external"]:
+        if not "external" in bottle.request.params or bottle.request.params["external"].lower() != "true":
             LOG.error("May be the body of the request is wrong: %s" % read_data)
         return setErrorResponse(500,"Unexpected error, may be the input is wrong")
         
@@ -514,7 +550,7 @@ def getUser(userName):
         return setErrorResponse(401,"unauthorized user")
     
     with DB(CONFIG.db) as db:
-        userGid = db.getUserGID(userName)
+        userId, userGid = db.getUserIDs(userName)
 
     if userGid is None: return setErrorResponse(404, "not found")
 
@@ -599,7 +635,7 @@ def postDatasetAccess(id):
             return setErrorResponse(403,"access denied")
 
         with DB(CONFIG.db) as db:
-            userGID = db.getUserGID(userName)
+            userId, userGID = db.getUserIDs(userName)
             if CONFIG.self.datasets_mount_path != '':
                 for id in datasetIDs:
                     studies = db.getStudiesFromDataset(id)
@@ -608,9 +644,10 @@ def postDatasetAccess(id):
                     give_access_to_dataset(CONFIG.self.datasets_mount_path, datasetDirName, CONFIG.self.datalake_mount_path, studies, userGID)
 
             db.createDatasetAccess(datasetAccessId, datasetIDs, userGID, toolName, toolVersion)
-        # # Note this tracer call is inside of "with db" because if tracer fails the database changes will be reverted (transaction rollback).
-        # tracer.traceDatasetAccess(CONFIG.tracer.auth_url, CONFIG.tracer.client_id, CONFIG.tracer.client_secret, CONFIG.tracer.url, 
-        #                             dataset, userId, toolName, toolVersion)
+            if CONFIG.tracer.url != '':
+                # Note this tracer call is inside of "with db" because if tracer fails the database changes will be reverted (transaction rollback).
+                tracer.traceDatasetAccess(CONFIG.tracer.auth_url, CONFIG.tracer.client_id, CONFIG.tracer.client_secret, CONFIG.tracer.url, 
+                                          datasetIDs, userId, toolName, toolVersion)
         
         LOG.debug('Dataset access granted.')
         bottle.response.status = 201

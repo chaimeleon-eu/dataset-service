@@ -5,7 +5,7 @@ import dataset_service.utils
 class DatasetException(Exception):
     pass
 
-def create_dataset (datasets_dir_path, dataset_dir_name, datalake_dir_path, studies):
+def create_dataset(datasets_dir_path, dataset_dir_name, datalake_dir_path, studies):
     '''
     Creates the dataset directory, the subject directories and the symbolic links to the study directories (in the datalake).
     PARAMS:
@@ -16,23 +16,24 @@ def create_dataset (datasets_dir_path, dataset_dir_name, datalake_dir_path, stud
     '''
     owner_uid = 0
     owner_gid = 0
-    dataset_dir = os.path.join(datasets_dir_path, dataset_dir_name)
+    dataset_dir_path = os.path.join(datasets_dir_path, dataset_dir_name)
     # Create dataset directory
     #os.mkdir(dataset_dir)
-    create_dir(dataset_dir, uid=owner_uid, gid=owner_gid, permissions=0o700)
+    create_dir(dataset_dir_path, uid=owner_uid, gid=owner_gid, permissions=0o700)
     # Now only root have access. The access to normal users will be granted later with ACLs.
     
     for study in studies:
-        # study['path'] example: blancagomez/01_Neuroblastoma_4_Neuroblastoma/TCPEDITRICOABDOMINOPLVICO20150129/
-        studyDirName = os.path.basename(study['path'])
         subjectDirName = study['subjectName']
-        subjectDirPath = os.path.join(dataset_dir, subjectDirName)
+        subjectDirPath = os.path.join(dataset_dir_path, subjectDirName)
         if not os.path.exists(subjectDirPath):
             create_dir(subjectDirPath, uid=owner_uid, gid=owner_gid, permissions=0o705)
             # At this level all the people have read access, the control with ACLs is done in the upper level.
 
+        # study['path'] example: blancagomez/17B76FEW_Neuroblastoma/TCPEDITRICOABDOMINOPLVICO20150129/
+        studyDirName = os.path.basename(study['path'])
         linkLocation = os.path.join(subjectDirPath, studyDirName)
         linkDestination = os.path.join(datalake_dir_path, study['path'])
+        # linkLocation example: /mnt/cephfs/datasets/myDataset/17B76FEW/TCPEDITRICOABDOMINOPLVICO20150129
         ok = symlink(linkDestination, linkLocation, target_is_directory=True, uid=owner_uid, gid=owner_gid)
         if not ok: 
             logging.root.error("Error creating symlink: " + linkLocation + " -> " + linkDestination)

@@ -123,7 +123,7 @@ spec:
             readOnly: false
       containers:
         - name: dataset-service-backend
-          image:  chaimeleon-eu.i3m.upv.es:10443/chaimeleon-services/dataset-service-backend:0.22
+          image:  chaimeleon-eu.i3m.upv.es:10443/chaimeleon-services/dataset-service-backend:0.35
           ports:
             - containerPort: 11000
               name: dssport
@@ -149,7 +149,7 @@ spec:
                     "issuer": "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON"
                 },
                 "tracer": {
-                    "url": "https://chaimeleon-eu.i3m.upv.es/tracer-service/",
+                    "url": "https://chaimeleon-eu.i3m.upv.es/tracer-service/tracer/",
                     "auth_url": "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token",
                     "client_id": "dataset-service",
                     "client_secret": "XXXXXXXX"
