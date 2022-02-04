@@ -370,9 +370,9 @@ components:
         studiesCount:
           type: integer
           description: the number of studies contained in the dataset
-        patientsCount:
+        subjectsCount:
           type: integer
-          description: the number of different patients which are related with the studies contained in the dataset
+          description: the number of different subjects which are related with the studies contained in the dataset
           
     DatasetCreationObject:
       type: object
@@ -395,11 +395,11 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Study'
-        patients:
+        subjects:
           type: array
           description: 'subjects of studies and their clinical data'
           items:
-            $ref: '#/components/schemas/Patient'
+            $ref: '#/components/schemas/Subject'
         serieTags:
           type: array
           description: '(optional) type of series considered in the dataset'
@@ -464,11 +464,40 @@ components:
           description: "(optional, default false) if false then the dataset will be only visible to users with the role view_all_datasets (consortium researchers), if true then the dataset will be also visible to users with the role view_public_datasets (all users, including external researchers)"
         studiesCount:
           type: integer
-          description: the number of studies contained in the dataset
-        patientsCount:
+          description: "The number of studies contained in the dataset"
+        subjectsCount:
           type: integer
-          description: the number of different patients which are related with the studies contained in the dataset
-        
+          description: "The number of different subjects which are related with the studies contained in the dataset"
+        ageLow:
+          type: integer
+          description: "[Miabis] Age of youngest subject. Null if can not be collected from dataset contents."
+        ageHigh:
+          type: integer
+          description: "[Miabis] Age of oldest subject. Null if can not be collected from dataset contents."
+        ageUnit:
+          type: array
+          description: "[Miabis] Array of two items: unit for ageLow, unit for ageHigh. Empty if age can not be collected from dataset contents."
+          example: '["years", "years"]'
+          items:
+            type: string
+        sex:
+          type: array
+          description: "[Miabis] Array of different sex values in the dataset. Empty if can not be collected from dataset contents."
+          example: '["Male", "Female"]'
+          items:
+            type: string
+        bodyPart:
+          type: array
+          description: "Array of different body parts (Dicom tag) in the dataset. Empty if can not be collected from dataset contents."
+          example: '["LUNG"]'
+          items:
+            type: string
+        modality:
+          type: array
+          description: "Array of different modalities (Dicom tag) in the dataset. Empty if can not be collected from dataset contents."
+          example: '["CT"]'
+          items:
+            type: string
     Study:
       type: object
       properties:
@@ -482,7 +511,7 @@ components:
         subjectName:
           type: string
           maxLength: 128
-          description: "The subject name, which is anonymized and unique: there should be an entry in the patients array with that code."
+          description: "The subject name, which is anonymized and unique: there should be an entry in the subjects array with that code."
           example: "17B76FEW"
         path:
           type: string
@@ -502,7 +531,7 @@ components:
           description: "link to the study in the case explorer web portal" 
           example: 'https://www.quibim.com/studies?id=5e5629835938d12160636353'
           
-    Patient:
+    Subject:
       type: object
       properties:
         subjectName:

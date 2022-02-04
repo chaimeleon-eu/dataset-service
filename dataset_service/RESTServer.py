@@ -16,8 +16,10 @@ import jwt
 from jwt import PyJWKClient
 import urllib
 import uuid
+import pydicom
 import dataset_service.tracer as tracer
 from dataset_service.dataset import *
+from dataset_service import dicom
 
 #LOG = logging.getLogger('kube-authorizer')
 LOG = logging.root
@@ -280,7 +282,7 @@ def postDataset():
 
 def completeDatasetFromCSV(dataset, csvdata):
     dataset["studies"] = []
-    dataset["patients"] = []
+    dataset["subjects"] = []
     import csv
     #LOG.debug("======" + csvdata)
     csvreader = csv.reader(csvdata) #, delimiter=',')
@@ -313,10 +315,89 @@ def completeDatasetFromCSV(dataset, csvdata):
             eform = {}
             for i in range(1, len(header)):
                 eform[header[i]] = row[i]
-            dataset["patients"].append({
+            dataset["subjects"].append({
                 'subjectName': row[0],
                 'eForm': eform 
             })
+
+    
+def getMetadataFromFirstDicomFile(serieDirPath):
+    for name in os.listdir(serieDirPath):
+        if name.lower().endswith(".dcm"):
+            dicomFilePath = os.path.join(serieDirPath, name)
+            dcm = pydicom.dcmread(dicomFilePath)
+            age = (dcm[dicom.AGE_TAG].value if dicom.AGE_TAG in dcm else None)
+            sex = (dcm[dicom.SEX_TAG].value if dicom.SEX_TAG in dcm else None)
+            bodyPart = (dcm[dicom.BODY_PART_TAG].value if dicom.BODY_PART_TAG in dcm else None)
+            modality = (dcm[dicom.MODALITY_TAG].value  if dicom.MODALITY_TAG in dcm else None)
+            #datasetType = dcm[dicom.DATASET_TYPE_TAG].value    it seems very similar to modality
+            return age, sex, bodyPart, modality
+
+def collectMetadata(dataset):
+    differentSubjects = set()
+    studiesCount = 0
+    maxAge = "000D"
+    minAge = "999Y"
+    sexList = set()
+    bodyPartList = set()
+    modalityList = set()
+    for study in dataset["studies"]:
+        studiesCount += 1
+        if not study["subjectName"] in differentSubjects: 
+            differentSubjects.add(study["subjectName"])
+        if CONFIG.self.datalake_mount_path != '':
+            seriePathInDatalake = os.path.join(CONFIG.self.datalake_mount_path, study['path'], study['series'][0])
+            try:
+                age, sex, bodyPart, modality = getMetadataFromFirstDicomFile(seriePathInDatalake)
+            except Exception as e:
+                # try with the second serie if exists
+                if len(study['series']) > 1:
+                    seriePathInDatalake = os.path.join(CONFIG.self.datalake_mount_path, study['path'], study['series'][1])
+                    age, sex, bodyPart, modality = getMetadataFromFirstDicomFile(seriePathInDatalake)
+                else: raise e
+            if age != None:
+                minAge = min(minAge, age, key=lambda x: dicom.getAgeInDays(x))
+                maxAge = max(maxAge, age, key=lambda x: dicom.getAgeInDays(x))
+            if sex != None: sexList.add(sex)
+            if bodyPart != None: bodyPartList.add(bodyPart) 
+            if modality != None: modalityList.add(modality)
+            
+    dataset["studiesCount"] = studiesCount
+    dataset["subjectsCount"] = len(differentSubjects)
+    dataset["ageLow"] = (minAge if minAge != "999Y" else None)
+    dataset["ageHigh"] = (maxAge if maxAge != "000D" else None)
+    dataset["sex"] = list(sexList)
+    dataset["bodyPart"] = list(bodyPartList)
+    dataset["modality"] = list(modalityList)
+    LOG.debug("  -studiesCount: %s" % dataset["studiesCount"])
+    LOG.debug("  -subjectsCount: %s" % dataset["subjectsCount"])
+    LOG.debug("  -ageLow: %s" % dataset["ageLow"])
+    LOG.debug("  -ageHigh: %s" % dataset["ageHigh"])
+    LOG.debug("  -sex: %s" % dataset["sex"])
+    LOG.debug("  -bodyPart: %s" % dataset["bodyPart"])
+    LOG.debug("  -modality: %s" % dataset["modality"])
+    
+
+def collectMetadata2(dataset):
+    if CONFIG.self.CONFIG.self.datalake_mount_path == '': return
+    from pydicom.fileset import FileSet
+    fs = FileSet()
+    for study in dataset["studies"]:
+        for serie in study["series"]:
+            seriePathInDatalake = os.path.join(CONFIG.self.datalake_mount_path, study['path'], study['series'][0])
+            fs.add(seriePathInDatalake)
+    values = fs.find_values(["StudyInstanceUID", "PatientID", (0x0010, 0x1010), (0x0010, 0x0040), (0x0008, 0x0016), (0x0018, 0x0015), (0x0008, 0x0060)])
+    dataset["studiesCount"] = len(values["StudyInstanceUID"])
+    dataset["subjectsCount"] = len(values["PatientID"])
+    # dataset["ageLow"] = reduce(lambda x, y: min(x, getAgeInYears(y)), values[0x0010, 0x1010])
+    # dataset["ageHigh"] = reduce(lambda x, y: max(x, getAgeInYears(y)), values[0x0010, 0x1010])
+    dataset["ageLow"] = min(values[0x0010, 0x1010], key=lambda x: dicom.getAgeInDays(x))
+    dataset["ageHigh"] = max(values[0x0010, 0x1010], key=lambda x: dicom.getAgeInDays(x))
+    dataset["sex"] = values[0x0010, 0x0040]
+    dataset["datasetType"] = values[0x0008, 0x0016]
+    dataset["bodyPart"] = values[0x0018, 0x0015]
+    dataset["modality"] = values[0x0008, 0x0060]
+
 
 @app.route('/api/dataset', method='POST')
 def postDataset():
@@ -378,16 +459,9 @@ def postDataset():
             if not "public" in dataset.keys(): 
                 dataset["public"] = False
 
-            differentPatients = set()
-            studiesCount = 0
-            for study in dataset["studies"]:
-                studiesCount += 1
-                if not study["subjectName"] in differentPatients: 
-                    differentPatients.add(study["subjectName"])
-
-            dataset["studiesCount"] = studiesCount
-            dataset["patientsCount"] = len(differentPatients)
-
+            LOG.debug("Scanning dataset for collecting metadata... ")
+            collectMetadata(dataset)
+                        
             LOG.debug('Creating dataset in DB...')
             db.createDataset(dataset, userId)
 
@@ -402,7 +476,7 @@ def postDataset():
                 
                 LOG.debug('Writing E-FORM:' + CONFIG.self.eforms_file_name)
                 with open(os.path.join(CONFIG.self.datasets_mount_path, datasetDirName, CONFIG.self.eforms_file_name) , 'w') as outputStream:
-                    json.dump(dataset["patients"], outputStream)
+                    json.dump(dataset["subjects"], outputStream)
 
                 LOG.debug('Writing INDEX: ' + CONFIG.self.index_file_name)
                 # dataset["studies"] contains just the information we want to save in the index.json file

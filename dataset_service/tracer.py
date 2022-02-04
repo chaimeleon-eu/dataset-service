@@ -139,9 +139,9 @@ def traceDatasetCreation(authUrl, clientId, clientSecret, tracerUrl, datasetsDir
             addFilesFromDirectoryAsResources(body, datasetDirPath, serieRelativeDirPath)
 
     # body['resources'][0]['data'] = base64.b64encode(bytes(json.dumps(dataset["studies"]), 'utf-8')).decode('ascii')  # list of studies
-    # body['resources'][1]['data'] = base64.b64encode(bytes(json.dumps(dataset["patients"]), 'utf-8')).decode('ascii')  # clinical data
+    # body['resources'][1]['data'] = base64.b64encode(bytes(json.dumps(dataset["subjects"]), 'utf-8')).decode('ascii')  # clinical data
     body['resources'][0]['hash'] = getHashOfString(json.dumps(dataset["studies"]))  # list of studies
-    body['resources'][1]['hash'] = getHashOfString(json.dumps(dataset["patients"]))  # clinical data
+    body['resources'][1]['hash'] = getHashOfString(json.dumps(dataset["subjects"]))  # clinical data
 
     payload = json.dumps(body)
     #logging.root.debug("BODY: " + payload)

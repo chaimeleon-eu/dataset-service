@@ -16,6 +16,6 @@
 
 __all__ = ['config', 'RESTServer']
 __appname__ = 'Dataset Service'
-__version__ = '0.37'
+__version__ = '0.46'
 __author__ = 'GRYCAP-UPV'
 __email__ = 'palollo@i3m.upv.es'

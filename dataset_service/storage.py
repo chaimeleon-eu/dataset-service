@@ -1,7 +1,9 @@
+from array import array
 import logging
 import psycopg2
 from psycopg2 import sql
 import json
+from dataset_service import dicom
 
 class DB:
     def __init__(self, dbConfig):
@@ -38,8 +40,9 @@ class DB:
             if version <=2: self.updateDB_v2To3()
             if version <=3: self.updateDB_v3To4()
             if version <=4: self.updateDB_v4To5()
+            if version <=5: self.updateDB_v5To6()
             ### Finally update schema_version
-            self.cursor.execute("UPDATE metadata set schema_version = 5;")
+            self.cursor.execute("UPDATE metadata set schema_version = 6;")
 
     def getSchemaVersion(self):
         self.cursor.execute("SELECT EXISTS ( SELECT FROM information_schema.tables WHERE table_name = 'metadata');")
@@ -98,7 +101,12 @@ class DB:
                 public boolean NOT NULL DEFAULT false,
                 invalidated boolean NOT NULL DEFAULT false,
                 studies_count integer NOT NULL,
-                patients_count integer NOT NULL,
+                subjects_count integer NOT NULL,
+                age_low varchar(4) DEFAULT NULL,
+                age_high varchar(4) DEFAULT NULL,
+                sex varchar(8) NOT NULL DEFAULT '[]',
+                body_part text NOT NULL DEFAULT '[]',
+                modality text NOT NULL DEFAULT '[]',
                 constraint pk_dataset primary key (id),
                 constraint fk_author foreign key (author_id) references author(id)
             );
@@ -179,6 +187,14 @@ class DB:
         logging.root.info("Updating database from v4 to v5...")
         self.cursor.execute("ALTER TABLE dataset_study ADD COLUMN series text NOT NULL DEFAULT '[]';")
         
+    def updateDB_v5To6(self):
+        logging.root.info("Updating database from v5 to v6...")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN age_low varchar(4) DEFAULT NULL;")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN age_high varchar(4) DEFAULT NULL;")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN sex varchar(8) NOT NULL DEFAULT '[]';")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN body_part text NOT NULL DEFAULT '[]';")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN modality text NOT NULL DEFAULT '[]';")
+        self.cursor.execute("ALTER TABLE dataset RENAME COLUMN patients_count TO subjects_count;")
 
     def createOrUpdateAuthor(self, userId, username, name, email):
         self.cursor.execute("""
@@ -227,13 +243,18 @@ class DB:
 
     def createDataset(self, dataset, userId):
         self.cursor.execute("""
-            INSERT INTO dataset (id, name, previous_id, author_id, creation_date, description, public,
-                                 studies_count, patients_count)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s);""",
-            (dataset["id"], dataset["name"], dataset["previousId"], 
-             userId, dataset["creationDate"], dataset["description"], 
-             dataset["public"],
-             dataset["studiesCount"], dataset["patientsCount"]))
+            INSERT INTO dataset (id, name, previous_id, author_id, 
+                                 creation_date, description, public,
+                                 studies_count, subjects_count, 
+                                 age_low, age_high, 
+                                 sex, body_part, modality)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s);""",
+            (dataset["id"], dataset["name"], dataset["previousId"], userId, 
+             dataset["creationDate"], dataset["description"], dataset["public"], 
+             dataset["studiesCount"], dataset["subjectsCount"], 
+             dataset["ageLow"], dataset["ageHigh"], 
+             json.dumps(dataset["sex"]), json.dumps(dataset["bodyPart"]), 
+             json.dumps(dataset["modality"])))
 
     def createOrUpdateStudy(self, study, datasetId):
         self.cursor.execute("""
@@ -264,18 +285,33 @@ class DB:
         self.cursor.execute("""
             SELECT dataset.id, dataset.name, dataset.previous_id, 
                    author.id, author.name, author.email, 
-                   dataset.creation_date, dataset.description, dataset.public,
-                   dataset.studies_count, dataset.patients_count
+                   dataset.creation_date, dataset.description, dataset.public, 
+                   dataset.studies_count, dataset.subjects_count, 
+                   dataset.age_low, dataset.age_high, 
+                   dataset.sex, dataset.body_part, dataset.modality 
             FROM dataset, author 
             WHERE dataset.id=%s AND author.id = dataset.author_id AND dataset.invalidated = false
             LIMIT 1;""",
             (id,))
         row = self.cursor.fetchone()
         if row is None: return None
+        if row[11] is None:
+            ageLow = None
+            ageHigh = None
+            ageUnit = None
+        else:
+            ageLow, ageLowUnit = dicom.getAgeInMiabisFormat(row[11])
+            ageHigh, ageHighUnit = dicom.getAgeInMiabisFormat(row[12])
+            ageUnit = [ageLowUnit, ageHighUnit]
+        sex = []
+        for s in json.loads(row[13]):
+            sex.append(dicom.getSexInMiabisFormat(s))
         return dict(id = row[0], name = row[1], previousId = row[2], 
                     authorId = row[3], authorName = row[4], authorEmail = row[5], 
-                    creationDate = str(row[6]), description = row[7], public = row[8],
-                    studiesCount = row[9], patientsCount = row[10])
+                    creationDate = str(row[6]), description = row[7], public = row[8], 
+                    studiesCount = row[9], subjectsCount = row[10], 
+                    ageLow = ageLow, ageHigh = ageHigh, ageUnit = ageUnit, sex = sex, 
+                    bodyPart = json.loads(row[14]), modality = json.loads(row[15]))
 
     def getStudiesFromDataset(self, datasetId, limit = 'ALL', skip = 0):
         self.cursor.execute(sql.SQL("""
@@ -298,7 +334,7 @@ class DB:
 
         self.cursor.execute(sql.SQL("""
             SELECT dataset.id, dataset.name, author.name, dataset.creation_date, 
-                   dataset.studies_count, dataset.patients_count
+                   dataset.studies_count, dataset.subjects_count
             FROM dataset, author 
             WHERE dataset.author_id = author.id AND dataset.invalidated = false {}
             LIMIT {} OFFSET {};""").format(whereClause, sql.SQL(str(limit)), sql.SQL(str(skip)))
@@ -306,7 +342,7 @@ class DB:
         res = []
         for row in self.cursor:
             res.append(dict(id = row[0], name = row[1], authorName = row[2], creationDate = str(row[3]), 
-                            studiesCount = row[4], patientsCount = row[5]))
+                            studiesCount = row[4], subjectsCount = row[5]))
         return res
         
     def invalidateDataset(self, id):
