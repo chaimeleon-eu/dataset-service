@@ -8,16 +8,21 @@ Authentication is required to access to the service using the OpenId-Connect sta
 Basically the client application must initially redirect the user to the authentication service, to obtain a bearer token. 
 Then, that token must be included in the "Authorization" header of any request done to the dataset-service.
 
-Basic operations:
- - POST /dataset
- - GET /dataset/{id}
- - DELETE /dataset/{id}
- - GET /datasets
+Basic API operations:
+ - POST /api/dataset
+ - GET /api/dataset/{id}
+ - DELETE /api/dataset/{id}
+ - GET /api/datasets
 
 Below is a walkthrough by examples with CURL.
 
+Other managed routes outside /api/:
+ - GET /web/{staticFilePath}   
+   static files needed to load the client app (frontend) in the browser
+ - GET /{anyOtherPath}      
+   internally redirected to /web/index.html, the client app with JS code that manages locally other routes like /datasets 
 
-## Usage
+## API Usage
 
 ```
 REM set DSS_ENDPOINT=http://localhost:11000/api

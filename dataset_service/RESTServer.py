@@ -250,18 +250,8 @@ def get_header_media_types(header):
     return res
 
 
-@app.route('/', method='GET')
-def RESTGetWebUI():
-    LOG.debug("Received GET /")
-    return bottle.static_file('index.html', CONFIG.self.static_files_dir_path)
-
-@app.route('/<filename:re:.*\.(html|js|json|txt|map|css|jpg|png|gif|ico|svg)>', method='GET')
-def RESTGetWebUI(filename):
-    LOG.debug("Received GET /"+filename)
-    return bottle.static_file(filename, CONFIG.self.static_files_dir_path)
-
 @app.route('/api/', method='GET')
-def RESTGetHello():
+def getHello():
     LOG.debug("Received GET /api/")
     bottle.response.content_type = "text/plain"
     return "Hello from Dataset Service"
@@ -744,5 +734,50 @@ def postDatasetAccess(id):
 @app.route('/api/datasetAccess/<id>', method='DELETE')
 def deleteDatasetAccess(id):
     LOG.debug("Received DELETE %s" % bottle.request.path)
-    return setErrorResponse(404, "not implemented, not yet")
+    return setErrorResponse(404, "Not implemented, not yet")
+
+# Routes are evaluated in the order they were defined.
+# So this is to send appropiate error to unknown operations but with the /api prefix.
+# Just to not continue evaluating the rest of routes of front-end.
+@app.route('/api/<any_path:re:.+>', method='GET')
+def getUnknown(any_path):
+    LOG.debug("Received unknown %s" % bottle.request.path)
+    return setErrorResponse(404, "Not found '%s'" % bottle.request.path)
+
+
+# ================
+# Front-end routes
+# ================
+
+# static files (any route that ends with '.' + known extension, including subpaths)
+# To avoid conflicts, static files prefixed with /web/
+@app.route('/web/<file_path:re:.*\.(html|js|json|txt|map|css|jpg|png|gif|ico|svg)>', method='GET')
+def getStaticFileWeb(file_path):
+    LOG.debug("Received GET %s" % bottle.request.path)
+    LOG.debug("Static file (web): "+file_path)
+    return bottle.static_file(file_path, CONFIG.self.static_files_dir_path)
+
+# Routes are evaluated in the order they were defined.
+# So this is to send appropiate error to missing file but with the /web prefix.
+# Just to not continue evaluating the rest of routes.
+@app.route('/web/<any_path:re:.+>', method='GET')
+def getUnknown(any_path):
+    LOG.debug("Received unknown %s" % bottle.request.path)
+    return setErrorResponse(404, "Not found '%s'" % bottle.request.path)
+
+# temporal for backward compatibility
+@app.route('/<file_path:re:.*\.(html|js|json|txt|map|css|jpg|png|gif|ico|svg)>', method='GET')
+def getStaticFile(file_path):
+    LOG.debug("Received GET %s" % bottle.request.path)
+    LOG.debug("Static file: "+file_path)
+    return bottle.static_file(file_path, CONFIG.self.static_files_dir_path)
+
+# Any other path (without prefix /api/ or /web/) will be responded with the index.html content,
+# index.html loads a javascript interface that manage those other paths.
+@app.route('/', method='GET')
+@app.route('/<any_path:re:.+>', method='GET')
+def getWebUI(any_path=''):
+    LOG.debug("Received GET /" + any_path)
+    LOG.debug("Routed to index.html")
+    return bottle.static_file('index.html', CONFIG.self.static_files_dir_path)
 
