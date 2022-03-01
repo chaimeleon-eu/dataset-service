@@ -216,17 +216,41 @@ def checkAuthorizationHeader(serviceAccount=False):
         return False, setErrorResponse(401,"invalid access token: missing 'resource_access.dataset-service.roles'")
 
     # ensure roles included in other roles
-    if CONFIG.auth.roles.view_all_datasets in user_info["appRoles"]:
-        appendIfNotExists(user_info["appRoles"], CONFIG.auth.roles.view_public_datasets)
     if CONFIG.auth.roles.admin_datasets in user_info["appRoles"]:
-        appendIfNotExists(user_info["appRoles"], CONFIG.auth.roles.view_public_datasets)
-        appendIfNotExists(user_info["appRoles"], CONFIG.auth.roles.view_all_datasets)
+        appendIfNotExists(user_info["appRoles"], CONFIG.auth.roles.access_all_datasets)
     if CONFIG.auth.roles.superadmin_datasets in user_info["appRoles"]:
-        appendIfNotExists(user_info["appRoles"], CONFIG.auth.roles.view_public_datasets)
-        appendIfNotExists(user_info["appRoles"], CONFIG.auth.roles.view_all_datasets)
+        appendIfNotExists(user_info["appRoles"], CONFIG.auth.roles.access_all_datasets)
         appendIfNotExists(user_info["appRoles"], CONFIG.auth.roles.admin_datasets)
 
     return True, user_info
+
+def userCanAccessDataset(userId, userRoles, dataset):
+    if CONFIG.auth.roles.superadmin_datasets in userRoles: return True
+
+    # if dataset["draft"] and userId != dataset["authorId"]:
+    #     return False
+    if not dataset["public"] and not CONFIG.auth.roles.access_all_datasets in userRoles:
+        return False
+    else:
+        return True
+
+def tmpUserCanAccessDataset(userId, userGroups, dataset):
+    #if CONFIG.auth.roles.superadmin_datasets in userRoles: return True
+
+    # if dataset["draft"] and userId != dataset["authorId"]:
+    #     return False
+    if not dataset["public"] and not "data-scientists" in userGroups:
+        return False
+    else:
+        return True
+
+def userCanDeleteDataset(userId, userRoles, dataset):
+    if CONFIG.auth.roles.superadmin_datasets in userRoles: return True
+
+    if userId == dataset["authorId"]:
+        return True
+    else:
+        return False
 
 def get_header_media_types(header):
     """
@@ -500,17 +524,13 @@ def postDataset():
         if datasetDirName != '': remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
         return setErrorResponse(500,"Unexpected error, may be the input is wrong")
         
-
+        
 @app.route('/api/dataset/<id>', method='GET')
 def getDataset(id):
     LOG.debug("Received GET /dataset/%s" % id)
     ok, ret = checkAuthorizationHeader()
     if not ok: return ret
     else: user_info = ret
-
-    # the user must have access at least to public datasets
-    if not CONFIG.auth.roles.view_public_datasets in user_info["appRoles"]:
-        return setErrorResponse(401,"unauthorized user")
 
     datasetId = id
     skip = int(bottle.request.params['studiesSkip']) if 'studiesSkip' in bottle.request.params else 0
@@ -524,8 +544,8 @@ def getDataset(id):
         if dataset is None:
             return setErrorResponse(404,"not found")
 
-        # check if dataset is not public and the user do not have permission to view it
-        if dataset["public"] == False and not CONFIG.auth.roles.view_all_datasets in user_info["appRoles"]:
+        # check access permission
+        if not userCanAccessDataset(user_info["sub"], user_info["appRoles"], dataset):
             return setErrorResponse(401,"unauthorized user")
 
         dataset["studies"] = db.getStudiesFromDataset(datasetId, limit, skip)
@@ -533,7 +553,7 @@ def getDataset(id):
     bottle.response.content_type = "application/json"
     return json.dumps(dataset)
 
-    
+    #patch dataset/id/status
 @app.route('/api/dataset/<id>', method='DELETE')
 def deleteDataset(id):
     LOG.debug("Received DELETE /dataset/%s" % id)
@@ -546,8 +566,8 @@ def deleteDataset(id):
 
     datasetId = id
     with DB(CONFIG.db) as db:
-        authorId = db.getDataset(datasetId)["authorId"]
-        if not CONFIG.auth.roles.superadmin_datasets in user_info["appRoles"] and not user_info["sub"] == authorId :
+        dataset = db.getDataset(datasetId)
+        if not userCanDeleteDataset(user_info["sub"], user_info["appRoles"], dataset):
             return setErrorResponse(401,"unauthorized user (only the author can invalidate the dataset)")
 
         db.invalidateDataset(datasetId)
@@ -562,10 +582,7 @@ def getDatasets():
     if not ok: return ret
     else: user_info = ret
 
-    if not CONFIG.auth.roles.view_public_datasets in user_info["appRoles"]:
-        return setErrorResponse(401,"unauthorized user")
-
-    showOnlyPublic = not CONFIG.auth.roles.view_all_datasets in user_info["resource_access"]["dataset-service"]["roles"]
+    showOnlyPublic = not CONFIG.auth.roles.access_all_datasets in user_info["appRoles"]
 
     skip = int(bottle.request.params['skip']) if 'skip' in bottle.request.params else 0
     limit = int(bottle.request.params['limit']) if 'limit' in bottle.request.params else 30
@@ -635,14 +652,15 @@ def getUser(userName):
 def checkDatasetListAccess(datasetIDs, userName):
     badIDs = []
     with DB(CONFIG.db) as db:
+        userId, userGID = db.getUserIDs(userName)
         userGroups = db.getUserGroups(userName)
         for id in datasetIDs:
             dataset = db.getDataset(id)
             if dataset is None:
                 # invalidated or not exists
                 badIDs.append(id)
-            elif not dataset["public"] and not "data-scientists" in userGroups:
-                    badIDs.append(id)
+            elif not userCanAccessDataset(userId, userGroups, dataset):
+                badIDs.append(id)
     return badIDs
 
 @app.route('/api/datasetAccessCheck', method='POST')

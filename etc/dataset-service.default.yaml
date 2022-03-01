@@ -18,8 +18,7 @@ auth:   # These are the parameters for the validation of auth tokens received.
   # The accepted value for the "issuer" claim.
   issuer: "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON"
   roles:   # Here you can customize the string that defines every role that can be included in the token to allow the user to do things.
-    view_public_datasets: "view_public_datasets"
-    view_all_datasets: "view_all_datasets"
+    access_all_datasets: "access_all_datasets"
     admin_datasets: "admin_datasets"
     superadmin_datasets: "superadmin_datasets"
     admin_users: "admin_users"

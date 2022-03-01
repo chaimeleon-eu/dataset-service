@@ -368,7 +368,7 @@ token received (i.e. in 'resource_access.dataset-service.roles'). Example:
     },
     "dataset-service": {
       "roles": [
-        "view_public_datasets"
+        "access_all_datasets"
       ]
     }
   },
@@ -380,13 +380,12 @@ token received (i.e. in 'resource_access.dataset-service.roles'). Example:
 ```
 
 These are the known roles:
- - view_public_datasets (0): only can list and see details of public datasets
- - view_all_datasets (1): also can list and see details of protected datasets
- - admin_datasets (2): also can create, update and invalidate own datasets
- - superadmin_datasets (3): also can update and invalidate any dataset (not owned datasets)
+ - 'access_all_datasets' (1): it can list, see details and use all datasets not only the public
+ - 'admin_datasets' (2): also can create, update and invalidate own datasets
+ - 'superadmin_datasets' (3): also can update and invalidate any dataset (not owned datasets)
 
 The name of each one can be customized in the configuration file. 
-The number is just a hint, not part of the name: you can see them as security levels, each level include the previous levels.
+The number is just a hint, not part of the name: you can see them as permission levels, each level include the previous levels.
 
 There are other special roles:
  - 'admin_users': required for the operations in '/user'.

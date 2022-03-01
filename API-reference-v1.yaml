@@ -408,7 +408,7 @@ components:
             type: string
         public:
           type: boolean
-          description: "(optional, default false) if false then the dataset will be only visible to users with the role view_all_datasets (consortium researchers), if true then the dataset will be also visible to users with the role view_public_datasets (all users, including external researchers)"
+          description: "(optional, default false) if false then the dataset will be only accessible to users with the role access_all_datasets (consortium researchers); if true then the dataset will be also accessible to all users, including external researchers and non-registered users"
     
     DatasetDetails:
       type: object
@@ -461,7 +461,7 @@ components:
 #         description: group id with the permissions to see the directories of studies selected for this dataset
         public:
           type: boolean
-          description: "(optional, default false) if false then the dataset will be only visible to users with the role view_all_datasets (consortium researchers), if true then the dataset will be also visible to users with the role view_public_datasets (all users, including external researchers)"
+          description: "(optional, default false) if false then the dataset will be only accessible to users with the role access_all_datasets (consortium researchers); if true then the dataset will be also accessible to all users, including external researchers and non-registered users"
         studiesCount:
           type: integer
           description: "The number of studies contained in the dataset"
