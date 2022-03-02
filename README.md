@@ -391,3 +391,36 @@ There are other special roles:
  - 'admin_users': required for the operations in '/user'.
  - 'admin_datasetAccess': required for the operations in '/datasetAccess' and '/datasetAccessCheck'.
 
+## dataset states
+
+Each dataset has some flags (with value true or false) which define its state of visibility, editability and usability. 
+The flags are:
+ - draft (proposed, not implemented yet)
+ - public
+ - invalidated
+ 
+According to value of the flags a dataset can be in one of these states:
+ - Draft (proposed, not implemented yet): (draft=true, public=false, invalidated=false)
+          All datasets are created in this state. 
+          Only the author can see and use the dataset in Draft state and some properties can be modified (name/title, description).
+          The draft mode can be useful for testing datasets because they are "private" to the author.
+          Possible actions: 
+           - Release (draft -> false), goes to Normal state.
+           - Invalidate (invalidated -> true), goes to Invalidated state.
+ - Normal: (draft=false, public=false, invalidated=false)
+           When released, the dataset can't be edited anymore and all the registered users with the rol 'access_all_datasets' can see it and use it.
+           Possible actions: 
+            - Publish (public -> true) goes to Public state.
+            - Invalidate (invalidated -> true), goes to Invalidated state.
+ - Public: (draft=false, public=true, invalidated=false)
+           When published, the dataset can be seen and used by any user, including unregistered users.
+           Possible actions: 
+            - Revert to non-public (public -> false), goes to Normal state.
+            - Invalidate (invalidated -> true), goes to Invalidated state.
+ - Invalidated: (draft=true/false, public=true/false, invalidated=true)
+           Only the author can see the dataset. Nobody can modify it nor use it.
+           Possible actions: 
+            - 'Reactivate' (invalidated -> false), goes to previous state (Draft, Normal or Public).
+
+All the actions can be performed only by the author or superadmin.
+
