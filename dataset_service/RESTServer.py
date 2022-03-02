@@ -524,7 +524,7 @@ def postDataset():
         if datasetDirName != '': remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
         return setErrorResponse(500,"Unexpected error, may be the input is wrong")
         
-        
+
 @app.route('/api/dataset/<id>', method='GET')
 def getDataset(id):
     LOG.debug("Received GET /dataset/%s" % id)
@@ -659,7 +659,7 @@ def checkDatasetListAccess(datasetIDs, userName):
             if dataset is None:
                 # invalidated or not exists
                 badIDs.append(id)
-            elif not userCanAccessDataset(userId, userGroups, dataset):
+            elif not tmpUserCanAccessDataset(userId, userGroups, dataset):
                 badIDs.append(id)
     return badIDs
 

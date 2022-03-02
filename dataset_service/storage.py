@@ -196,6 +196,7 @@ class DB:
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN modality text NOT NULL DEFAULT '[]';")
         self.cursor.execute("ALTER TABLE dataset RENAME COLUMN patients_count TO subjects_count;")
 
+
     def createOrUpdateAuthor(self, userId, username, name, email):
         self.cursor.execute("""
             INSERT INTO author (id, username, name, email) 
@@ -317,7 +318,8 @@ class DB:
         self.cursor.execute(sql.SQL("""
             SELECT study.id, study.name, study.subject_name, study.path, study.url, dataset_study.series
             FROM study, dataset_study 
-            WHERE dataset_study.dataset_id = %s AND dataset_study.study_id = study.id
+            WHERE dataset_study.dataset_id = %s AND dataset_study.study_id = study.id 
+            ORDER BY study.name 
             LIMIT {} OFFSET {};""").format(sql.SQL(str(limit)), sql.SQL(str(skip))),
             (datasetId,)
         )
@@ -337,6 +339,7 @@ class DB:
                    dataset.studies_count, dataset.subjects_count
             FROM dataset, author 
             WHERE dataset.author_id = author.id AND dataset.invalidated = false {}
+            ORDER BY dataset.name 
             LIMIT {} OFFSET {};""").format(whereClause, sql.SQL(str(limit)), sql.SQL(str(skip)))
         )
         res = []
