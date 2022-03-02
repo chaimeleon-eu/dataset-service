@@ -4,9 +4,9 @@ It is a backend service providing a REST API to manage datasets.
 The API is described in detail using OpenAPI v3 specification standad format in the file `API-reference-v1.yaml` 
 (also in swagger: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0).
 
-Authentication is required to access to the service using the OpenId-Connect standard protocol. 
-Basically the client application must initially redirect the user to the authentication service, to obtain a bearer token. 
-Then, that token must be included in the "Authorization" header of any request done to the dataset-service.
+Some operations require authentication using the OpenId-Connect standard protocol. 
+Basically, when the user wants to login, the client application must redirect to the authentication service, to obtain a bearer token. 
+Then, that token must be included in the "Authorization" header of any request sent to the dataset-service. More details below.
 
 Basic API operations:
  - POST /api/dataset
@@ -14,7 +14,7 @@ Basic API operations:
  - DELETE /api/dataset/{id}
  - GET /api/datasets
 
-Below is a walkthrough by examples with CURL.
+Below there is a walkthrough by examples with CURL.
 
 Other managed routes outside /api/:
  - GET /web/{staticFilePath}   
@@ -29,8 +29,9 @@ REM set DSS_ENDPOINT=http://localhost:11000/api
 set DSS_ENDPOINT=https://chaimeleon-eu.i3m.upv.es/dataset-service/api
 ```
 
-### Previous authentication to obtain a bearer token
+### Authentication to obtain a bearer token
 
+Some operations require previous authentication using the OpenId-Connect standard protocol.
 It is recommended to use an OpenID-Connect library for the programming language of your client application, 
 it will ease your work providing things like the automatic refresh of the token. 
 You can use a generic library or a particular library for the implementation used in your project. 
@@ -49,8 +50,10 @@ For development/testing purposes you can use curl to obtain a token:
 curl -i -d "client_id=dataset-service-ui" -d "username=user" -d "password=pass" -d "grant_type=password" "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token"
 set DSS_TOKEN=eyJ...79w1rA
 ```
+Warning: please ensure you are using "https" in the URL to avoid send password in clear text 
+and take into account that it can be stored in clear also in the shell history.
 
-Every invocation to the dataset-service must include a header like this:
+Once the token has been obtained it must be included in a header like this:
 `Authorization: bearer <token>`
 
 The <token> is the JWT (JSON Web Token) provided by the authorization service that will be verified (sign, expiration time, etc.) by the dataset-service. 
