@@ -286,7 +286,8 @@ class DB:
         self.cursor.execute("""
             SELECT dataset.id, dataset.name, dataset.previous_id, 
                    author.id, author.name, author.email, 
-                   dataset.creation_date, dataset.description, dataset.public, 
+                   dataset.creation_date, dataset.description, 
+                   dataset.public, dataset.invalidated, 
                    dataset.studies_count, dataset.subjects_count, 
                    dataset.age_low, dataset.age_high, 
                    dataset.sex, dataset.body_part, dataset.modality 
@@ -296,23 +297,24 @@ class DB:
             (id,))
         row = self.cursor.fetchone()
         if row is None: return None
-        if row[11] is None:
+        if row[12] is None:
             ageLow = None
             ageHigh = None
             ageUnit = None
         else:
-            ageLow, ageLowUnit = dicom.getAgeInMiabisFormat(row[11])
-            ageHigh, ageHighUnit = dicom.getAgeInMiabisFormat(row[12])
+            ageLow, ageLowUnit = dicom.getAgeInMiabisFormat(row[12])
+            ageHigh, ageHighUnit = dicom.getAgeInMiabisFormat(row[13])
             ageUnit = [ageLowUnit, ageHighUnit]
         sex = []
-        for s in json.loads(row[13]):
+        for s in json.loads(row[14]):
             sex.append(dicom.getSexInMiabisFormat(s))
         return dict(id = row[0], name = row[1], previousId = row[2], 
                     authorId = row[3], authorName = row[4], authorEmail = row[5], 
-                    creationDate = str(row[6]), description = row[7], public = row[8], 
-                    studiesCount = row[9], subjectsCount = row[10], 
+                    creationDate = str(row[6]), description = row[7], 
+                    public = row[8], invalidated = row[9],
+                    studiesCount = row[10], subjectsCount = row[11], 
                     ageLow = ageLow, ageHigh = ageHigh, ageUnit = ageUnit, sex = sex, 
-                    bodyPart = json.loads(row[14]), modality = json.loads(row[15]))
+                    bodyPart = json.loads(row[15]), modality = json.loads(row[16]))
 
     def getStudiesFromDataset(self, datasetId, limit = 'ALL', skip = 0):
         self.cursor.execute(sql.SQL("""
@@ -329,23 +331,45 @@ class DB:
                             path = row[3], series = json.loads(row[5]), url = row[4]))
         return res
 
-    def getDatasets(self, skip, limit, onlyPublic, searchString):
-        whereClause = sql.SQL("AND dataset.public = true" if onlyPublic else "")
+    def getDatasets(self, skip, limit, searchString, searchFilter):
+        whereClause = sql.Composed([])
+
+        if searchFilter.public != None:
+            whereClause += sql.SQL(" AND dataset.public = ") + sql.Literal(searchFilter.public)
+
+        if searchFilter.invalidated == False:
+            whereClause += sql.SQL(" AND dataset.invalidated = false")
+        elif searchFilter.invalidated == True:
+            whereClause += sql.SQL(" AND dataset.invalidated = true")
+            if searchFilter.userIdForInvalidated != None:
+                authorId = sql.Literal(str(searchFilter.userIdForInvalidated))
+                whereClause += sql.SQL(" AND dataset.author_id = ") + authorId
+        else: # searchFilter.invalidated is None:
+            if searchFilter.userIdForInvalidated != None:
+                authorId = sql.Literal(str(searchFilter.userIdForInvalidated))
+                whereClause += sql.SQL(" AND ({} OR {})").format(
+                    sql.SQL("(dataset.invalidated = true AND dataset.author_id = {})").format(authorId),
+                    sql.SQL("dataset.invalidated = false")
+                )
+
         if searchString != '': 
             whereClause += sql.SQL(" AND dataset.name ILIKE {}").format(sql.Literal('%'+searchString+'%'))
 
-        self.cursor.execute(sql.SQL("""
+        q = sql.SQL("""
             SELECT dataset.id, dataset.name, author.name, dataset.creation_date, 
+                   dataset.public, dataset.invalidated, 
                    dataset.studies_count, dataset.subjects_count
             FROM dataset, author 
-            WHERE dataset.author_id = author.id AND dataset.invalidated = false {}
+            WHERE dataset.author_id = author.id {}
             ORDER BY dataset.name 
             LIMIT {} OFFSET {};""").format(whereClause, sql.SQL(str(limit)), sql.SQL(str(skip)))
-        )
+        logging.root.debug("QUERY: " + q.as_string(self.conn))
+        self.cursor.execute(q)
         res = []
         for row in self.cursor:
             res.append(dict(id = row[0], name = row[1], authorName = row[2], creationDate = str(row[3]), 
-                            studiesCount = row[4], subjectsCount = row[5]))
+                            public = row[4], invalidated = row[5],
+                            studiesCount = row[6], subjectsCount = row[7]))
         return res
         
     def invalidateDataset(self, id):

@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 
 from datetime import datetime
+from enum import Enum
 import bottle
 import threading
 import logging
@@ -230,33 +231,61 @@ def checkAuthorizationHeader(serviceAccount=False):
 def userCanCreateDatasets(user_info):
     return user_info != None and CONFIG.auth.roles.admin_datasets in user_info["appRoles"]
 
-def userCanAccessDataset(user_info, dataset):
+class Access_type(Enum):
+    VIEW_DETAILS = 1
+    USE = 2
+
+def userCanAccessDataset(user_info, dataset, access_type = Access_type.VIEW_DETAILS):
+    if user_info != None and CONFIG.auth.roles.superadmin_datasets in user_info["appRoles"]: return True
+
+    if dataset["invalidated"] and access_type is Access_type.USE: return False
+
     # if dataset["draft"] and (user_info is None or user_info["sub"] != dataset["authorId"]):
     #     return False
-    if not dataset["public"] and (user_info is None or not CONFIG.auth.roles.access_all_datasets in user_info["appRoles"]):
-        return False
-    else:
-        return True
 
-def tmpUserCanAccessDataset(userId, userGroups, dataset):
-    #if CONFIG.auth.roles.superadmin_datasets in userRoles: return True
+    if dataset["public"]: return True
+
+    return (user_info != None and CONFIG.auth.roles.access_all_datasets in user_info["appRoles"])
+
+def tmpUserCanAccessDataset(userId, userGroups, dataset, access_type = Access_type.USE):
+    if "cloud-services-and-security-management" in userGroups: return True
+
+    if dataset["invalidated"] and access_type is Access_type.USE: return False
 
     # if dataset["draft"] and userId != dataset["authorId"]:
     #     return False
-    if not dataset["public"] and not "data-scientists" in userGroups:
-        return False
-    else:
-        return True
 
+    if dataset["public"]: return True
+    
+    return "data-scientists" in userGroups
+    
 def userCanDeleteDataset(user_info, dataset):
     if user_info is None: return False
     if not CONFIG.auth.roles.admin_datasets in user_info["appRoles"]: return False
     if CONFIG.auth.roles.superadmin_datasets in user_info["appRoles"]: return True
     return user_info["sub"] == dataset["authorId"]
 
-def getFilterParamsToListDatasetsByUser(user_info):
-    onlyPublic = user_info is None or not CONFIG.auth.roles.access_all_datasets in user_info["appRoles"]
-    return onlyPublic
+class Search_filter():
+    def __init__(self, public, invalidated):
+        self.public = public
+        self.invalidated = invalidated
+        # self.userIdForDraft = None
+        self.userIdForInvalidated = None
+
+def adjustSearchFilterByUser(user_info, search_filter):
+    if user_info is None or not CONFIG.auth.roles.access_all_datasets in user_info["appRoles"]:
+        search_filter.public = True
+        search_filter.invalidated = False
+        return search_filter
+
+    if not CONFIG.auth.roles.admin_datasets in user_info["appRoles"]:
+        search_filter.invalidated = False
+        return search_filter
+
+    if not CONFIG.auth.roles.superadmin_datasets in user_info["appRoles"]:
+        search_filter.userIdForInvalidated = user_info["sub"]
+
+    return search_filter
 
 def userCanAdminUsers(user_info):
     return user_info != None and CONFIG.auth.roles.admin_users in user_info["appRoles"]
@@ -591,7 +620,13 @@ def getDatasets():
     if not ok: return ret
     else: user_info = ret # can be None
 
-    showOnlyPublic = getFilterParamsToListDatasetsByUser(user_info)
+    searchFilter = Search_filter(public = None, invalidated = None)
+    if 'public' in bottle.request.params:
+        searchFilter.public = bool(bottle.request.params['public'])
+    if 'invalidated' in bottle.request.params:
+        searchFilter.invalidated = bool(bottle.request.params['invalidated'])
+    #authorId
+    searchFilter = adjustSearchFilterByUser(user_info, searchFilter)
 
     skip = int(bottle.request.params['skip']) if 'skip' in bottle.request.params else 0
     limit = int(bottle.request.params['limit']) if 'limit' in bottle.request.params else 30
@@ -601,7 +636,7 @@ def getDatasets():
     searchString = str(bottle.request.params['searchString']).strip() if 'searchString' in bottle.request.params else ""
     
     with DB(CONFIG.db) as db:
-        datasets = db.getDatasets(skip, limit, showOnlyPublic, searchString)
+        datasets = db.getDatasets(skip, limit, searchString, searchFilter)
 
     bottle.response.content_type = "application/json"
     return json.dumps(datasets)

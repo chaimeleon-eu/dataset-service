@@ -117,6 +117,18 @@ paths:
         You can list all available datasets in the system or search by name. 
         If not searchString or empty, then all datasets are listed.
       parameters:
+        - name: public
+          description: "(optional filter) if true, only public datasets will be shown; if false, only not public datasets will be shown (depending on the user permissions); if not set, both types of dataset will be shown"
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: invalidated
+          description: "(optional filter) if true, only invalidated datasets will be shown (depending on the user permissions); if false, only not invalidated datasets will be shown; if not set, both types of dataset will be shown"
+          in: query
+          required: false
+          schema:
+            type: boolean
         - name: searchString
           description: "(optional, default is empty) pass an optional search string (case-insensitive) for looking up inventory"
           in: query
@@ -367,6 +379,12 @@ components:
           type: string
           format: date-time
           example: '2016-08-29T09:12:33.001Z'
+        public:
+          type: boolean
+          description: "(optional, default false) if false then the dataset is only accessible to users with the role access_all_datasets (consortium researchers); if true then the dataset is also accessible to all users, including external researchers and non-registered users"
+        invalidated:
+          type: boolean
+          description: "If true the dataset can not be used and only appears in the list for the author"
         studiesCount:
           type: integer
           description: the number of studies contained in the dataset
@@ -381,16 +399,16 @@ components:
           type: string
           minLength: 3
           maxLength: 128
-          description: short descriptive name
+          description: "Short descriptive name"
           example: Lung cancer v3
         previousId:
           type: string
           format: uuid
-          description: (optional) specified when is a new version of a previous dataset
+          description: "(optional) specified when is a new version of a previous dataset"
           example: "00e821c4-e92b-48f7-a034-ba2df547e2bf"
         description:
           type: string
-          description: Long explanation of dataset details, statistics, links, references, improvements/modifications if it's a new version, etc.
+          description: "Long explanation of dataset details, statistics, links, references, improvements/modifications if it's a new version, etc."
         studies:
           type: array
           items:
@@ -421,37 +439,37 @@ components:
           type: string
           minLength: 3
           maxLength: 128
-          description: short descriptive name
-          example: Lung cancer v3
+          description: "Short descriptive name"
+          example: "Lung cancer v3"
         previousId:
           type: string
           format: uuid
-          description: (optional) specified when is a new version of a previous dataset
+          description: "(optional) specified when is a new version of a previous dataset"
           example: "efa2cba6-4a17-4612-8074-7e9eb9c9d7ca"
         authorId:
           type: string
-          description: the unique id of the user wich created the dataset, it is not for showing but it can be useful to a possible new feature to show all datasets from an author
+          description: "The unique id of the user wich created the dataset, it is not for showing but it can be useful to a possible new feature to show all datasets from an author"
           example: "d290f1ee-6c54-4b01-90e6-d701748f0851"
         authorName:
           type: string
           minLength: 3
           maxLength: 128
-          description: the name of the user wich created the dataset
-          example: James Gordon
+          description: "The name of the user wich created the dataset"
+          example: "James Gordon"
         authorEmail:
           type: string
           minLength: 3
           maxLength: 128
           format: email
-          description: the email of the user wich created the dataset
-          example: james@email.com
+          description: "The email of the user wich created the dataset"
+          example: "james@email.com"
         creationDate:
           type: string
           format: date-time
           example: '2016-08-29T09:12:33.001Z'
         description:
           type: string
-          description: Long explanation of dataset details, statistics, links, references, improvements/modifications if it's a new version, etc.
+          description: "Long explanation of dataset details, statistics, links, references, improvements/modifications if it's a new version, etc."
         studies:
           type: array
           items:
@@ -461,7 +479,10 @@ components:
 #         description: group id with the permissions to see the directories of studies selected for this dataset
         public:
           type: boolean
-          description: "(optional, default false) if false then the dataset will be only accessible to users with the role access_all_datasets (consortium researchers); if true then the dataset will be also accessible to all users, including external researchers and non-registered users"
+          description: "(optional, default false) if false then the dataset is only accessible to users with the role access_all_datasets (consortium researchers); if true then the dataset is also accessible to all users, including external researchers and non-registered users"
+        invalidated:
+          type: boolean
+          description: "If true the dataset can not be used and only appears in the list for the author"
         studiesCount:
           type: integer
           description: "The number of studies contained in the dataset"
