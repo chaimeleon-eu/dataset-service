@@ -292,7 +292,7 @@ class DB:
                    dataset.age_low, dataset.age_high, 
                    dataset.sex, dataset.body_part, dataset.modality 
             FROM dataset, author 
-            WHERE dataset.id=%s AND author.id = dataset.author_id AND dataset.invalidated = false
+            WHERE dataset.id=%s AND author.id = dataset.author_id 
             LIMIT 1;""",
             (id,))
         row = self.cursor.fetchone()

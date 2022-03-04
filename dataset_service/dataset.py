@@ -63,11 +63,11 @@ def give_access_to_dataset (datasets_dir_path, dataset_dir_name, datalake_dir_pa
         acl_gid                     # GID to apply ACL_permissions. Example: "1000" (dataset_group) 
     '''
     acl_permissions = 'rx'
-    dataset_dir = os.path.join(datasets_dir_path, dataset_dir_name)
+    dataset_dir_path = os.path.join(datasets_dir_path, dataset_dir_name)
     # ACL to the dataset folder 
-    ok = set_acl_group(str(acl_gid), acl_permissions, dataset_dir, recursive=False)
+    ok = set_acl_group(str(acl_gid), acl_permissions, dataset_dir_path, recursive=False)
     if not ok: 
-        logging.root.error("Error in set acl to: " + dataset_dir)
+        logging.root.error("Error in set acl to: " + dataset_dir_path)
         raise DatasetException("Error in set acl.")
 
     for study in studies:
@@ -83,31 +83,18 @@ def give_access_to_dataset (datasets_dir_path, dataset_dir_name, datalake_dir_pa
         # ok &= set_acl_group(str(acl_gid), str(acl_permissions), os.path.dirname(linkDestination), recursive=False) 
     
 
-def invalidate_dataset(datasets_dir_path, dataset_dir_name, rootfs_dir, relative_paths_list):
+def invalidate_dataset(datasets_dir_path, dataset_dir_name):
     '''
     Removes the ACL rules that enables accessing the files from users.
     PARAMS:
         datasets_dir_path           # Folder to store the datasets. Example: "/mnt/cephfs/datasets"
         dataset_dir_name            # Dataset name. Example: "3d44ba8a-16df-11ec-ac5f-00155d6b30e6"
-        rootfs_dir                  # Mount point of the data for applying ACL to files. Example: "/mnt/cephfs/"
-        relative_paths_list         # Relative paths from $rootfs_mount_point to create the symbolic links. Example: "[ persona1/estudio1, persona2/estudio1 ]"
     '''
-    return False
-    dataset_dir = os.path.join(datasets_dir_path, dataset_dir_name)
-    ok = delete_all_acls(dataset_dir, recursive=False)
+    dataset_dir_path = os.path.join(datasets_dir_path, dataset_dir_name)
+    ok = clean_acl(dataset_dir_path, recursive=False)
     if not ok: 
-        logging.root.error("Error in delete acls to: " + dataset_dir)
-        raise DatasetException("Error in delete acls.")
+        logging.root.error("Error in delete acl entries to: " + dataset_dir_path)
+        raise DatasetException("Error in delete acl entries.")
 
     ## Delete ACLs in directories of studies
     ## It is complex because many datasets can include the same study.
-    ## To do
-    # for src in relative_paths_list:
-    #     path = os.path.join(rootfs_dir, src)
-    #     # Remove ACL from file
-    #     ok = delete_acl_group (str(acl_gid), path, recursive=False)
-    #     if not ok: 
-    #         logging.root.error("Error in delete acl to: " + path)
-    #         raise DatasetException("Error in delete acl.")
-    #     # # Remove ACL from directory
-    #     # ok = delete_acl_group (str(acl_gid), os.path.dirname(path), recursive=False)

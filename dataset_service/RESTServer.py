@@ -605,11 +605,15 @@ def deleteDataset(id):
     datasetId = id
     with DB(CONFIG.db) as db:
         dataset = db.getDataset(datasetId)
+        if dataset is None:
+            return setErrorResponse(404,"not found")
         if not userCanDeleteDataset(user_info, dataset):
             return setErrorResponse(401,"unauthorized user")
 
         db.invalidateDataset(datasetId)
-        invalidate_dataset()
+        LOG.debug('Removing ACL entries in dataset %s ...' % (datasetId))
+        datasetDirName = datasetId
+        invalidate_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
     bottle.response.status = 200
 
 

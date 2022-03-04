@@ -74,9 +74,12 @@ def delete_acl_group (group, path, recursive=True):
     return True
 
 def clean_acl(path, recursive=True):
+    'Remove all ACL entries'
     cmd = 'setfacl -b '
     if recursive:
         cmd+='-R '
     cmd += path
     output, status = execute_cmd(cmd)
+    if len(output) > 1:
+        return False
     return True

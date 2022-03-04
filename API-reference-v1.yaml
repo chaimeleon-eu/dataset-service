@@ -351,6 +351,8 @@ paths:
           description: successful operation
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: "not found"
 
 components:
   securitySchemes:
