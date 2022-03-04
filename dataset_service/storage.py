@@ -316,7 +316,14 @@ class DB:
                     ageLow = ageLow, ageHigh = ageHigh, ageUnit = ageUnit, sex = sex, 
                     bodyPart = json.loads(row[15]), modality = json.loads(row[16]))
 
-    def getStudiesFromDataset(self, datasetId, limit = 'ALL', skip = 0):
+    def getStudiesFromDataset(self, datasetId, limit = 0, skip = 0):
+        if limit == 0: limit = 'ALL'
+
+        # First get total rows without LIMIT and OFFSET
+        self.cursor.execute("SELECT count(*) FROM dataset_study WHERE dataset_study.dataset_id = %s", (datasetId,))
+        row = self.cursor.fetchone()
+        total = row[0] if row != None else 0
+
         self.cursor.execute(sql.SQL("""
             SELECT study.id, study.name, study.subject_name, study.path, study.url, dataset_study.series
             FROM study, dataset_study 
@@ -329,7 +336,7 @@ class DB:
         for row in self.cursor:
             res.append(dict(studyId = row[0], studyName = row[1], subjectName = row[2], 
                             path = row[3], series = json.loads(row[5]), url = row[4]))
-        return res
+        return res, total
 
     def getDatasets(self, skip, limit, searchString, searchFilter):
         whereClause = sql.Composed([])
@@ -355,6 +362,13 @@ class DB:
         if searchString != '': 
             whereClause += sql.SQL(" AND dataset.name ILIKE {}").format(sql.Literal('%'+searchString+'%'))
 
+        if limit == 0: limit = 'ALL'
+
+        # First get total rows without LIMIT and OFFSET
+        self.cursor.execute(sql.SQL("SELECT count(*) FROM dataset WHERE true ") + whereClause)
+        row = self.cursor.fetchone()
+        total = row[0] if row != None else 0
+
         q = sql.SQL("""
             SELECT dataset.id, dataset.name, author.name, dataset.creation_date, 
                    dataset.public, dataset.invalidated, 
@@ -370,7 +384,7 @@ class DB:
             res.append(dict(id = row[0], name = row[1], authorName = row[2], creationDate = str(row[3]), 
                             public = row[4], invalidated = row[5],
                             studiesCount = row[6], subjectsCount = row[7]))
-        return res
+        return res, total
         
     def invalidateDataset(self, id):
         # logging.root.debug(self.cursor.mogrify("UPDATE dataset SET invalidated = true WHERE id = %s;", (id,)))

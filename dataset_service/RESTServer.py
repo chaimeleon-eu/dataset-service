@@ -578,7 +578,6 @@ def getDataset(id):
     limit = int(bottle.request.params['studiesLimit']) if 'studiesLimit' in bottle.request.params else 30
     if skip < 0: skip = 0
     if limit < 0: limit = 0
-    if limit == 0: limit = 'ALL'
 
     with DB(CONFIG.db) as db:
         dataset = db.getDataset(datasetId)
@@ -589,7 +588,18 @@ def getDataset(id):
         if not userCanAccessDataset(user_info, dataset):
             return setErrorResponse(401,"unauthorized user")
 
-        dataset["studies"] = db.getStudiesFromDataset(datasetId, limit, skip)
+        studies, total = db.getStudiesFromDataset(datasetId, limit, skip)
+        if not 'v2' in bottle.request.params:  
+            # transitional param while clients change to the new reponse type
+            dataset["studies"] = studies
+        else:
+            dataset["studies"] = {
+                "total": total,
+                "returned": len(studies),
+                "skipped": skip,
+                "limit": limit,
+                "list": studies 
+            }
 
     bottle.response.content_type = "application/json"
     return json.dumps(dataset)
@@ -636,14 +646,23 @@ def getDatasets():
     limit = int(bottle.request.params['limit']) if 'limit' in bottle.request.params else 30
     if skip < 0: skip = 0
     if limit < 0: limit = 0
-    if limit == 0: limit = 'ALL'
     searchString = str(bottle.request.params['searchString']).strip() if 'searchString' in bottle.request.params else ""
     
     with DB(CONFIG.db) as db:
-        datasets = db.getDatasets(skip, limit, searchString, searchFilter)
+        datasets, total = db.getDatasets(skip, limit, searchString, searchFilter)
+        response = {
+            "total": total,
+            "returned": len(datasets),
+            "skipped": skip,
+            "limit": limit,
+            "list": datasets 
+        }
 
     bottle.response.content_type = "application/json"
-    return json.dumps(datasets)
+    if not 'v2' in bottle.request.params:  
+        # transitional param while clients change to the new reponse type
+        return json.dumps(response["list"])
+    return json.dumps(response)
 
 @app.route('/api/user/<userName>', method='POST')
 def postUser(userName):
@@ -778,7 +797,7 @@ def postDatasetAccess(id):
             userId, userGID = db.getUserIDs(userName)
             if CONFIG.self.datasets_mount_path != '':
                 for id in datasetIDs:
-                    studies = db.getStudiesFromDataset(id)
+                    studies, total = db.getStudiesFromDataset(id)
                     LOG.debug('Setting ACLs in dataset %s for GID %s ...' % (id, userGID))
                     datasetDirName = id
                     give_access_to_dataset(CONFIG.self.datasets_mount_path, datasetDirName, CONFIG.self.datalake_mount_path, studies, userGID)

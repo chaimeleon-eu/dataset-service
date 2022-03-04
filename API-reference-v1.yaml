@@ -153,13 +153,32 @@ paths:
             minimum: 0
       responses:
         '200':
-          description: search results matching criteria
+          description: "Search results matching criteria"
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/DatasetListItem'
+                type: object
+                properties:
+                  total:
+                    type: integer
+                    format: int32
+                    description: "Total of records found with the search criteria"
+                  returned:
+                    type: integer
+                    format: int32
+                    description: "Number of records returned (can be smaller because of skip and limit params)"
+                  skipped:
+                    type: integer
+                    format: int32
+                    description: "Number of records skipped from the beginning (as requested)"
+                  limit:
+                    type: integer
+                    format: int32
+                    description: "Limit of records fixed by the request (usually the page size)"
+                  list:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DatasetListItem'
         '401':
           $ref: '#/components/responses/Unauthorized'
           
@@ -473,9 +492,28 @@ components:
           type: string
           description: "Long explanation of dataset details, statistics, links, references, improvements/modifications if it's a new version, etc."
         studies:
-          type: array
-          items:
-            $ref: '#/components/schemas/Study'
+          type: object
+          properties:
+            total:
+              type: integer
+              format: int32
+              description: "Total of records"
+            returned:
+              type: integer
+              format: int32
+              description: "Number of records returned (can be smaller because of skip and limit params)"
+            skipped:
+              type: integer
+              format: int32
+              description: "Number of records skipped from the beginning (as requested)"
+            limit:
+              type: integer
+              format: int32
+              description: "Limit of records fixed by the request (usually the page size)"
+            list:
+              type: array
+              items:
+                $ref: '#/components/schemas/Study'
 #       gid:
 #         type: integer
 #         description: group id with the permissions to see the directories of studies selected for this dataset
@@ -578,3 +616,4 @@ components:
   responses:
     Unauthorized:
       description: "unauthorized user or access token is missing or invalid"
+ 
