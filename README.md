@@ -385,44 +385,44 @@ token received (i.e. in 'resource_access.dataset-service.roles'). Example:
 ```
 
 These are the known roles:
- - 'access_all_datasets' (1): it can list, see details and use all datasets not only the public
- - 'admin_datasets' (2): also can create, update and invalidate own datasets
- - 'superadmin_datasets' (3): also can update and invalidate any dataset (not owned datasets)
+ - __access_all_datasets__ (1): it can list, see details and use all datasets not only the public
+ - __admin_datasets__ (2): also can create, update and invalidate own datasets
+ - __superadmin_datasets__ (3): also can update and invalidate any dataset (not owned datasets)
 
 The name of each one can be customized in the configuration file. 
 The number is just a hint, not part of the name: you can see them as permission levels, each level include the previous levels.
 
 There are other special roles:
- - 'admin_users': required for the operations in '/user'.
- - 'admin_datasetAccess': required for the operations in '/datasetAccess' and '/datasetAccessCheck'.
+ - __admin_users__: required for the operations in '/user'.
+ - __admin_datasetAccess__: required for the operations in '/datasetAccess' and '/datasetAccessCheck'.
 
 ## Dataset states
 
-Each dataset has some flags (with value true or false) which define its state of visibility, editability and usability. 
-The flags are:
+Each dataset has some flags (with value true or false) which define its state of visibility, editability and usability.  
+The __flags__ are:
  - _draft_ (proposed, not implemented yet)
  - _public_
  - _invalidated_
  
 According to value of the flags a dataset can be in one of these states:
- - Draft (proposed, not implemented yet): (_draft_ = true, _public_ = false, _invalidated_ = false)  
+ - __Draft__ (proposed, not implemented yet): (_draft_ = __true__, _public_ = false, _invalidated_ = false)  
           All datasets are created in this state.  
           Only the author can see and use the dataset in Draft state and some properties can be modified (name/title, description).  
           The draft mode can be useful for testing datasets because they are "private" to the author.  
           Possible actions:  
            - Release (_draft_ -> false), goes to Normal state.  
            - Invalidate (_invalidated_ -> true), goes to Invalidated state.
- - Normal: (_draft_ = false, _public_ = false, _invalidated_ = false)  
+ - __Normal__: (_draft_ = false, _public_ = false, _invalidated_ = false)  
            When released, the dataset can't be edited anymore and all the registered users with the rol 'access_all_datasets' can see it and use it.  
            Possible actions:  
-            - Publish (_public_ -> true) goes to Public state.  
+            - Set to public (_public_ -> true) goes to Public state.  
             - Invalidate (_invalidated_ -> true), goes to Invalidated state.
- - Public: (_draft_ = false, _public_ = true, _invalidated_ = false)  
+ - __Public__: (_draft_ = false, _public_ = __true__, _invalidated_ = false)  
            When published, the dataset can be seen and used by any user, including unregistered users.  
            Possible actions:  
-            - Revert to non-public (_public_ -> false), goes to Normal state.  
+            - Set to non-public (_public_ -> false), goes to Normal state.  
             - Invalidate (_invalidated_ -> true), goes to Invalidated state.
- - Invalidated: (_draft_ = true/false, _public_ = true/false, _invalidated_ = true)  
+ - __Invalidated__: (_draft_ = true/false, _public_ = true/false, _invalidated_ = __true__)  
            Only appears in the list of the author, but anyone (who has the id or link) can see the details.  
            For example when the dataset have a PID and somebody goes to the detail from the paper where is included.  
            Anyway, a big label with the text "invalidated" should appear in details, and also in the list for the author.  
@@ -431,4 +431,6 @@ According to value of the flags a dataset can be in one of these states:
             - 'Reactivate' (_invalidated_ -> false), goes to previous state (Draft, Normal or Public).
 
 All the actions can be performed only by the author or superadmin.
+
+![Dataset states diagram](doc/resources/dataset-states.png)
 
