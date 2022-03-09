@@ -9,9 +9,9 @@ Basically, when the user wants to login, the client application must redirect to
 Then, that token must be included in the "Authorization" header of any request sent to the dataset-service. More details below.
 
 Basic API operations:
- - POST /api/dataset
- - GET /api/dataset/{id}
- - DELETE /api/dataset/{id}
+ - POST /api/datasets
+ - GET /api/datasets/{id}
+ - PATCH /api/datasets/{id}
  - GET /api/datasets
 
 Below there is a walkthrough by examples with CURL.
@@ -62,36 +62,46 @@ send to the tracer service.
 
 ### Creation of a dataset
 
-POST /dataset
+POST /datasets
 
-With the authorization header and the dataset properties within the body in JSON format. If success, the code 201 will be returned. 
+With the authorization header and the dataset properties within the body in JSON format. 
+If success, the code 201 will be returned. 
 If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
 
 Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/datasets/createDataset
 
 Example:
 ```
-$ curl -i -X POST -H "Authorization: bearer %DSS_TOKEN%" -H "Content-Type: application/json" ^
+$ curl -i -X POST ^
+       -H "Authorization: bearer %DSS_TOKEN%" ^
+       -H "Content-Type: application/json" ^
        -d "{\"name\": \"TestDataset3\", \"description\": \"This is a dataset for testing.\", \"studies\": [{     \"studyId\": \"5e57a4356af19d299c17026d\",     \"studyName\": \"GMIBG2DECUERPOENTERO\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/GMIBG2DECUERPOENTERO20160225\",   \"series\": [\"serie1\", \"serie2\", \"serie3\"],    \"url\": \"\"   },   {     \"studyId\": \"5e5629835938d32160636353\",     \"studyName\": \"RM431RMRENAL\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/RM431RMRENAL20130820\",    \"series\": [\"serie1\"],   \"url\": \"\"   },   {     \"studyId\": \"5e6a422939b892367c8a5c23\",     \"studyName\": \"TCPEDITRICOABDOMINOPLVICOCONCONTRASTE\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/TCPEDITRICOABDOMINOPLVICOCONCONTRASTE20150129\",   \"series\": [\"serie1\"],    \"url\": \"\"   },   {     \"studyId\": \"5e6b449a3144dc2bc0841efc\",     \"studyName\": \"RM411RMABDOMEN\",     \"subjectName\": \"21N56F7T\",     \"path\": \"blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20100804\",    \"series\": [\"serie1\"],   \"url\": \"\"   },   {     \"studyId\": \"5e6a3d41c9065c475c32b3fe\",     \"studyName\": \"RM411RMABDOMEN\",     \"subjectName\": \"21N56F7T\",     \"path\": \"blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20150109\",   \"series\": [\"serie1\"],    \"url\": \"\"   },   {     \"studyId\": \"5eeba960903aec091076c180\",     \"studyName\": \"RM815RMDORSAL\",     \"subjectName\": \"1GB90F75\",     \"path\": \"blancagomez/1GB90F75_Neuroblastoma/RM815RMDORSAL20121123\",    \"series\": [\"serie1\"],   \"url\": \"\"   }], \"subjects\": [{\"subjectName\": \"17B76FEW\", \"path\": \"blancagomez/17B76FEW_Neuroblastoma\", \"eForm\": \"{}\"}, {\"subjectName\": \"21N56F7T\", \"path\": \"blancagomez/21N56F7T_Neuroblastoma\", \"eForm\": \"{}\"}, {\"subjectName\": \"1GB90F75\", \"path\": \"blancagomez/1GB90F75_Neuroblastoma\", \"eForm\": \"{}\"}]}" ^
-       "%DSS_ENDPOINT%/dataset"
+       "%DSS_ENDPOINT%/datasets"
+
 HTTP/1.1 100 Continue
 
 HTTP/1.1 201 Created
-Content-Length: 0
-Content-Type: text/html; charset=UTF-8
+Content-Length: 61
+Content-Type: application/json
+
+{"url": "/api/datasets/efa2cba6-4a17-4612-8074-7e9eb9c9d7ca"}
 ```
 
 Example of "external" dataset creation:
 ```
-$ curl -i -X POST -H "Authorization: bearer %DSS_TOKEN%" ^
+$ curl -i -X POST ^
+       -H "Authorization: bearer %DSS_TOKEN%" ^
        -F name="Maastricht Lung1" -F description="Test dataset from Maastricht University." ^
        -F clinical_data=@"NSCLC Radiomics Lung1.clinical.csv" ^
-       "%DSS_ENDPOINT%/dataset?external=True"
+       "%DSS_ENDPOINT%/datasets?external=True"
+
 HTTP/1.1 100 Continue
 
 HTTP/1.1 201 Created
-Content-Length: 0
-Content-Type: text/html; charset=UTF-8
+Content-Length: 61
+Content-Type: application/json
+
+{"url": "/api/datasets/3388a9c5-4ebb-45ba-93fc-7b54813f0cf2"}
 ```
 
 ### List of all datasets
@@ -99,21 +109,23 @@ Content-Type: text/html; charset=UTF-8
 GET /datasets
 
 With the authorization header and some parameters accepted in the URL for pagination. 
-If success the code 200 will be returned and a JSON array in the body of the response. 
+If success, the code 200 will be returned and a JSON array in the body of the response. 
 If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
 
 Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/datasets/listDatasets
 
 Example:
 ```
-$ curl -i -X GET -H "Authorization: bearer %DSS_TOKEN%" "%DSS_ENDPOINT%/datasets?limit=30&skip=0"
+$ curl -i -X GET ^
+       -H "Authorization: bearer %DSS_TOKEN%" ^
+       "%DSS_ENDPOINT%/datasets?limit=30&skip=0"
 HTTP/1.1 200 OK
 Content-Type: application/json
 Content-Length: 728
 
-[{"id": "f99017af-9015-4222-b064-77f3c1b49d8b", "name": "TestDataset3", "authorName": "test test", "creationDate": "2021-10-05 12:29:11.932542", "studiesCount": 6, "subjectsCount": 3}, 
- {"id": "00e821c4-e92b-48f7-a034-ba2df547e2bf", "name": "TestDataset2", "authorName": "test test", "creationDate": "2021-10-04 14:50:47.214108", "studiesCount": 1, "subjectsCount": 1}, 
- {"id": "efa2cba6-4a17-4612-8074-7e9eb9c9d7ca", "name": "TestDataset1", "authorName": "test test", "creationDate": "2021-10-04 14:42:37.725548", "studiesCount": 1, "subjectsCount": 1}]
+[{"id": "f99017af-9015-4222-b064-77f3c1b49d8b", "name": "TestDataset3", "authorName": "test test", "creationDate": "2021-10-05 12:29:11.932542", "public": false, "invalidated": false, "studiesCount": 6, "subjectsCount": 3}, 
+ {"id": "00e821c4-e92b-48f7-a034-ba2df547e2bf", "name": "TestDataset2", "authorName": "test test", "creationDate": "2021-10-04 14:50:47.214108", "public": false, "invalidated": false, "studiesCount": 1, "subjectsCount": 1}, 
+ {"id": "efa2cba6-4a17-4612-8074-7e9eb9c9d7ca", "name": "TestDataset1", "authorName": "test test", "creationDate": "2021-10-04 14:42:37.725548", "public": false, "invalidated": false, "studiesCount": 1, "subjectsCount": 1}]
 ```
 
 ### Search of datasets by name
@@ -124,17 +136,19 @@ Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/d
 
 Example:
 ```
-$ curl -i -X GET -H "Authorization: bearer %DSS_TOKEN%" "%DSS_ENDPOINT%/datasets?searchString=dataset3"
+$ curl -i -X GET ^
+       -H "Authorization: bearer %DSS_TOKEN%" ^
+       "%DSS_ENDPOINT%/datasets?searchString=dataset3"
 HTTP/1.1 200 OK
 Content-Type: application/json
 Content-Length: 182
 
-[{"id": "f99017af-9015-4222-b064-77f3c1b49d8b", "name": "TestDataset3", "authorName": "test test", "creationDate": "2021-10-05 12:29:11.932542", "studiesCount": 6, "subjectsCount": 3}]
+[{"id": "f99017af-9015-4222-b064-77f3c1b49d8b", "name": "TestDataset3", "authorName": "test test", "creationDate": "2021-10-05 12:29:11.932542", "public": false, "invalidated": false, "studiesCount": 6, "subjectsCount": 3}]
 ```
 
 ### Get details of a dataset by its id
 
-GET /dataset/{id}
+GET /datasets/{id}
 
 With the authorization header and some parameters accepted in the URL for pagination of studies in the dataset. 
 Returns a JSON object. 
@@ -144,7 +158,9 @@ Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/d
 
 Example:
 ```
-$ curl -i -X GET -H "Authorization: bearer %DSS_TOKEN%" "%DSS_ENDPOINT%/dataset/f99017af-9015-4222-b064-77f3c1b49d8b?studiesLimit=30"
+$ curl -i -X GET ^
+       -H "Authorization: bearer %DSS_TOKEN%" ^
+       "%DSS_ENDPOINT%/datasets/f99017af-9015-4222-b064-77f3c1b49d8b?studiesLimit=30"
 HTTP/1.1 200 OK
 Content-Type: application/json
 Content-Length: 1506
@@ -162,24 +178,29 @@ Content-Length: 1506
 
 ### Invalidate a dataset by its id
 
-DELETE /dataset/{id}
+PATCH /datasets/{id}
 
-With the authorization header. If success the code 200 will be returned. 
+With the authorization header. 
+If success, the code 200 will be returned. 
 If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
 
-Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/datasets/deleteDataset
+Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/datasets/modifyDataset
 
 Example:
 ```
-$ curl -i -X DELETE -H "Authorization: bearer %DSS_TOKEN%" "%DSS_ENDPOINT%/dataset/00e821c4-e92b-48f7-a034-ba2df547e2bf"
+$ curl -i -X PATCH ^
+       -H "Authorization: bearer %DSS_TOKEN%" ^
+       -H "Content-Type: application/json" ^
+       -d "{\"property\": \"public\", \"value\": true}" ^
+       "%DSS_ENDPOINT%/datasets/00e821c4-e92b-48f7-a034-ba2df547e2bf"
 HTTP/1.1 200 OK
 Content-Length: 0
 Content-Type: text/html; charset=UTF-8
 ```
 
-### Create user
+### Create a user
 
-POST /user/{userName}
+PUT /users/{userName}
 
 With the authorization header and the user properties within the body in JSON format. 
 If success, the code 201 will be returned. 
@@ -193,17 +214,17 @@ $ curl -i -d "client_id=kubeauthorizer-pod" -d "client_secret=XXXX-XXXX-XXXX" -d
 $ set DSS_TOKEN=eyJ...79w1rA
 ```
 ```
-$ curl -i -X POST -H "Authorization: bearer %DSS_TOKEN%" -H "Content-Type: application/json" ^
+$ curl -i -X PUT -H "Authorization: bearer %DSS_TOKEN%" -H "Content-Type: application/json" ^
        -d "{\"uid\": \"d290f1ee-6c54-4b01-90e6-d701748f0851\", \"groups\": [\"data-scientists\", \"dataset-administrator\"]}" ^
-       "%DSS_ENDPOINT%/user/user1"
+       "%DSS_ENDPOINT%/users/user1"
 HTTP/1.1 201 Created
 Content-Length: 0
 Content-Type: text/html; charset=UTF-8
 ```
 
-### Get user GID
+### Get the user GID
 
-GET /user/{userName}
+GET /users/{userName}
 
 With the authorization header. 
 Returns a JSON object. 
@@ -213,7 +234,7 @@ Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/u
 
 Example:
 ```
-$ curl -i -X GET -H "Authorization: bearer %DSS_TOKEN%" "%DSS_ENDPOINT%/user/user1"
+$ curl -i -X GET -H "Authorization: bearer %DSS_TOKEN%" "%DSS_ENDPOINT%/users/user1"
 HTTP/1.1 200 OK
 Content-Type: application/json
 Content-Length: 13

@@ -259,7 +259,7 @@ def tmpUserCanAccessDataset(userId, userGroups, dataset, access_type = Access_ty
     
     return "data-scientists" in userGroups
     
-def userCanDeleteDataset(user_info, dataset):
+def userCanModifyDataset(user_info, dataset):
     if user_info is None: return False
     if not CONFIG.auth.roles.admin_datasets in user_info["appRoles"]: return False
     if CONFIG.auth.roles.superadmin_datasets in user_info["appRoles"]: return True
@@ -453,7 +453,7 @@ def collectMetadata2(dataset):
     dataset["bodyPart"] = values[0x0018, 0x0015]
     dataset["modality"] = values[0x0008, 0x0060]
 
-
+@app.route('/api/datasets', method='POST')
 @app.route('/api/dataset', method='POST')
 def postDataset():
     LOG.debug("Received POST /dataset")
@@ -551,6 +551,8 @@ def postDataset():
                 
         LOG.debug('Dataset successfully created.')
         bottle.response.status = 201
+        bottle.response.content_type = "application/json"
+        return json.dumps(dict(url = "/api/datasets/" + datasetId))
 
     except tracer.TraceException as e:
         if datasetDirName != '': remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
@@ -566,6 +568,7 @@ def postDataset():
         return setErrorResponse(500,"Unexpected error, may be the input is wrong")
         
 
+@app.route('/api/datasets/<id>', method='GET')
 @app.route('/api/dataset/<id>', method='GET')
 def getDataset(id):
     LOG.debug("Received GET /dataset/%s" % id)
@@ -604,27 +607,57 @@ def getDataset(id):
     bottle.response.content_type = "application/json"
     return json.dumps(dataset)
 
-    #patch dataset/id/status
 @app.route('/api/dataset/<id>', method='DELETE')
-def deleteDataset(id):
-    LOG.debug("Received DELETE /dataset/%s" % id)
+def invalidateDataset(id):
+    # transitional operation while clients change to new PUT operation
+    LOG.debug("Received (Transitional) DELETE /dataset/%s" % id)
+    return patchDataset(id)
+
+@app.route('/api/datasets/<id>', method='PATCH')
+def patchDataset(id):
+    LOG.debug("Received PATCH /dataset/%s" % id)
     ok, ret = checkAuthorizationHeader()
     if not ok: return ret
     else: user_info = ret # can be None
 
     datasetId = id
+    if bottle.request.method == 'DELETE':
+        # Transitional condition while clients change to new PUT operation
+        property = "invalidated"
+        newValue = True
+    else:
+        read_data = bottle.request.body.read().decode('UTF-8')
+        LOG.debug("BODY: " + read_data)
+        patch = json.loads( read_data )
+        property = patch["property"]
+        newValue = patch["value"]
+
     with DB(CONFIG.db) as db:
         dataset = db.getDataset(datasetId)
         if dataset is None:
             return setErrorResponse(404,"not found")
-        if not userCanDeleteDataset(user_info, dataset):
+        if not userCanModifyDataset(user_info, dataset):
             return setErrorResponse(401,"unauthorized user")
 
-        db.invalidateDataset(datasetId)
-        LOG.debug('Removing ACL entries in dataset %s ...' % (datasetId))
-        datasetDirName = datasetId
-        invalidate_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
+        if property == "public":
+            db.setDatasetPublic(datasetId, bool(newValue))
+        elif property == "invalidated":
+            db.setDatasetInvalidated(datasetId, bool(newValue))
+            if newValue == True:
+                LOG.debug('Removing ACL entries in dataset %s ...' % (datasetId))
+                datasetDirName = datasetId
+                invalidate_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
+
     bottle.response.status = 200
+
+@app.route('/api/datasets/<id>/name', method='PUT')
+def renameDataset(id):
+    LOG.debug("Received PUT /dataset/%s/name" % id)
+
+@app.route('/api/datasets/<id>/description', method='PUT')
+def renameDataset(id):
+    LOG.debug("Received PUT /dataset/%s/name" % id)
+
 
 
 @app.route('/api/datasets', method='GET')
@@ -666,7 +699,13 @@ def getDatasets():
 
 @app.route('/api/user/<userName>', method='POST')
 def postUser(userName):
-    LOG.debug("Received POST %s" % bottle.request.path)
+    # Transitional condition while clients change to new PUT operation
+    LOG.debug("Received (Transitional) POST %s" % bottle.request.path)
+    return putUser(userName)
+
+@app.route('/api/users/<userName>', method='PUT')
+def putUser(userName):
+    LOG.debug("Received PUT %s" % bottle.request.path)
     ok, ret = checkAuthorizationHeader(serviceAccount=True)
     if not ok: return ret
     else: user_info = ret # can be None
@@ -697,6 +736,7 @@ def postUser(userName):
         LOG.error("May be the body of the request is wrong: %s" % read_data)
         return setErrorResponse(500,"Unexpected error, may be the input is wrong")
 
+@app.route('/api/users/<userName>', method='GET')
 @app.route('/api/user/<userName>', method='GET')
 def getUser(userName):
     LOG.debug("Received GET %s" % bottle.request.path)

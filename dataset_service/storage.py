@@ -386,9 +386,16 @@ class DB:
                             studiesCount = row[6], subjectsCount = row[7]))
         return res, total
         
-    def invalidateDataset(self, id):
+    def setDatasetInvalidated(self, id, newValue):
         # logging.root.debug(self.cursor.mogrify("UPDATE dataset SET invalidated = true WHERE id = %s;", (id,)))
-        self.cursor.execute("UPDATE dataset SET invalidated = true WHERE id = %s;", (id,))
+        self.cursor.execute("UPDATE dataset SET invalidated = %s WHERE id = %s;", (newValue, id))
+
+    def setDatasetPublic(self, id, newValue):
+        self.cursor.execute("UPDATE dataset SET public = %s WHERE id = %s;", (newValue, id))
+
+    def editDataset(self, id, newName, newDescription):
+        self.cursor.execute("UPDATE dataset SET name = %s, description = %s WHERE id = %s;", 
+                             (newName, newDescription, id))
 
     def createDatasetAccess(self, datasetAccessId, datasetIDs, userGID, toolName, toolVersion):
         self.cursor.execute("""

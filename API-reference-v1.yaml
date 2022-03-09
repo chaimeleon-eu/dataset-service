@@ -27,7 +27,8 @@ security:
   - bearerAuth: []
     
 paths:
-  /dataset:
+          
+  /datasets:
     post:
       tags:
         - datasets
@@ -40,74 +41,21 @@ paths:
             schema:
               $ref: '#/components/schemas/DatasetCreationObject'
       responses:
-        '201':
+        '200':
           description: item created
+          content:
+            application/json:
+              schema:
+                type: object
+                example: '{"url": "/api/datasets/f99017af-9015-4222-b064-77f3c1b49d8b"}'
+                properties:
+                  url:
+                    type: string
+                    description: 'The URL where details of the new dataset can be obtained.'
         '400':
           description: 'invalid input, object invalid'
         '401':
           $ref: '#/components/responses/Unauthorized'
-  
-  /dataset/{id}:
-    get:
-      tags:
-        - datasets
-      summary: gets a dataset by its id
-      operationId: getDataset
-      description: Returns the details of a dataset specified by its id.
-      parameters:
-        - name: id
-          description: the id of the dataset
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: studiesSkip
-          description: "(optional, default=0) number of studies to skip for pagination"
-          in: query
-          required: false
-          schema:
-            type: integer
-            format: int32
-            minimum: 0
-        - name: studiesLimit
-          description: "(optional, default=30) maximum number of studies to return (records per page), value of 0 means no limit"
-          in: query
-          required: false
-          schema:
-            type: integer
-            format: int32
-            minimum: 0
-      responses:
-        '200':
-          description: "successful operation"
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DatasetDetails'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          description: "not found"
-    delete:
-      tags:
-        - datasets
-      summary: invalidates a dataset by its id
-      operationId: deleteDataset
-      description: "Invalidates a dataset in the system, it will be hidden."
-      parameters:
-        - name: id
-          description: "the id of the dataset to invalidate"
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: successful operation
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        
-  /datasets:
     get:
       tags:
         - datasets
@@ -182,8 +130,84 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
           
-  /user/{userName}:
-    post:
+  /datasets/{id}:
+    get:
+      tags:
+        - datasets
+      summary: gets a dataset by its id
+      operationId: getDataset
+      description: Returns the details of a dataset specified by its id.
+      parameters:
+        - name: id
+          description: the id of the dataset
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: studiesSkip
+          description: "(optional, default=0) number of studies to skip for pagination"
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+        - name: studiesLimit
+          description: "(optional, default=30) maximum number of studies to return (records per page), value of 0 means no limit"
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+      responses:
+        '200':
+          description: "successful operation"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetDetails'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: "not found"
+    patch:
+      tags:
+        - datasets
+      summary: changes a property of a dataset by its id
+      operationId: modifyDataset
+      description: "Changes a property of a dataset in the system."
+      parameters:
+        - name: id
+          description: "the id of the dataset to modify"
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example: '{"property": "public", "value": true}'
+              properties:
+                property:
+                  type: string
+                  description: 'The name of the property to change. The properies that can be changed depend on the current state of dataset and the current user. See the property "editablePropertiesByTheUser" returned by GET.'
+                  enum:
+                   - "public"
+                   - "invalidated"
+                value:
+                  type: object
+                  description: "The new value to assign. The type depends on the property."
+      responses:
+        '200':
+          description: successful operation
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          
+  /users/{userName}:
+    put:
       tags:
         - users
       summary: new user
@@ -616,4 +640,3 @@ components:
   responses:
     Unauthorized:
       description: "unauthorized user or access token is missing or invalid"
- 
