@@ -469,9 +469,6 @@ components:
           example: '["T1W", "T2W"]'
           items:
             type: string
-        public:
-          type: boolean
-          description: "(optional, default false) if false then the dataset will be only accessible to users with the role access_all_datasets (consortium researchers); if true then the dataset will be also accessible to all users, including external researchers and non-registered users"
     
     DatasetDetails:
       type: object
@@ -547,6 +544,12 @@ components:
         invalidated:
           type: boolean
           description: "If true the dataset can not be used and only appears in the list for the author"
+        editablePropertiesByTheUser:
+          type: array
+          description: "The properties that can be modified with PATCH operation by the current authenticated user in the current state of this dataset."
+          example: '["public, invalidated"]'
+          items:
+            type: string
         studiesCount:
           type: integer
           description: "The number of studies contained in the dataset"

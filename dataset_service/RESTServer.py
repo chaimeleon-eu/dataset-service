@@ -489,7 +489,7 @@ def postDataset():
                 description = bottle.request.forms.get("description")
             )
             if 'previousId' in bottle.request.forms: dataset['previousId'] = bottle.request.forms.get('previousId')
-            if 'public' in bottle.request.forms: dataset['public'] = bottle.request.forms.get('public')
+            #if 'public' in bottle.request.forms: dataset['public'] = bottle.request.forms.get('public')
             completeDatasetFromCSV(dataset, clinicalDataFile.file.read().decode('UTF-8').splitlines())
             #return  json.dumps(dataset)
         else:
@@ -511,8 +511,8 @@ def postDataset():
             dataset["id"] = datasetId
             LOG.debug("UUID generated: " + dataset["id"])
             dataset["creationDate"] = datetime.now()
-            if not "public" in dataset.keys(): 
-                dataset["public"] = False
+            #if not "public" in dataset.keys(): 
+            dataset["public"] = False
 
             LOG.debug("Scanning dataset for collecting metadata... ")
             collectMetadata(dataset)
@@ -590,6 +590,12 @@ def getDataset(id):
         # check access permission
         if not userCanAccessDataset(user_info, dataset):
             return setErrorResponse(401,"unauthorized user")
+
+        editableProperties = []
+        if userCanModifyDataset(user_info, dataset):
+            editableProperties.append("public")
+            editableProperties.append("invalidated")
+        dataset["editablePropertiesByTheUser"] = editableProperties
 
         studies, total = db.getStudiesFromDataset(datasetId, limit, skip)
         if not 'v2' in bottle.request.params:  
