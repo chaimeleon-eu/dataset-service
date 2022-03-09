@@ -197,14 +197,18 @@ paths:
                   enum:
                    - "public"
                    - "invalidated"
+                   - "name"
+                   - "description"
                 value:
                   type: object
                   description: "The new value to assign. The type depends on the property."
       responses:
         '200':
-          description: successful operation
+          description: "successful operation"
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '400': 
+          description: "bad request content"
           
   /users/{userName}:
     put:
@@ -547,7 +551,7 @@ components:
         editablePropertiesByTheUser:
           type: array
           description: "The properties that can be modified with PATCH operation by the current authenticated user in the current state of this dataset."
-          example: '["public, invalidated"]'
+          example: '["public", "invalidated", "name", "description"]'
           items:
             type: string
         studiesCount:

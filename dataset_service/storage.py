@@ -393,9 +393,11 @@ class DB:
     def setDatasetPublic(self, id, newValue):
         self.cursor.execute("UPDATE dataset SET public = %s WHERE id = %s;", (newValue, id))
 
-    def editDataset(self, id, newName, newDescription):
-        self.cursor.execute("UPDATE dataset SET name = %s, description = %s WHERE id = %s;", 
-                             (newName, newDescription, id))
+    def setDatasetName(self, id, newValue):
+        self.cursor.execute("UPDATE dataset SET name = %s WHERE id = %s;", (newValue, id))
+
+    def setDatasetDescription(self, id, newValue):
+        self.cursor.execute("UPDATE dataset SET description = %s WHERE id = %s;", (newValue, id))
 
     def createDatasetAccess(self, datasetAccessId, datasetIDs, userGID, toolName, toolVersion):
         self.cursor.execute("""

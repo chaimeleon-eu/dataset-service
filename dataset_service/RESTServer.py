@@ -653,18 +653,14 @@ def patchDataset(id):
                 LOG.debug('Removing ACL entries in dataset %s ...' % (datasetId))
                 datasetDirName = datasetId
                 invalidate_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
+        elif property == "name":
+            db.setDatasetName(datasetId, str(newValue))
+        elif property == "description":
+            db.setDatasetDescription(datasetId, str(newValue))
+        else:
+            return setErrorResponse(400, "invalid property")
 
     bottle.response.status = 200
-
-@app.route('/api/datasets/<id>/name', method='PUT')
-def renameDataset(id):
-    LOG.debug("Received PUT /dataset/%s/name" % id)
-
-@app.route('/api/datasets/<id>/description', method='PUT')
-def renameDataset(id):
-    LOG.debug("Received PUT /dataset/%s/name" % id)
-
-
 
 @app.route('/api/datasets', method='GET')
 def getDatasets():
