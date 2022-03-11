@@ -65,26 +65,32 @@ paths:
         You can list all available datasets in the system or search by name. 
         If not searchString or empty, then all datasets are listed.
       parameters:
+        - name: draft
+          description: "(Optional filter) If true, only draft datasets will be shown (those created by the user); if false, only not draft datasets will be shown; if not set, both types of dataset will be shown."
+          in: query
+          required: false
+          schema:
+            type: boolean
         - name: public
-          description: "(optional filter) if true, only public datasets will be shown; if false, only not public datasets will be shown (depending on the user permissions); if not set, both types of dataset will be shown"
+          description: "(Optional filter) If true, only public datasets will be shown; if false, only non-public datasets will be shown (depending on the user permissions); if not set, both types of dataset will be shown."
           in: query
           required: false
           schema:
             type: boolean
         - name: invalidated
-          description: "(optional filter) if true, only invalidated datasets will be shown (depending on the user permissions); if false, only not invalidated datasets will be shown; if not set, both types of dataset will be shown"
+          description: "(Optional filter) If true, only invalidated datasets will be shown (depending on the user permissions); if false, only not invalidated datasets will be shown; if not set, both types of dataset will be shown."
           in: query
           required: false
           schema:
             type: boolean
         - name: searchString
-          description: "(optional, default is empty) pass an optional search string (case-insensitive) for looking up inventory"
+          description: "(Optional, default is empty) Pass an optional search string (case-insensitive) for looking up inventory."
           in: query
           required: false
           schema:
             type: string
         - name: skip
-          description: "(optional, default=0) number of records to skip for pagination"
+          description: "(Optional, default=0) Number of records to skip for pagination."
           in: query
           required: false
           schema:
@@ -92,7 +98,7 @@ paths:
             format: int32
             minimum: 0
         - name: limit
-          description: "(optional, default=30) maximum number of records to return (records per page), value of 0 means no limit"
+          description: "(Optional, default=30) Maximum number of records to return (records per page), value of 0 means no limit."
           in: query
           required: false
           schema:
@@ -195,10 +201,13 @@ paths:
                   type: string
                   description: 'The name of the property to change. The properies that can be changed depend on the current state of dataset and the current user. See the property "editablePropertiesByTheUser" returned by GET.'
                   enum:
+                   - "draft"
                    - "public"
                    - "invalidated"
                    - "name"
                    - "description"
+                   - "licenseUrl"
+                   - "contactInfo"
                 value:
                   type: object
                   description: "The new value to assign. The type depends on the property."
@@ -418,28 +427,31 @@ components:
           example: "00e821c4-e92b-48f7-a034-ba2df547e2bf"
         name:
           type: string
-          description: short descriptive name
+          description: "Short descriptive name."
           example: Lung cancer v3
         authorName:
           type: string
-          description: the name of the user wich created the dataset
+          description: "The name of the user wich created the dataset."
           example: James Gordon
         creationDate:
           type: string
           format: date-time
           example: '2016-08-29T09:12:33.001Z'
+        draft:
+          type: boolean
+          description: "If true then the dataset is only accesible by the author and some properties can be modified."
         public:
           type: boolean
-          description: "(optional, default false) if false then the dataset is only accessible to users with the role access_all_datasets (consortium researchers); if true then the dataset is also accessible to all users, including external researchers and non-registered users"
+          description: "If false then the dataset is only accessible to users with the role access_all_datasets (consortium researchers); if true then the dataset is also accessible to all users, including external researchers and non-registered users."
         invalidated:
           type: boolean
-          description: "If true the dataset can not be used and only appears in the list for the author"
+          description: "If true the dataset can not be used and only appears in the list for the author."
         studiesCount:
           type: integer
-          description: the number of studies contained in the dataset
+          description: "The number of studies contained in the dataset."
         subjectsCount:
           type: integer
-          description: the number of different subjects which are related with the studies contained in the dataset
+          description: "The number of different subjects which are related with the studies contained in the dataset."
           
     DatasetCreationObject:
       type: object
@@ -448,12 +460,12 @@ components:
           type: string
           minLength: 3
           maxLength: 128
-          description: "Short descriptive name"
+          description: "Short descriptive name."
           example: Lung cancer v3
         previousId:
           type: string
           format: uuid
-          description: "(optional) specified when is a new version of a previous dataset"
+          description: "(Optional) Specified when is a new version of a previous dataset."
           example: "00e821c4-e92b-48f7-a034-ba2df547e2bf"
         description:
           type: string
@@ -464,12 +476,12 @@ components:
             $ref: '#/components/schemas/Study'
         subjects:
           type: array
-          description: 'subjects of studies and their clinical data'
+          description: 'Subjects of studies and their clinical data.'
           items:
             $ref: '#/components/schemas/Subject'
         serieTags:
           type: array
-          description: '(optional) type of series considered in the dataset'
+          description: '(Optional) Type of series considered in the dataset.'
           example: '["T1W", "T2W"]'
           items:
             type: string
@@ -485,29 +497,29 @@ components:
           type: string
           minLength: 3
           maxLength: 128
-          description: "Short descriptive name"
+          description: "Short descriptive name."
           example: "Lung cancer v3"
         previousId:
           type: string
           format: uuid
-          description: "(optional) specified when is a new version of a previous dataset"
+          description: "(Optional) Specified when is a new version of a previous dataset."
           example: "efa2cba6-4a17-4612-8074-7e9eb9c9d7ca"
         authorId:
           type: string
-          description: "The unique id of the user wich created the dataset, it is not for showing but it can be useful to a possible new feature to show all datasets from an author"
+          description: "The unique id of the user wich created the dataset, it is not for showing but it can be useful to a possible new feature to show all datasets from an author."
           example: "d290f1ee-6c54-4b01-90e6-d701748f0851"
         authorName:
           type: string
           minLength: 3
           maxLength: 128
-          description: "The name of the user wich created the dataset"
+          description: "The name of the user wich created the dataset."
           example: "James Gordon"
         authorEmail:
           type: string
           minLength: 3
           maxLength: 128
           format: email
-          description: "The email of the user wich created the dataset"
+          description: "The email of the user wich created the dataset."
           example: "james@email.com"
         creationDate:
           type: string
@@ -516,25 +528,38 @@ components:
         description:
           type: string
           description: "Long explanation of dataset details, statistics, links, references, improvements/modifications if it's a new version, etc."
+        licenseUrl:
+          type: string
+          maxLength: 256
+          description: "Link to the license document."
+        pidUrl:
+          type: string
+          maxLength: 256
+          description: "(Optional) Permanent ID as a link. To show the user how the dataset should be cited."
+        contactInfo:
+          type: string
+          maxLength: 256
+          description: "(Optional) Contact information of the responsible of the dataset, usually a name and email."
+          example: "James Gordon (james@email.com)"
         studies:
           type: object
           properties:
             total:
               type: integer
               format: int32
-              description: "Total of records"
+              description: "Total of records."
             returned:
               type: integer
               format: int32
-              description: "Number of records returned (can be smaller because of skip and limit params)"
+              description: "Number of records returned (can be smaller because of skip and limit params)."
             skipped:
               type: integer
               format: int32
-              description: "Number of records skipped from the beginning (as requested)"
+              description: "Number of records skipped from the beginning (as requested)."
             limit:
               type: integer
               format: int32
-              description: "Limit of records fixed by the request (usually the page size)"
+              description: "Limit of records fixed by the request (usually the page size)."
             list:
               type: array
               items:
@@ -542,12 +567,15 @@ components:
 #       gid:
 #         type: integer
 #         description: group id with the permissions to see the directories of studies selected for this dataset
+        draft:
+          type: boolean
+          description: "If true then the dataset is only accesible by the author and some properties can be modified."
         public:
           type: boolean
-          description: "(optional, default false) if false then the dataset is only accessible to users with the role access_all_datasets (consortium researchers); if true then the dataset is also accessible to all users, including external researchers and non-registered users"
+          description: "If false then the dataset is only accessible to users with the role access_all_datasets (consortium researchers); if true then the dataset is also accessible to all users, including external researchers and non-registered users."
         invalidated:
           type: boolean
-          description: "If true the dataset can not be used and only appears in the list for the author"
+          description: "If true the dataset can not be used and only appears in the list for the author."
         editablePropertiesByTheUser:
           type: array
           description: "The properties that can be modified with PATCH operation by the current authenticated user in the current state of this dataset."

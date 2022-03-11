@@ -1,5 +1,6 @@
 from array import array
 import logging
+from os import truncate
 import psycopg2
 from psycopg2 import sql
 import json
@@ -41,8 +42,9 @@ class DB:
             if version <=3: self.updateDB_v3To4()
             if version <=4: self.updateDB_v4To5()
             if version <=5: self.updateDB_v5To6()
+            if version <=6: self.updateDB_v6To7()
             ### Finally update schema_version
-            self.cursor.execute("UPDATE metadata set schema_version = 6;")
+            self.cursor.execute("UPDATE metadata set schema_version = 7;")
 
     def getSchemaVersion(self):
         self.cursor.execute("SELECT EXISTS ( SELECT FROM information_schema.tables WHERE table_name = 'metadata');")
@@ -98,6 +100,10 @@ class DB:
                 author_id varchar(64) NOT NULL,
                 creation_date timestamp NOT NULL,
                 description text NOT NULL DEFAULT '',
+                license_url varchar(256) NOT NULL DEFAULT '',
+                pid_url varchar(256) DEFAULT NULL,
+                contact_info varchar(256) DEFAULT NULL
+                draft boolean NOT NULL DEFAULT true,
                 public boolean NOT NULL DEFAULT false,
                 invalidated boolean NOT NULL DEFAULT false,
                 studies_count integer NOT NULL,
@@ -196,6 +202,13 @@ class DB:
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN modality text NOT NULL DEFAULT '[]';")
         self.cursor.execute("ALTER TABLE dataset RENAME COLUMN patients_count TO subjects_count;")
 
+    def updateDB_v6To7(self):
+        logging.root.info("Updating database from v6 to v7...")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN license_url varchar(256) NOT NULL DEFAULT '';")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN pid_url varchar(256) DEFAULT NULL;")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN contact_info varchar(256) DEFAULT NULL;")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN draft boolean NOT NULL DEFAULT true;")
+    
 
     def createOrUpdateAuthor(self, userId, username, name, email):
         self.cursor.execute("""
@@ -281,13 +294,14 @@ class DB:
         return self.cursor.rowcount > 0
 
     def getDataset(self, id):
-        """Returns None if the dataset has been invalidated or not exists.
+        """Returns None if the dataset not exists.
         """
         self.cursor.execute("""
             SELECT dataset.id, dataset.name, dataset.previous_id, 
                    author.id, author.name, author.email, 
                    dataset.creation_date, dataset.description, 
-                   dataset.public, dataset.invalidated, 
+                   dataset.license_url, dataset.pid_url, dataset.contact_info, 
+                   dataset.draft, dataset.public, dataset.invalidated, 
                    dataset.studies_count, dataset.subjects_count, 
                    dataset.age_low, dataset.age_high, 
                    dataset.sex, dataset.body_part, dataset.modality 
@@ -297,24 +311,25 @@ class DB:
             (id,))
         row = self.cursor.fetchone()
         if row is None: return None
-        if row[12] is None:
+        if row[16] is None:
             ageLow = None
             ageHigh = None
             ageUnit = None
         else:
-            ageLow, ageLowUnit = dicom.getAgeInMiabisFormat(row[12])
-            ageHigh, ageHighUnit = dicom.getAgeInMiabisFormat(row[13])
+            ageLow, ageLowUnit = dicom.getAgeInMiabisFormat(row[16])
+            ageHigh, ageHighUnit = dicom.getAgeInMiabisFormat(row[17])
             ageUnit = [ageLowUnit, ageHighUnit]
         sex = []
-        for s in json.loads(row[14]):
+        for s in json.loads(row[18]):
             sex.append(dicom.getSexInMiabisFormat(s))
         return dict(id = row[0], name = row[1], previousId = row[2], 
                     authorId = row[3], authorName = row[4], authorEmail = row[5], 
                     creationDate = str(row[6]), description = row[7], 
-                    public = row[8], invalidated = row[9],
-                    studiesCount = row[10], subjectsCount = row[11], 
+                    licenseUrl = row[8], pidUrl = row[9], contactInfo = row[10],
+                    draft = row[11], public = row[12], invalidated = row[13], 
+                    studiesCount = row[14], subjectsCount = row[15], 
                     ageLow = ageLow, ageHigh = ageHigh, ageUnit = ageUnit, sex = sex, 
-                    bodyPart = json.loads(row[15]), modality = json.loads(row[16]))
+                    bodyPart = json.loads(row[19]), modality = json.loads(row[20]))
 
     def getStudiesFromDataset(self, datasetId, limit = 0, skip = 0):
         if limit == 0: limit = 'ALL'
@@ -348,16 +363,30 @@ class DB:
             whereClause += sql.SQL(" AND dataset.invalidated = false")
         elif searchFilter.invalidated == True:
             whereClause += sql.SQL(" AND dataset.invalidated = true")
-            if searchFilter.userIdForInvalidated != None:
-                authorId = sql.Literal(str(searchFilter.userIdForInvalidated))
-                whereClause += sql.SQL(" AND dataset.author_id = ") + authorId
         else: # searchFilter.invalidated is None:
-            if searchFilter.userIdForInvalidated != None:
-                authorId = sql.Literal(str(searchFilter.userIdForInvalidated))
+            if searchFilter.userIdForInvalidatedAndDraft != None:
+                authorId = sql.Literal(str(searchFilter.userIdForInvalidatedAndDraft))
                 whereClause += sql.SQL(" AND ({} OR {})").format(
                     sql.SQL("(dataset.invalidated = true AND dataset.author_id = {})").format(authorId),
                     sql.SQL("dataset.invalidated = false")
                 )
+
+        if searchFilter.draft == False:
+            whereClause += sql.SQL(" AND dataset.draft = false")
+        elif searchFilter.draft == True:
+            whereClause += sql.SQL(" AND dataset.draft = true")
+        else: # searchFilter.draft is None:
+            if searchFilter.userIdForInvalidatedAndDraft != None:
+                authorId = sql.Literal(str(searchFilter.userIdForInvalidatedAndDraft))
+                whereClause += sql.SQL(" AND ({} OR {})").format(
+                    sql.SQL("(dataset.draft = true AND dataset.author_id = {})").format(authorId),
+                    sql.SQL("dataset.draft = false")
+                )
+
+        if (searchFilter.draft == True or searchFilter.invalidated == True) \
+            and searchFilter.userIdForInvalidatedAndDraft != None:
+            authorId = sql.Literal(str(searchFilter.userIdForInvalidatedAndDraft))
+            whereClause += sql.SQL(" AND dataset.author_id = ") + authorId
 
         if searchString != '': 
             whereClause += sql.SQL(" AND dataset.name ILIKE {}").format(sql.Literal('%'+searchString+'%'))
@@ -371,7 +400,7 @@ class DB:
 
         q = sql.SQL("""
             SELECT dataset.id, dataset.name, author.name, dataset.creation_date, 
-                   dataset.public, dataset.invalidated, 
+                   dataset.draft, dataset.public, dataset.invalidated, 
                    dataset.studies_count, dataset.subjects_count
             FROM dataset, author 
             WHERE dataset.author_id = author.id {}
@@ -382,8 +411,8 @@ class DB:
         res = []
         for row in self.cursor:
             res.append(dict(id = row[0], name = row[1], authorName = row[2], creationDate = str(row[3]), 
-                            public = row[4], invalidated = row[5],
-                            studiesCount = row[6], subjectsCount = row[7]))
+                            draft = row[4], public = row[5], invalidated = row[6],
+                            studiesCount = row[7], subjectsCount = row[8]))
         return res, total
         
     def setDatasetInvalidated(self, id, newValue):
@@ -392,12 +421,21 @@ class DB:
 
     def setDatasetPublic(self, id, newValue):
         self.cursor.execute("UPDATE dataset SET public = %s WHERE id = %s;", (newValue, id))
+        
+    def setDatasetDraft(self, id, newValue):
+        self.cursor.execute("UPDATE dataset SET draft = %s WHERE id = %s;", (newValue, id))
 
     def setDatasetName(self, id, newValue):
         self.cursor.execute("UPDATE dataset SET name = %s WHERE id = %s;", (newValue, id))
 
     def setDatasetDescription(self, id, newValue):
         self.cursor.execute("UPDATE dataset SET description = %s WHERE id = %s;", (newValue, id))
+
+    def setDatasetLicenseUrl(self, id, newValue):
+        self.cursor.execute("UPDATE dataset SET license_url = %s WHERE id = %s;", (newValue, id))
+        
+    def setDatasetContactInfo(self, id, newValue):
+        self.cursor.execute("UPDATE dataset SET contact_info = %s WHERE id = %s;", (newValue, id))
 
     def createDatasetAccess(self, datasetAccessId, datasetIDs, userGID, toolName, toolVersion):
         self.cursor.execute("""

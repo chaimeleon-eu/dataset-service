@@ -240,8 +240,8 @@ def userCanAccessDataset(user_info, dataset, access_type = Access_type.VIEW_DETA
 
     if dataset["invalidated"] and access_type is Access_type.USE: return False
 
-    # if dataset["draft"] and (user_info is None or user_info["sub"] != dataset["authorId"]):
-    #     return False
+    if dataset["draft"] and (user_info is None or user_info["sub"] != dataset["authorId"]):
+        return False
 
     if dataset["public"]: return True
 
@@ -252,8 +252,8 @@ def tmpUserCanAccessDataset(userId, userGroups, dataset, access_type = Access_ty
 
     if dataset["invalidated"] and access_type is Access_type.USE: return False
 
-    # if dataset["draft"] and userId != dataset["authorId"]:
-    #     return False
+    if dataset["draft"] and userId != dataset["authorId"]:
+        return False
 
     if dataset["public"]: return True
     
@@ -266,24 +266,26 @@ def userCanModifyDataset(user_info, dataset):
     return user_info["sub"] == dataset["authorId"]
 
 class Search_filter():
-    def __init__(self, public, invalidated):
+    def __init__(self, draft, public, invalidated):
+        self.draft = draft
         self.public = public
         self.invalidated = invalidated
-        # self.userIdForDraft = None
-        self.userIdForInvalidated = None
+        self.userIdForInvalidatedAndDraft = None
 
 def adjustSearchFilterByUser(user_info, search_filter):
     if user_info is None or not CONFIG.auth.roles.access_all_datasets in user_info["appRoles"]:
         search_filter.public = True
         search_filter.invalidated = False
+        search_filter.draft = False
         return search_filter
 
     if not CONFIG.auth.roles.admin_datasets in user_info["appRoles"]:
         search_filter.invalidated = False
+        search_filter.draft = False
         return search_filter
 
     if not CONFIG.auth.roles.superadmin_datasets in user_info["appRoles"]:
-        search_filter.userIdForInvalidated = user_info["sub"]
+        search_filter.userIdForInvalidatedAndDraft = user_info["sub"]
 
     return search_filter
 
@@ -292,6 +294,20 @@ def userCanAdminUsers(user_info):
 
 def userCanAdminDatasetAccess(user_info):
     return user_info != None and CONFIG.auth.roles.admin_datasetAccess in user_info["appRoles"]
+
+def getEditablePropertiesByTheUser(user_info, dataset):
+    editableProperties = []
+    if userCanModifyDataset(user_info, dataset):
+        if dataset["draft"]: 
+            editableProperties.append("draft")
+            editableProperties.append("name")
+            editableProperties.append("description")
+            editableProperties.append("licenseUrl")
+        editableProperties.append("public")
+        editableProperties.append("invalidated")
+        editableProperties.append("contactInfo")
+    dataset["editablePropertiesByTheUser"] = editableProperties
+    return editableProperties
 
 
 def get_header_media_types(header):
@@ -566,7 +582,6 @@ def postDataset():
             LOG.error("May be the body of the request is wrong: %s" % read_data)
         if datasetDirName != '': remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
         return setErrorResponse(500,"Unexpected error, may be the input is wrong")
-        
 
 @app.route('/api/datasets/<id>', method='GET')
 @app.route('/api/dataset/<id>', method='GET')
@@ -591,11 +606,7 @@ def getDataset(id):
         if not userCanAccessDataset(user_info, dataset):
             return setErrorResponse(401,"unauthorized user")
 
-        editableProperties = []
-        if userCanModifyDataset(user_info, dataset):
-            editableProperties.append("public")
-            editableProperties.append("invalidated")
-        dataset["editablePropertiesByTheUser"] = editableProperties
+        dataset["editablePropertiesByTheUser"] = getEditablePropertiesByTheUser(user_info, dataset)
 
         studies, total = db.getStudiesFromDataset(datasetId, limit, skip)
         if not 'v2' in bottle.request.params:  
@@ -642,10 +653,12 @@ def patchDataset(id):
         dataset = db.getDataset(datasetId)
         if dataset is None:
             return setErrorResponse(404,"not found")
-        if not userCanModifyDataset(user_info, dataset):
-            return setErrorResponse(401,"unauthorized user")
+        if property not in getEditablePropertiesByTheUser(user_info, dataset):
+            return setErrorResponse(401,"user can not change that property")
 
-        if property == "public":
+        if property == "draft":
+            db.setDatasetDraft(datasetId, bool(newValue))
+        elif property == "public":
             db.setDatasetPublic(datasetId, bool(newValue))
         elif property == "invalidated":
             db.setDatasetInvalidated(datasetId, bool(newValue))
@@ -657,6 +670,12 @@ def patchDataset(id):
             db.setDatasetName(datasetId, str(newValue))
         elif property == "description":
             db.setDatasetDescription(datasetId, str(newValue))
+        elif property == "licenseUrl":
+            db.setDatasetLicenseUrl(datasetId, str(newValue))
+        elif property == "contactInfo":
+            db.setDatasetContactInfo(datasetId, str(newValue))
+        # elif property == "pidUrl":
+        #     db.setDatasetPidUrl(datasetId, str(newValue))
         else:
             return setErrorResponse(400, "invalid property")
 
@@ -669,7 +688,9 @@ def getDatasets():
     if not ok: return ret
     else: user_info = ret # can be None
 
-    searchFilter = Search_filter(public = None, invalidated = None)
+    searchFilter = Search_filter(draft = None, public = None, invalidated = None)
+    if 'draft' in bottle.request.params:
+        searchFilter.draft = bool(bottle.request.params['draft'])
     if 'public' in bottle.request.params:
         searchFilter.public = bool(bottle.request.params['public'])
     if 'invalidated' in bottle.request.params:
