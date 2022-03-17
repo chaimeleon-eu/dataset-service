@@ -407,8 +407,8 @@ token received (i.e. in 'resource_access.dataset-service.roles'). Example:
 
 These are the known roles:
  - __access_all_datasets__ (1): it can list, see details and use all datasets not only the public
- - __admin_datasets__ (2): also can create, update and invalidate own datasets
- - __superadmin_datasets__ (3): also can update and invalidate any dataset (not owned datasets)
+ - __admin_datasets__ (2): also can create and modify properties (and the state) of the own datasets
+ - __superadmin_datasets__ (3): also can modify any dataset (not owned datasets)
 
 The name of each one can be customized in the configuration file. 
 The number is just a hint, not part of the name: you can see them as permission levels, each level include the previous levels.
@@ -421,12 +421,12 @@ There are other special roles:
 
 Each dataset has some flags (with value true or false) which define its state of visibility, editability and usability.  
 The __flags__ are:
- - _draft_ (proposed, not implemented yet)
+ - _draft_
  - _public_
  - _invalidated_
  
 According to value of the flags a dataset can be in one of these states:
- - __Draft__ (proposed, not implemented yet): (_draft_ = __true__, _public_ = false, _invalidated_ = false)  
+ - __Draft__: (_draft_ = __true__, _public_ = false, _invalidated_ = false)  
           All datasets are created in this state.  
           Only the author can see and use the dataset in Draft state and some properties can be modified (name/title, description).  
           The draft mode can be useful for testing datasets because they are "private" to the author.  
@@ -454,4 +454,23 @@ According to value of the flags a dataset can be in one of these states:
 All the actions can be performed only by the author or superadmin.
 
 ![Dataset states diagram](doc/resources/dataset-states.png)
+
+
+## Dataset modifications
+
+Some properties of dataset can be modified depending on the user and the current state of the dataset.  
+In order to simplify the client and not duplicate that logic, 
+there is a dynamic property named "editablePropertiesByTheUser" in the object returned by GET /api/datasets/{id} (the details of dataset). 
+The value of that property is a list of the properties (including flags) that can be modified with PATCH operation by the current user in the current state of dataset.
+
+Only the author or superadmin can modify any of the properties or flags.  
+And these are the properties that can be modified (and when):
+ - draft (when draft = true)
+ - public (when draft = false)
+ - invalidated (always)
+ - name (when draft = true)
+ - description (when draft = true)
+ - licenseUrl (when draft = true)
+ - contactInfo (always)
+ - pidUrl (when draft = false)
 

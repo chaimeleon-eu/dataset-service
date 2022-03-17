@@ -303,7 +303,8 @@ def getEditablePropertiesByTheUser(user_info, dataset):
             editableProperties.append("name")
             editableProperties.append("description")
             editableProperties.append("licenseUrl")
-        editableProperties.append("public")
+        else:
+            editableProperties.append("public")
         editableProperties.append("invalidated")
         editableProperties.append("contactInfo")
     dataset["editablePropertiesByTheUser"] = editableProperties
