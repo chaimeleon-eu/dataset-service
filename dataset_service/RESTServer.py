@@ -305,6 +305,7 @@ def getEditablePropertiesByTheUser(user_info, dataset):
             editableProperties.append("licenseUrl")
         else:
             editableProperties.append("public")
+            editableProperties.append("pidUrl")
         editableProperties.append("invalidated")
         editableProperties.append("contactInfo")
     dataset["editablePropertiesByTheUser"] = editableProperties
@@ -673,6 +674,8 @@ def patchDataset(id):
             db.setDatasetDescription(datasetId, str(newValue))
         elif property == "licenseUrl":
             db.setDatasetLicenseUrl(datasetId, str(newValue))
+        elif property == "pidUrl":
+            db.setDatasetPidUrl(datasetId, str(newValue))
         elif property == "contactInfo":
             db.setDatasetContactInfo(datasetId, str(newValue))
         # elif property == "pidUrl":

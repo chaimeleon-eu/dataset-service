@@ -433,7 +433,10 @@ class DB:
 
     def setDatasetLicenseUrl(self, id, newValue):
         self.cursor.execute("UPDATE dataset SET license_url = %s WHERE id = %s;", (newValue, id))
-        
+
+    def setDatasetPidUrl(self, id, newValue):
+        self.cursor.execute("UPDATE dataset SET pid_url = %s WHERE id = %s;", (newValue, id))
+
     def setDatasetContactInfo(self, id, newValue):
         self.cursor.execute("UPDATE dataset SET contact_info = %s WHERE id = %s;", (newValue, id))
 

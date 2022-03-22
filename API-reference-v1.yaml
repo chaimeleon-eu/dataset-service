@@ -207,6 +207,7 @@ paths:
                    - "name"
                    - "description"
                    - "licenseUrl"
+                   - "pidUrl"
                    - "contactInfo"
                 value:
                   type: object
