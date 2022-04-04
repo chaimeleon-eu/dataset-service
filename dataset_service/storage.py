@@ -37,14 +37,15 @@ class DB:
             self.createSchema()
             return
         else:
-            if version <=1: self.updateDB_v1To2()
-            if version <=2: self.updateDB_v2To3()
-            if version <=3: self.updateDB_v3To4()
-            if version <=4: self.updateDB_v4To5()
-            if version <=5: self.updateDB_v5To6()
-            if version <=6: self.updateDB_v6To7()
+            if version < 2: self.updateDB_v1To2()
+            if version < 3: self.updateDB_v2To3()
+            if version < 4: self.updateDB_v3To4()
+            if version < 5: self.updateDB_v4To5()
+            if version < 6: self.updateDB_v5To6()
+            if version < 7: self.updateDB_v6To7()
+            if version < 10: self.updateDB_v7To10()
             ### Finally update schema_version
-            self.cursor.execute("UPDATE metadata set schema_version = 7;")
+            self.cursor.execute("UPDATE metadata set schema_version = 10;")
 
     def getSchemaVersion(self):
         self.cursor.execute("SELECT EXISTS ( SELECT FROM information_schema.tables WHERE table_name = 'metadata');")
@@ -86,7 +87,7 @@ class DB:
                 constraint fk_user foreign key (user_id) references author(id)
             );
             CREATE TABLE study (
-                id varchar(32),
+                id varchar(40),
                 name varchar(128) NOT NULL,
                 subject_name varchar(128) NOT NULL,
                 path varchar(256),
@@ -110,7 +111,7 @@ class DB:
                 subjects_count integer NOT NULL,
                 age_low varchar(4) DEFAULT NULL,
                 age_high varchar(4) DEFAULT NULL,
-                sex varchar(8) NOT NULL DEFAULT '[]',
+                sex varchar(16) NOT NULL DEFAULT '[]',
                 body_part text NOT NULL DEFAULT '[]',
                 modality text NOT NULL DEFAULT '[]',
                 constraint pk_dataset primary key (id),
@@ -119,7 +120,7 @@ class DB:
             /* A dataset can contain multiple studies and a study can be contained in multiple datasets. */
             CREATE TABLE dataset_study (
                 dataset_id varchar(40),
-                study_id varchar(32),
+                study_id varchar(40),
                 series text NOT NULL DEFAULT '[]',
                 constraint pk_dataset_study primary key (dataset_id, study_id),
                 constraint fk_dataset foreign key (dataset_id) references dataset(id),
@@ -209,6 +210,12 @@ class DB:
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN contact_info varchar(256) DEFAULT NULL;")
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN draft boolean NOT NULL DEFAULT true;")
     
+    def updateDB_v7To10(self):
+        logging.root.info("Updating database from v7 to v10...")
+        self.cursor.execute("ALTER TABLE study ALTER COLUMN id TYPE varchar(40);")
+        self.cursor.execute("ALTER TABLE dataset_study ALTER COLUMN study_id TYPE varchar(40);")
+        self.cursor.execute("ALTER TABLE dataset ALTER COLUMN sex TYPE varchar(16);")
+
 
     def createOrUpdateAuthor(self, userId, username, name, email):
         self.cursor.execute("""

@@ -340,7 +340,7 @@ def getHello():
     return "Hello from Dataset Service"
 
 @app.route('/api/set-ui', method='POST')
-def postDataset():
+def postSetUI():
     LOG.debug("Received POST /api/set-ui")
     if CONFIG.self.dev_token == "":
         return setErrorResponse(404, "Not found: '%s'" % bottle.request.path)
@@ -367,29 +367,31 @@ def completeDatasetFromCSV(dataset, csvdata):
             first = False
             header = row
         else:
-            studyId = row[0]
-            path = "0-EXTERNAL-DATA/maastricht-university/" + row[0]
+            subjectName = row[0]
+            subjectPath = "0-EXTERNAL-DATA/maastricht-university/" + row[0]
             if CONFIG.self.datalake_mount_path != '':
-                studyDir = os.listdir(os.path.join(CONFIG.self.datalake_mount_path, path))[0]
-                path = os.path.join(path, studyDir)
-                series = []
-                for name in os.listdir(path):
-                    filePath = os.path.join(path, name)
-                    if os.path.isdir(filePath):  series.append(name)
+                studies = os.listdir(os.path.join(CONFIG.self.datalake_mount_path, subjectPath))
+                for studyDirName in studies:
+                    if studyDirName == "NIFTI": continue    # ignore special studies
+                    studyDirPath = os.path.join(subjectPath, studyDirName)
+                    series = []
+                    for serieDirName in os.listdir(os.path.join(CONFIG.self.datalake_mount_path, studyDirPath)):
+                        seriePath = os.path.join(CONFIG.self.datalake_mount_path, studyDirPath, serieDirName)
+                        if os.path.isdir(seriePath):  series.append(serieDirName)
 
-            dataset["studies"].append({
-                'studyId': studyId,
-                'studyName': row[0],
-                'subjectName': row[0],
-                'path': path,
-                'series': series,
-                'url': ""
-            })
+                    dataset["studies"].append({
+                        'studyId': str(uuid.uuid4()),
+                        'studyName': studyDirName,
+                        'subjectName': subjectName,
+                        'path': studyDirPath,
+                        'series': series,
+                        'url': ""
+                    })
             eform = {}
             for i in range(1, len(header)):
                 eform[header[i]] = row[i]
             dataset["subjects"].append({
-                'subjectName': row[0],
+                'subjectName': subjectName,
                 'eForm': eform 
             })
 
