@@ -453,6 +453,8 @@ According to value of the flags a dataset can be in one of these states:
 
 All the actions can be performed only by the author or superadmin.
 
+![Dataset states and flags diagram](doc/resources/dataset-states-flags.png)
+
 ![Dataset states diagram](doc/resources/dataset-states.png)
 
 
