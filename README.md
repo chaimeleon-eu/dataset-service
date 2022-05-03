@@ -431,17 +431,18 @@ According to value of the flags a dataset can be in one of these states:
           Only the author can see and use the dataset in Draft state and some properties can be modified (name/title, description).  
           The draft mode can be useful for testing datasets because they are "private" to the author.  
           Possible actions:  
-           - Release (_draft_ -> false), goes to Normal state.  
+           - Release (_draft_ -> false), goes to Released state.  
            - Invalidate (_invalidated_ -> true), goes to Invalidated state.
- - __Normal__: (_draft_ = false, _public_ = false, _invalidated_ = false)  
+ - __Released__: (_draft_ = false, _public_ = false, _invalidated_ = false)  
            When released, the dataset can't be edited anymore and all the registered users with the rol 'access_all_datasets' can see it and use it.  
            Possible actions:  
-            - Set to public (_public_ -> true) goes to Public state.  
+            - Publish (_public_ -> true) goes to Published state.  
             - Invalidate (_invalidated_ -> true), goes to Invalidated state.
- - __Public__: (_draft_ = false, _public_ = __true__, _invalidated_ = false)  
-           When published, the dataset can be seen and used by any user, including unregistered users.  
+ - __Published__: (_draft_ = false, _public_ = __true__, _invalidated_ = false)  
+           When published, the dataset can be seen and used by any registered user.
+           It can be seen (not used) by unregistered users.  
            Possible actions:  
-            - Set to non-public (_public_ -> false), goes to Normal state.  
+            - Set to non-public (_public_ -> false), returns to Released state.  
             - Invalidate (_invalidated_ -> true), goes to Invalidated state.
  - __Invalidated__: (_draft_ = true/false, _public_ = true/false, _invalidated_ = __true__)  
            Only appears in the list of the author, but anyone (who has the id or link) can see the details.  
@@ -449,7 +450,7 @@ According to value of the flags a dataset can be in one of these states:
            Anyway, a big label with the text "invalidated" should appear in details, and also in the list for the author.  
            Nobody can modify it nor use it, neither the author.  
            Possible actions:  
-            - 'Reactivate' (_invalidated_ -> false), goes to previous state (Draft, Normal or Public).
+            - 'Reactivate' (_invalidated_ -> false), goes to previous state (Draft, Released or Published).
 
 All the actions can be performed only by the author or superadmin.
 
