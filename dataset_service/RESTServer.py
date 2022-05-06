@@ -486,7 +486,6 @@ def collectMetadata2(dataset):
     dataset["modality"] = values[0x0008, 0x0060]
 
 @app.route('/api/datasets', method='POST')
-@app.route('/api/dataset', method='POST')
 def postDataset():
     LOG.debug("Received POST /dataset")
     ok, ret = checkAuthorizationHeader()
@@ -609,7 +608,6 @@ def postDataset():
         return setErrorResponse(500,"Unexpected error, may be the input is wrong")
 
 @app.route('/api/datasets/<id>', method='GET')
-@app.route('/api/dataset/<id>', method='GET')
 def getDataset(id):
     LOG.debug("Received GET /dataset/%s" % id)
     ok, ret = checkAuthorizationHeader()
@@ -648,12 +646,6 @@ def getDataset(id):
 
     bottle.response.content_type = "application/json"
     return json.dumps(dataset)
-
-@app.route('/api/dataset/<id>', method='DELETE')
-def invalidateDataset(id):
-    # transitional operation while clients change to new PUT operation
-    LOG.debug("Received (Transitional) DELETE /dataset/%s" % id)
-    return patchDataset(id)
 
 @app.route('/api/datasets/<id>', method='PATCH')
 def patchDataset(id):
@@ -787,7 +779,6 @@ def putUser(userName):
         return setErrorResponse(500,"Unexpected error, may be the input is wrong")
 
 @app.route('/api/users/<userName>', method='GET')
-@app.route('/api/user/<userName>', method='GET')
 def getUser(userName):
     LOG.debug("Received GET %s" % bottle.request.path)
     ok, ret = checkAuthorizationHeader(serviceAccount=True)
