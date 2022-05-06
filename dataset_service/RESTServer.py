@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 import bottle
 import threading
 import logging
@@ -353,6 +354,17 @@ def postSetUI():
     output, status = execute_cmd("unzip -uo \"" + CONFIG.self.static_files_dir_path + "/build.zip\" -d \"" + CONFIG.self.static_files_dir_path + "/\"")
     return output
 
+class PathException(Exception):
+    pass
+
+def checkPath(basePath, relativePath):
+    # Ensures relativePath is in fact a subpath of basePath. Raises an exception if wrong path.
+    # This is to avoid a malicious user try to access system directories with "..", absolute paths like "/etc" or symbolic links.
+    base = Path(basePath).resolve()  # Resolve symbolic links and returns absolute path
+    path = (base / relativePath).resolve()
+    if not base in path.parents:
+        raise PathException("Wrong path: " + str(base / relativePath))
+
 def completeDatasetFromCSV(dataset, csvdata):
     dataset["studies"] = []
     dataset["subjects"] = []
@@ -370,6 +382,7 @@ def completeDatasetFromCSV(dataset, csvdata):
             subjectName = row[0]
             subjectPath = "0-EXTERNAL-DATA/maastricht-university/" + row[0]
             if CONFIG.self.datalake_mount_path != '':
+                checkPath(CONFIG.self.datalake_mount_path, subjectPath)
                 studies = os.listdir(os.path.join(CONFIG.self.datalake_mount_path, subjectPath))
                 for studyDirName in studies:
                     if studyDirName == "NIFTI": continue    # ignore special studies
@@ -407,6 +420,7 @@ def getMetadataFromFirstDicomFile(serieDirPath):
             modality = (dcm[dicom.MODALITY_TAG].value  if dicom.MODALITY_TAG in dcm else None)
             #datasetType = dcm[dicom.DATASET_TYPE_TAG].value    it seems very similar to modality
             return age, sex, bodyPart, modality
+    return None, None, None, None
 
 def collectMetadata(dataset):
     differentSubjects = set()
@@ -422,14 +436,12 @@ def collectMetadata(dataset):
             differentSubjects.add(study["subjectName"])
         if CONFIG.self.datalake_mount_path != '':
             seriePathInDatalake = os.path.join(CONFIG.self.datalake_mount_path, study['path'], study['series'][0])
-            try:
-                age, sex, bodyPart, modality = getMetadataFromFirstDicomFile(seriePathInDatalake)
-            except Exception as e:
-                # try with the second serie if exists
+            age, sex, bodyPart, modality = getMetadataFromFirstDicomFile(seriePathInDatalake)
+            if (age is None or sex is None or bodyPart is None or modality is None):
+                # sometimes first serie is special, try with the second if exists
                 if len(study['series']) > 1:
                     seriePathInDatalake = os.path.join(CONFIG.self.datalake_mount_path, study['path'], study['series'][1])
                     age, sex, bodyPart, modality = getMetadataFromFirstDicomFile(seriePathInDatalake)
-                else: raise e
             if age != None:
                 minAge = min(minAge, age, key=lambda x: dicom.getAgeInDays(x))
                 maxAge = max(maxAge, age, key=lambda x: dicom.getAgeInDays(x))
@@ -497,6 +509,7 @@ def postDataset():
             return setErrorResponse(400,"invalid 'Content-Type' header, required 'application/json'")
 
     datasetDirName = ''
+    datasetId = str(uuid.uuid4())
     try:
         if "external" in bottle.request.params and bottle.request.params["external"].lower() == "true":
             # This is for manually create datasets out of the standard ingestion procedure 
@@ -516,6 +529,15 @@ def postDataset():
             read_data = bottle.request.body.read().decode('UTF-8')
             LOG.debug("BODY: " + read_data)
             dataset = json.loads( read_data )
+            # Security check: review all data sent by the user which is involved in path constructions
+            if CONFIG.self.datalake_mount_path != '':
+                for study in dataset["studies"]:
+                    checkPath(CONFIG.self.datalake_mount_path, study['path'])
+                    for serie in study["series"]:
+                        checkPath(CONFIG.self.datalake_mount_path, os.path.join(study['path'], serie))
+            if CONFIG.self.datasets_mount_path != '':
+                for study in dataset["studies"]:
+                    checkPath(CONFIG.self.datasets_mount_path, os.path.join(datasetId, study['subjectName']))
 
         with DB(CONFIG.db) as db:
             LOG.debug("Updating author: %s, %s, %s, %s" % (userId, userUsername, userName, userEmail))
@@ -527,7 +549,6 @@ def postDataset():
             else:
                 dataset["previousId"] = None
 
-            datasetId = str(uuid.uuid4())
             dataset["id"] = datasetId
             LOG.debug("UUID generated: " + dataset["id"])
             dataset["creationDate"] = datetime.now()
@@ -574,10 +595,10 @@ def postDataset():
         bottle.response.content_type = "application/json"
         return json.dumps(dict(url = "/api/datasets/" + datasetId))
 
-    except tracer.TraceException as e:
+    except (PathException) as e:
         if datasetDirName != '': remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
-        return setErrorResponse(500, str(e))
-    except DatasetException as e:
+        return setErrorResponse(400, str(e))
+    except (tracer.TraceException, DatasetException) as e:
         if datasetDirName != '': remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
         return setErrorResponse(500, str(e))
     except Exception as e:
@@ -658,7 +679,7 @@ def patchDataset(id):
         if dataset is None:
             return setErrorResponse(404,"not found")
         if property not in getEditablePropertiesByTheUser(user_info, dataset):
-            return setErrorResponse(401,"user can not change that property")
+            return setErrorResponse(400,"the property is not in the editablePropertiesByTheUser list")
 
         if property == "draft":
             db.setDatasetDraft(datasetId, bool(newValue))
