@@ -75,7 +75,7 @@ Example:
 $ curl -i -X POST ^
        -H "Authorization: bearer %DSS_TOKEN%" ^
        -H "Content-Type: application/json" ^
-       -d "{\"name\": \"TestDataset3\", \"description\": \"This is a dataset for testing.\", \"studies\": [{     \"studyId\": \"5e57a4356af19d299c17026d\",     \"studyName\": \"GMIBG2DECUERPOENTERO\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/GMIBG2DECUERPOENTERO20160225\",   \"series\": [\"serie1\", \"serie2\", \"serie3\"],    \"url\": \"\"   },   {     \"studyId\": \"5e5629835938d32160636353\",     \"studyName\": \"RM431RMRENAL\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/RM431RMRENAL20130820\",    \"series\": [\"serie1\"],   \"url\": \"\"   },   {     \"studyId\": \"5e6a422939b892367c8a5c23\",     \"studyName\": \"TCPEDITRICOABDOMINOPLVICOCONCONTRASTE\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/TCPEDITRICOABDOMINOPLVICOCONCONTRASTE20150129\",   \"series\": [\"serie1\"],    \"url\": \"\"   },   {     \"studyId\": \"5e6b449a3144dc2bc0841efc\",     \"studyName\": \"RM411RMABDOMEN\",     \"subjectName\": \"21N56F7T\",     \"path\": \"blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20100804\",    \"series\": [\"serie1\"],   \"url\": \"\"   },   {     \"studyId\": \"5e6a3d41c9065c475c32b3fe\",     \"studyName\": \"RM411RMABDOMEN\",     \"subjectName\": \"21N56F7T\",     \"path\": \"blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20150109\",   \"series\": [\"serie1\"],    \"url\": \"\"   },   {     \"studyId\": \"5eeba960903aec091076c180\",     \"studyName\": \"RM815RMDORSAL\",     \"subjectName\": \"1GB90F75\",     \"path\": \"blancagomez/1GB90F75_Neuroblastoma/RM815RMDORSAL20121123\",    \"series\": [\"serie1\"],   \"url\": \"\"   }], \"subjects\": [{\"subjectName\": \"17B76FEW\", \"path\": \"blancagomez/17B76FEW_Neuroblastoma\", \"eForm\": \"{}\"}, {\"subjectName\": \"21N56F7T\", \"path\": \"blancagomez/21N56F7T_Neuroblastoma\", \"eForm\": \"{}\"}, {\"subjectName\": \"1GB90F75\", \"path\": \"blancagomez/1GB90F75_Neuroblastoma\", \"eForm\": \"{}\"}]}" ^
+       -d "{\"name\": \"TestDataset3\", \"description\": \"This is a dataset for testing.\", \"studies\": [{     \"studyId\": \"5e57a4356af19d299c17026d\",     \"studyName\": \"GMIBG2DECUERPOENTERO\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/GMIBG2DECUERPOENTERO20160225\",   \"series\": [\"serie1\", \"serie2\", \"serie3\"],    \"url\": \"\"   },   {     \"studyId\": \"5e5629835938d32160636353\",     \"studyName\": \"RM431RMRENAL\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/RM431RMRENAL20130820\",    \"series\": [\"serie1\"],   \"url\": \"\"   },   {     \"studyId\": \"5e6a422939b892367c8a5c23\",     \"studyName\": \"TCPEDITRICOABDOMINOPLVICOCONCONTRASTE\",     \"subjectName\": \"17B76FEW\",     \"path\": \"blancagomez/17B76FEW_Neuroblastoma/TCPEDITRICOABDOMINOPLVICOCONCONTRASTE20150129\",   \"series\": [\"serie1\"],    \"url\": \"\"   },   {     \"studyId\": \"5e6b449a3144dc2bc0841efc\",     \"studyName\": \"RM411RMABDOMEN\",     \"subjectName\": \"21N56F7T\",     \"path\": \"blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20100804\",    \"series\": [\"serie1\"],   \"url\": \"\"   },   {     \"studyId\": \"5e6a3d41c9065c475c32b3fe\",     \"studyName\": \"RM411RMABDOMEN\",     \"subjectName\": \"21N56F7T\",     \"path\": \"blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20150109\",   \"series\": [\"serie1\"],    \"url\": \"\"   },   {     \"studyId\": \"5eeba960903aec091076c180\",     \"studyName\": \"RM815RMDORSAL\",     \"subjectName\": \"1GB90F75\",     \"path\": \"blancagomez/1GB90F75_Neuroblastoma/RM815RMDORSAL20121123\",    \"series\": [\"serie1\"],   \"url\": \"\"   }], \"subjects\": [{\"subjectName\": \"17B76FEW\", \"eForm\": {}}, {\"subjectName\": \"21N56F7T\", \"eForm\": {}}, {\"subjectName\": \"1GB90F75\", \"eForm\": {}}]}" ^
        "%DSS_ENDPOINT%/datasets"
 
 HTTP/1.1 100 Continue
@@ -301,13 +301,13 @@ $ curl -i -H "devToken: SECRET-TOKEN" -d "http://158.42.154.23:19000/build.zip" 
 
 ### Build the image
 ```
-docker build -t chaimeleon-eu.i3m.upv.es:10443/chaimeleon-services/dataset-service-backend:0.2 .
+docker build -t harbor.chaimeleon-eu.i3m.upv.es/chaimeleon-services/dataset-service-backend:1.73 .
 ```
 ### Upload the image
 ```
-docker login -u registryUser chaimeleon-eu.i3m.upv.es:10443
-docker push chaimeleon-eu.i3m.upv.es:10443/chaimeleon-services/dataset-service-backend:0.2
-docker logout chaimeleon-eu.i3m.upv.es:10443
+docker login -u registryUser harbor.chaimeleon-eu.i3m.upv.es
+docker push harbor.chaimeleon-eu.i3m.upv.es/chaimeleon-services/dataset-service-backend:1.73
+docker logout harbor.chaimeleon-eu.i3m.upv.es
 ```
 
 ### Deploy with Kubernetes
