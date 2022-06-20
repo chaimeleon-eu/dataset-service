@@ -123,7 +123,7 @@ spec:
             readOnly: false
       containers:
         - name: dataset-service-backend
-          image:  chaimeleon-eu.i3m.upv.es:10443/chaimeleon-services/dataset-service-backend:1.69
+          image:  chaimeleon-eu.i3m.upv.es:10443/chaimeleon-services/dataset-service-backend:1.74
           ports:
             - containerPort: 11000
               name: dssport
@@ -153,6 +153,12 @@ spec:
                     "auth_url": "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token",
                     "client_id": "dataset-service",
                     "client_secret": "XXXXXXXX"
+                },
+                "zenodo": {
+                    "url": "https://zenodo.org/",
+                    "access_token": "XXXXXXXX",
+                    "community": "chaimeleon_h2020_datasets",
+                    "grant": "10.13039/501100000780::952172"
                 },
                 "self": { 
                     "port": 11000, 

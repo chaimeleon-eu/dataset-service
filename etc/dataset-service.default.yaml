@@ -26,13 +26,21 @@ auth:   # These are the parameters for the validation of auth tokens received.
 
 tracer:
   url: "https://chaimeleon-eu.i3m.upv.es/tracer-service/tracer/"
-  # the url of authentication service for accessing to tracer service
+  # The url of authentication service for accessing to tracer service.
   auth_url: "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token"
-  # the client id of the dataset-service to login in the authentication service to access to the tracer (it is like the "username" of a service account)
+  # The client id of the dataset-service to login in the authentication service to access to the tracer (it is like the "username" of a service account).
   client_id: "dataset-service"
-  # the client secret of the dataset-service to login inauthenticate as a "service account"
+  # The client secret of the dataset-service to login inauthenticate as a "service account".
   client_secret: "XXXXXXXXXXXXXXXXXXXXXXX"
-  
+
+zenodo:
+  # The url of zenodo service to submit depositions.
+  # Usually "https://sandbox.zenodo.org/" for testing, and "https://zenodo.org/" for production.
+  url: "https://sandbox.zenodo.org/"
+  access_token: "XXXXXXXXXXXXXXXXXXXXXXX"
+  dataset_link_format: "https://chaimeleon-eu.i3m.upv.es/dataset-service/datasets/%s/details"
+  community: ""
+  grant: ""
 
 self: 
   name: "dataset-service"

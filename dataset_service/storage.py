@@ -44,8 +44,9 @@ class DB:
             if version < 6: self.updateDB_v5To6()
             if version < 7: self.updateDB_v6To7()
             if version < 10: self.updateDB_v7To10()
+            if version < 11: self.updateDB_v10To11()
             ### Finally update schema_version
-            self.cursor.execute("UPDATE metadata set schema_version = 10;")
+            self.cursor.execute("UPDATE metadata set schema_version = 11;")
 
     def getSchemaVersion(self):
         self.cursor.execute("SELECT EXISTS ( SELECT FROM information_schema.tables WHERE table_name = 'metadata');")
@@ -103,6 +104,7 @@ class DB:
                 description text NOT NULL DEFAULT '',
                 license_url varchar(256) NOT NULL DEFAULT '',
                 pid_url varchar(256) DEFAULT NULL,
+                zenodo_doi varchar(128) DEFAULT NULL,
                 contact_info varchar(256) DEFAULT NULL
                 draft boolean NOT NULL DEFAULT true,
                 public boolean NOT NULL DEFAULT false,
@@ -215,6 +217,10 @@ class DB:
         self.cursor.execute("ALTER TABLE study ALTER COLUMN id TYPE varchar(40);")
         self.cursor.execute("ALTER TABLE dataset_study ALTER COLUMN study_id TYPE varchar(40);")
         self.cursor.execute("ALTER TABLE dataset ALTER COLUMN sex TYPE varchar(16);")
+
+    def updateDB_v10To11(self):
+        logging.root.info("Updating database from v10 to v11...")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN zenodo_doi varchar(128) DEFAULT NULL;")
 
 
     def createOrUpdateAuthor(self, userId, username, name, email):
@@ -422,6 +428,20 @@ class DB:
                             studiesCount = row[7], subjectsCount = row[8]))
         return res, total
         
+    def getZenodoDOI(self, id):
+        self.cursor.execute("""
+            SELECT dataset.id, dataset.zenodo_doi 
+            FROM dataset
+            WHERE dataset.id=%s
+            LIMIT 1;""",
+            (id,))
+        row = self.cursor.fetchone()
+        if row is None: return None
+        return row[1]
+
+    def setZenodoDOI(self, id, newValue):
+        self.cursor.execute("UPDATE dataset SET zenodo_doi = %s WHERE id = %s;", (newValue, id))
+
     def setDatasetInvalidated(self, id, newValue):
         # logging.root.debug(self.cursor.mogrify("UPDATE dataset SET invalidated = true WHERE id = %s;", (id,)))
         self.cursor.execute("UPDATE dataset SET invalidated = %s WHERE id = %s;", (newValue, id))
