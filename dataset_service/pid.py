@@ -13,12 +13,9 @@ from xhtml2pdf import pisa
 class PidException(Exception):
     pass
     
-def createDeposition(connection, url_path, accessToken, dataset, dataset_link_format, community, grant):
-    headers = {}
-    headers['Authorization'] = 'Bearer ' + accessToken
-    headers['Content-Type'] = 'application/json;charset=UTF-8'
+def getDepositionMetadata(dataset, dataset_link_format, community, grant):
     dataset_link = dataset_link_format % dataset["id"]
-    body = {
+    return {
         'metadata': {
             'upload_type': 'other',
             'title': dataset["name"],
@@ -28,7 +25,7 @@ def createDeposition(connection, url_path, accessToken, dataset, dataset_link_fo
                 </p>
                 ''' % (dataset_link, dataset["id"]),
             'creators': [{'name': dataset["authorName"]}],
-            'access_right': 'open',
+            'access_right': 'open' if dataset["public"] else 'closed',
             'license': 'cc-by',
             'related_identifiers': [
                 {'identifier': dataset_link, 
@@ -39,6 +36,11 @@ def createDeposition(connection, url_path, accessToken, dataset, dataset_link_fo
         }
     }
 
+def createDeposition(connection, url_path, accessToken, dataset, dataset_link_format, community, grant):
+    headers = {}
+    headers['Authorization'] = 'Bearer ' + accessToken
+    headers['Content-Type'] = 'application/json;charset=UTF-8'
+    body = getDepositionMetadata(dataset, dataset_link_format, community, grant)
     payload = json.dumps(body)
     logging.root.debug("BODY: " + payload)
     connection.request("POST", url_path + "api/deposit/depositions", payload, headers)
@@ -52,17 +54,30 @@ def createDeposition(connection, url_path, accessToken, dataset, dataset_link_fo
 
     response = json.loads(msg)
     bucket_url = response["links"]["bucket"]
-    publish_url = response["links"]["publish"]
-    return bucket_url, publish_url
+    deposition_id = response["id"]
+    return bucket_url, deposition_id
+
+def updateDeposition(connection, url_path, accessToken, dataset, dataset_link_format, community, grant, depositionId):
+    headers = {}
+    headers['Authorization'] = 'Bearer ' + accessToken
+    headers['Content-Type'] = 'application/json;charset=UTF-8'
+    body = getDepositionMetadata(dataset, dataset_link_format, community, grant)
+    payload = json.dumps(body)
+    logging.root.debug("BODY: " + payload)
+    connection.request("PUT", url_path + "api/deposit/depositions/"+depositionId, payload, headers)
+    res = connection.getresponse()
+    httpStatusCode = res.status
+    msg = res.read()  # whole response must be readed in order to do more requests using the same connection
+    if httpStatusCode != 200:
+        logging.root.error('Zenodo error. Code: %d %s' % (httpStatusCode, res.reason))
+        logging.root.error(msg)
+        raise PidException('Internal server error: Zenodo call to update deposition failed.')
 
 def uploadFile(connection, bucket_path, accessToken, fileName, fileContent):
     headers = {}
     headers['Authorization'] = 'Bearer ' + accessToken
-    # headers['Content-Type'] = 'application/json;charset=UTF-8'
-    # headers['Content-Type'] = 'text/plain'
     headers['Content-Type'] = 'application/octet-stream'
     payload = encode(fileContent) if isinstance(fileContent, str) else fileContent
-    #logging.root.debug(payload)
     connection.request("PUT", bucket_path + "/" + fileName, payload, headers)
     res = connection.getresponse()
     httpStatusCode = res.status
@@ -72,11 +87,12 @@ def uploadFile(connection, bucket_path, accessToken, fileName, fileContent):
         logging.root.error(msg)
         raise PidException('Internal server error: Zenodo call to upload failed.')
 
-def publishDeposition(connection, publish_path, accessToken):
+def publishDeposition(connection, url_path, accessToken, deposition_id):
     headers = {}
     headers['Authorization'] = 'Bearer ' + accessToken
     payload = None
-    connection.request("POST", publish_path, payload, headers)
+    url = url_path+"api/deposit/depositions/"+deposition_id+"/actions/publish"
+    connection.request("POST", url, payload, headers)
     res = connection.getresponse()
     httpStatusCode = res.status
     msg = res.read()  # whole response must be readed in order to do more requests using the same connection
@@ -87,6 +103,20 @@ def publishDeposition(connection, publish_path, accessToken):
 
     response = json.loads(msg)
     return response["doi_url"]
+ 
+def setEditableDeposition(connection, url_path, accessToken, deposition_id):
+    headers = {}
+    headers['Authorization'] = 'Bearer ' + accessToken
+    payload = None
+    url = url_path+"api/deposit/depositions/"+deposition_id+"/actions/edit"
+    connection.request("POST", url, payload, headers)
+    res = connection.getresponse()
+    httpStatusCode = res.status
+    msg = res.read()  # whole response must be readed in order to do more requests using the same connection
+    if httpStatusCode != 201:
+        logging.root.error('Zenodo error. Code: %d %s' % (httpStatusCode, res.reason))
+        logging.root.error(msg)
+        raise PidException('Internal server error: Zenodo call to setEditable failed.')
 
 def generateDescriptionHtml(dataset, dataset_link_format):
     dataset_link = dataset_link_format % dataset["id"]
@@ -135,7 +165,8 @@ def getZenodoDOI(url, accessToken, dataset, studies, dataset_link_format, commun
     connection = http.client.HTTPSConnection(zenodo.hostname, zenodo.port)
 
     logging.root.debug('Creating deposition in Zenodo...')
-    bucket_url, publish_url = createDeposition(connection, zenodo.path, accessToken, dataset, dataset_link_format, community, grant)
+    bucket_url, deposition_id = createDeposition(connection, zenodo.path, accessToken, dataset, 
+                                                 dataset_link_format, community, grant)
     # bucket_url example: "https://zenodo.org/api/files/568377dd-daf8-4235-85e1-a56011ad454b"
     logging.root.debug('Zenodo creation of deposition success.')
     bucket = urllib.parse.urlparse(bucket_url)
@@ -153,9 +184,24 @@ def getZenodoDOI(url, accessToken, dataset, studies, dataset_link_format, commun
     logging.root.debug('Zenodo uploading success.')
 
     logging.root.debug('Publishing deposition in Zenodo...')
-    publish = urllib.parse.urlparse(publish_url)
-    # previous connection can be used: host and port in bucket_url should be the same 
-    doi_url = publishDeposition(connection, publish.path, accessToken)
+    doi_url = publishDeposition(connection, zenodo.path, accessToken, deposition_id)
     logging.root.debug('Zenodo deposition published successfully.')
 
     return doi_url
+
+def updateZenodoDeposition(url, accessToken, dataset, dataset_link_format, community, grant, deposition_id):
+    zenodo = urllib.parse.urlparse(url)
+    connection = http.client.HTTPSConnection(zenodo.hostname, zenodo.port)
+
+    logging.root.debug('Unlocking deposition in Zenodo (changing to editable mode)...')
+    setEditableDeposition(connection, zenodo.path, accessToken, deposition_id)
+    logging.root.debug('Zenodo unlock of deposition success.')
+
+    logging.root.debug('Updating deposition in Zenodo...')
+    updateDeposition(connection, zenodo.path, accessToken, dataset, 
+                     dataset_link_format, community, grant, deposition_id)
+    logging.root.debug('Zenodo updating of deposition success.')
+    
+    logging.root.debug('Publishing deposition in Zenodo...')
+    doi_url = publishDeposition(connection, zenodo.path, accessToken, deposition_id)
+    logging.root.debug('Zenodo deposition published successfully.')

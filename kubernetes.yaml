@@ -157,7 +157,7 @@ spec:
                 "zenodo": {
                     "url": "https://zenodo.org/",
                     "access_token": "XXXXXXXX",
-                    "community": "chaimeleon_h2020_datasets",
+                    "community": "chaimeleon_h2020",
                     "grant": "10.13039/501100000780::952172"
                 },
                 "self": { 
