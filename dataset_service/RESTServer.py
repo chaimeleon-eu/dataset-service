@@ -775,6 +775,21 @@ def getDatasets():
         return json.dumps(response["list"])
     return json.dumps(response)
 
+
+@app.route('/api/licenses', method='GET')
+def getLicenses():
+    LOG.debug("Received GET /licenses")
+    ok, ret = checkAuthorizationHeader()
+    if not ok: return ret
+    else: user_info = ret # can be None
+
+    with DB(CONFIG.db) as db:
+        licenses = db.getLicenses()
+
+    bottle.response.content_type = "application/json"
+    return json.dumps(licenses)
+
+
 @app.route('/api/user/<userName>', method='POST')
 def postUser(userName):
     # Transitional condition while clients change to new PUT operation

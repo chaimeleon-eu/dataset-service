@@ -84,7 +84,7 @@ paths:
           schema:
             type: boolean
         - name: searchString
-          description: "(Optional, default is empty) Pass an optional search string (case-insensitive) for looking up inventory."
+          description: "(Optional, default is empty) Pass an optional search string (case-insensitive) for the name of dataset."
           in: query
           required: false
           schema:
@@ -289,6 +289,25 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           description: "not found"
+  /licenses:
+    get:
+      tags:
+        - licenses
+      summary: list licenses
+      operationId: listLicenses
+      description: "List all available licenses for datasets."
+      responses:
+        '200':
+          description: "successfully retrieved the list of licenses"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/License'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+          
 
   /datasetAccessCheck:
     post:
@@ -690,6 +709,20 @@ components:
         eForm:
           type: object
           description: "the clinical data of the subject"
+      
+    License:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 128
+          example: "CC BY 4.0"
+        url:
+          type: string
+          maxLength: 256
+          format: url
+          example: "https://creativecommons.org/licenses/by/4.0/"
+          
       
     ErrorResponse:
       type: object

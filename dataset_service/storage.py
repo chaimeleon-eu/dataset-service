@@ -103,7 +103,7 @@ class DB:
                 author_id varchar(64) NOT NULL,
                 creation_date timestamp NOT NULL,
                 description text NOT NULL DEFAULT '',
-                license_name varchar(128) NOT NULL DEFAULT '',
+                license_title varchar(128) NOT NULL DEFAULT '',
                 license_url varchar(256) NOT NULL DEFAULT '',
                 pid_url varchar(256) DEFAULT NULL,
                 zenodo_doi varchar(128) DEFAULT NULL,
@@ -143,6 +143,12 @@ class DB:
                 dataset_id varchar(40),
                 constraint pk_dataset_access_dataset primary key (dataset_access_id, dataset_id),
                 constraint fk_dataset foreign key (dataset_id) references dataset(id)
+            );
+            CREATE TABLE license (
+                id SERIAL,
+                name varchar(128) NOT NULL,
+                url varchar(256),
+                constraint pk_license primary key (id)
             );
         """)
     
@@ -226,7 +232,15 @@ class DB:
 
     def updateDB_v11To12(self):
         logging.root.info("Updating database from v11 to v12...")
-        self.cursor.execute("ALTER TABLE dataset ADD COLUMN license_name varchar(128) NOT NULL DEFAULT '';")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN license_title varchar(128) NOT NULL DEFAULT '';")
+        self.cursor.execute("""CREATE TABLE license (
+                                    id SERIAL,
+                                    name varchar(128) NOT NULL,
+                                    url varchar(256),
+                                    constraint pk_license primary key (id)
+                               );""")
+        self.cursor.execute("""INSERT INTO license (name, url) 
+                               VALUES ('CC BY 4.0', 'https://creativecommons.org/licenses/by/4.0/')""")
 
 
     def createOrUpdateAuthor(self, userId, username, name, email):
@@ -319,7 +333,7 @@ class DB:
             SELECT dataset.id, dataset.name, dataset.previous_id, 
                    author.id, author.name, author.email, 
                    dataset.creation_date, dataset.description, 
-                   dataset.license_name, dataset.license_url, 
+                   dataset.license_title, dataset.license_url, 
                    dataset.pid_url, dataset.zenodo_doi, dataset.contact_info, 
                    dataset.draft, dataset.public, dataset.invalidated, 
                    dataset.studies_count, dataset.subjects_count, 
@@ -436,6 +450,16 @@ class DB:
                             studiesCount = row[7], subjectsCount = row[8]))
         return res, total
         
+    def getLicenses(self):
+        self.cursor.execute("""
+            SELECT name, url
+            FROM license
+            ORDER BY name;""")
+        res = []
+        for row in self.cursor:
+            res.append(dict(title = row[0], url = row[1]))
+        return res
+
     def getZenodoDOI(self, id):
         self.cursor.execute("""
             SELECT dataset.id, dataset.zenodo_doi 
@@ -467,7 +491,7 @@ class DB:
         self.cursor.execute("UPDATE dataset SET description = %s WHERE id = %s;", (newValue, id))
 
     def setDatasetLicense(self, id, newTitle, newUrl):
-        self.cursor.execute("UPDATE dataset SET license_name = %s, license_url = %s WHERE id = %s;", 
+        self.cursor.execute("UPDATE dataset SET license_title = %s, license_url = %s WHERE id = %s;", 
                             (newTitle, newUrl, id))
 
     def setDatasetPidUrl(self, id, newValue):
