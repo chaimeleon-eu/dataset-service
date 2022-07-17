@@ -45,8 +45,9 @@ class DB:
             if version < 7: self.updateDB_v6To7()
             if version < 10: self.updateDB_v7To10()
             if version < 11: self.updateDB_v10To11()
+            if version < 12: self.updateDB_v11To12()
             ### Finally update schema_version
-            self.cursor.execute("UPDATE metadata set schema_version = 11;")
+            self.cursor.execute("UPDATE metadata set schema_version = 12;")
 
     def getSchemaVersion(self):
         self.cursor.execute("SELECT EXISTS ( SELECT FROM information_schema.tables WHERE table_name = 'metadata');")
@@ -102,6 +103,7 @@ class DB:
                 author_id varchar(64) NOT NULL,
                 creation_date timestamp NOT NULL,
                 description text NOT NULL DEFAULT '',
+                license_name varchar(128) NOT NULL DEFAULT '',
                 license_url varchar(256) NOT NULL DEFAULT '',
                 pid_url varchar(256) DEFAULT NULL,
                 zenodo_doi varchar(128) DEFAULT NULL,
@@ -222,6 +224,10 @@ class DB:
         logging.root.info("Updating database from v10 to v11...")
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN zenodo_doi varchar(128) DEFAULT NULL;")
 
+    def updateDB_v11To12(self):
+        logging.root.info("Updating database from v11 to v12...")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN license_name varchar(128) NOT NULL DEFAULT '';")
+
 
     def createOrUpdateAuthor(self, userId, username, name, email):
         self.cursor.execute("""
@@ -313,7 +319,8 @@ class DB:
             SELECT dataset.id, dataset.name, dataset.previous_id, 
                    author.id, author.name, author.email, 
                    dataset.creation_date, dataset.description, 
-                   dataset.license_url, dataset.pid_url, dataset.contact_info, 
+                   dataset.license_name, dataset.license_url, 
+                   dataset.pid_url, dataset.zenodo_doi, dataset.contact_info, 
                    dataset.draft, dataset.public, dataset.invalidated, 
                    dataset.studies_count, dataset.subjects_count, 
                    dataset.age_low, dataset.age_high, 
@@ -324,25 +331,26 @@ class DB:
             (id,))
         row = self.cursor.fetchone()
         if row is None: return None
-        if row[16] is None:
+        if row[18] is None:
             ageLow = None
             ageHigh = None
             ageUnit = None
         else:
-            ageLow, ageLowUnit = dicom.getAgeInMiabisFormat(row[16])
-            ageHigh, ageHighUnit = dicom.getAgeInMiabisFormat(row[17])
+            ageLow, ageLowUnit = dicom.getAgeInMiabisFormat(row[18])
+            ageHigh, ageHighUnit = dicom.getAgeInMiabisFormat(row[19])
             ageUnit = [ageLowUnit, ageHighUnit]
         sex = []
-        for s in json.loads(row[18]):
+        for s in json.loads(row[20]):
             sex.append(dicom.getSexInMiabisFormat(s))
         return dict(id = row[0], name = row[1], previousId = row[2], 
                     authorId = row[3], authorName = row[4], authorEmail = row[5], 
                     creationDate = str(row[6]), description = row[7], 
-                    licenseUrl = row[8], pidUrl = row[9], contactInfo = row[10],
-                    draft = row[11], public = row[12], invalidated = row[13], 
-                    studiesCount = row[14], subjectsCount = row[15], 
+                    license = dict(title = row[8], url = row[9]), contactInfo = row[12],
+                    pidUrl = dict(preferred = row[10], zenodoDoi = row[11]), 
+                    draft = row[13], public = row[14], invalidated = row[15], 
+                    studiesCount = row[16], subjectsCount = row[17], 
                     ageLow = ageLow, ageHigh = ageHigh, ageUnit = ageUnit, sex = sex, 
-                    bodyPart = json.loads(row[19]), modality = json.loads(row[20]))
+                    bodyPart = json.loads(row[21]), modality = json.loads(row[22]))
 
     def getStudiesFromDataset(self, datasetId, limit = 0, skip = 0):
         if limit == 0: limit = 'ALL'
@@ -458,8 +466,9 @@ class DB:
     def setDatasetDescription(self, id, newValue):
         self.cursor.execute("UPDATE dataset SET description = %s WHERE id = %s;", (newValue, id))
 
-    def setDatasetLicenseUrl(self, id, newValue):
-        self.cursor.execute("UPDATE dataset SET license_url = %s WHERE id = %s;", (newValue, id))
+    def setDatasetLicense(self, id, newTitle, newUrl):
+        self.cursor.execute("UPDATE dataset SET license_name = %s, license_url = %s WHERE id = %s;", 
+                            (newTitle, newUrl, id))
 
     def setDatasetPidUrl(self, id, newValue):
         self.cursor.execute("UPDATE dataset SET pid_url = %s WHERE id = %s;", (newValue, id))

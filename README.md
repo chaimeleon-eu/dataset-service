@@ -473,7 +473,7 @@ And these are the properties that can be modified (and when):
  - invalidated (always)
  - name (when draft = true)
  - description (when draft = true)
- - licenseUrl (when draft = true)
+ - licenseUrl (always)
  - contactInfo (always)
  - pidUrl (when draft = false)
 

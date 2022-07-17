@@ -127,7 +127,7 @@ def generateDescriptionHtml(dataset, dataset_link_format):
                 <strong>ID: </strong>%s</a><br />
                 <strong>URL: </strong><a href="%s">%s</a><br />
                 <strong>Creation date: </strong>%s<br />
-                <strong>License: </strong>%s<br />
+                <strong>License: </strong>%s [%s]<br />
                 <strong>Contact info.: </strong>%s<br />
                 ---<br />
                 <strong>Studies count: </strong>%d<br />
@@ -138,8 +138,8 @@ def generateDescriptionHtml(dataset, dataset_link_format):
                 <strong>Modality: </strong>%s<br />
                 </p>
                 ''' % (dataset["description"], dataset["id"], dataset_link, dataset_link, 
-                       dataset["creationDate"], dataset["licenseUrl"], dataset["contactInfo"],
-                       dataset["studiesCount"], dataset["subjectsCount"],
+                       dataset["creationDate"], dataset["license"]["title"], dataset["license"]["url"], 
+                       dataset["contactInfo"], dataset["studiesCount"], dataset["subjectsCount"],
                        dataset["ageLow"], dataset["ageUnit"][0], dataset["ageHigh"], dataset["ageUnit"][1],
                        ', '.join(dataset["sex"]), 
                        ', '.join(dataset["bodyPart"]), 

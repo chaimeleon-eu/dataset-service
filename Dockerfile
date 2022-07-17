@@ -1,7 +1,6 @@
 FROM ubuntu:20.04
 LABEL name="dataset-service-backend"
-LABEL description="dataset-service-backend"
-LABEL version="1.74"
+LABEL description="https://github.com/chaimeleon-eu/dataset-service"
 LABEL maintainer="palollo@i3m.upv.es"
 
 RUN apt-get update && \

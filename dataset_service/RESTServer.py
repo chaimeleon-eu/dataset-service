@@ -304,12 +304,12 @@ def getEditablePropertiesByTheUser(user_info, dataset):
             editableProperties.append("draft")
             editableProperties.append("name")
             editableProperties.append("description")
-            editableProperties.append("licenseUrl")
         else:
             editableProperties.append("public")
-            editableProperties.append("pidUrl")
+            editableProperties.append("pidUrl.preferred")
         editableProperties.append("invalidated")
         editableProperties.append("contactInfo")
+        editableProperties.append("license")
     dataset["editablePropertiesByTheUser"] = editableProperties
     return editableProperties
 
@@ -648,22 +648,19 @@ def getDataset(id):
     bottle.response.content_type = "application/json"
     return json.dumps(dataset)
 
-ZENODO_PREFIX = "_zenodo::"
+PREFERRED_ZENODO = "zenodo"
 
 def getZenodoPID(db, dataset):
-    datasetId = dataset["id"]
-    pidUrl = db.getZenodoDOI(datasetId)
-    if pidUrl is None: 
+    if dataset["zenodoDoi"] is None: 
+        datasetId = dataset["id"]
         studies, total = db.getStudiesFromDataset(datasetId)
         newValue = pid.getZenodoDOI(CONFIG.zenodo.url, CONFIG.zenodo.access_token, dataset, studies, 
                                     CONFIG.zenodo.dataset_link_format, CONFIG.zenodo.community, CONFIG.zenodo.grant)
         db.setZenodoDOI(datasetId, newValue)
-        pidUrl = ZENODO_PREFIX + newValue
-    return pidUrl
+    return PREFERRED_ZENODO
 
 def updateZenodoDeposition(db, dataset):
-    datasetId = dataset["id"]
-    pidUrl = db.getZenodoDOI(datasetId)
+    pidUrl = dataset["zenodoDoi"]
     if pidUrl != None: 
         i = pidUrl.rfind('.') + 1
         depositionId = pidUrl[i:]
@@ -718,12 +715,16 @@ def patchDataset(id):
             db.setDatasetName(datasetId, str(newValue))
         elif property == "description":
             db.setDatasetDescription(datasetId, str(newValue))
-        elif property == "licenseUrl":
-            db.setDatasetLicenseUrl(datasetId, str(newValue))
-            # dataset["licenseUrl"] = str(newValue)        license is written in a PDF file
-            # updateZenodoDeposition(db, dataset)          and deposition files cannot be changed once published
-        elif property == "pidUrl":
-            if str(newValue).startswith(ZENODO_PREFIX):
+        elif property == "license":
+            newLicense = json.loads(str(newValue))
+            newTitle = str(newLicense["title"])
+            newUrl = str(newLicense["url"])
+            db.setDatasetLicense(datasetId, newTitle, newUrl)
+            # dataset["license"] = dict(title=newTitle,url=newUrl)  license is written in a PDF file
+            # updateZenodoDeposition(db, dataset)                   and deposition files cannot be changed once published
+        elif property == "pidUrl.preferred":
+            newValue = str(newValue).strip()
+            if newValue == PREFERRED_ZENODO:
                 newValue = getZenodoPID(db, dataset)
             db.setDatasetPidUrl(datasetId, str(newValue))
         elif property == "contactInfo":
