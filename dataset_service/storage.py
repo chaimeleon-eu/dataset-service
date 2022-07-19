@@ -350,7 +350,7 @@ class DB:
         if row[18] is None:
             ageLow = None
             ageHigh = None
-            ageUnit = None
+            ageUnit = []
         else:
             ageLow, ageLowUnit = dicom.getAgeInMiabisFormat(row[18])
             ageHigh, ageHighUnit = dicom.getAgeInMiabisFormat(row[19])

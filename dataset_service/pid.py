@@ -120,27 +120,40 @@ def setEditableDeposition(connection, url_path, accessToken, deposition_id):
 
 def generateDescriptionHtml(dataset, dataset_link_format):
     dataset_link = dataset_link_format % dataset["id"]
+    ageRangeStr = ""
+    if dataset["ageLow"] != None:
+        "Between %d %s and %d %s" % (dataset["ageLow"], dataset["ageUnit"][0], 
+                                     dataset["ageHigh"], dataset["ageUnit"][1])
     htmlStr = '''
-                %s
-                <p>---</p>
-                <p>
-                <strong>ID: </strong>%s</a><br />
-                <strong>URL: </strong><a href="%s">%s</a><br />
-                <strong>Creation date: </strong>%s<br />
-                <strong>License: </strong>%s [%s]<br />
-                <strong>Contact info.: </strong>%s<br />
-                ---<br />
-                <strong>Studies count: </strong>%d<br />
-                <strong>Subjects count: </strong>%d<br />
-                <strong>Age range: </strong>Between %d %s and %d %s<br />
-                <strong>Sex: </strong>%s<br />
-                <strong>Body part(s): </strong>%s<br />
-                <strong>Modality: </strong>%s<br />
-                </p>
+                <html>
+                    <head>
+                        <style type="text/css">
+                            body { font-size: 12px; }
+                        </style>
+                    </head>
+                    <body>
+                        %s
+                        <p>---</p>
+                        <p>
+                        <strong>ID: </strong>%s</a><br />
+                        <strong>URL: </strong><a href="%s">%s</a><br />
+                        <strong>Creation date: </strong>%s<br />
+                        <strong>License: </strong>%s [%s]<br />
+                        <strong>Contact info.: </strong>%s<br />
+                        ---<br />
+                        <strong>Studies count: </strong>%d<br />
+                        <strong>Subjects count: </strong>%d<br />
+                        <strong>Age range: </strong>%s<br />
+                        <strong>Sex: </strong>%s<br />
+                        <strong>Body part(s): </strong>%s<br />
+                        <strong>Modality: </strong>%s<br />
+                        </p>
+                    </body>
+                </html>
                 ''' % (dataset["description"], dataset["id"], dataset_link, dataset_link, 
                        dataset["creationDate"], dataset["license"]["title"], dataset["license"]["url"], 
                        dataset["contactInfo"], dataset["studiesCount"], dataset["subjectsCount"],
-                       dataset["ageLow"], dataset["ageUnit"][0], dataset["ageHigh"], dataset["ageUnit"][1],
+                       ageRangeStr,
                        ', '.join(dataset["sex"]), 
                        ', '.join(dataset["bodyPart"]), 
                        ', '.join(dataset["modality"]))
