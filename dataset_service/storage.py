@@ -326,6 +326,8 @@ class DB:
         self.cursor.execute("SELECT id FROM dataset WHERE id=%s", (id,))
         return self.cursor.rowcount > 0
 
+    PREFERRED_ZENODO = "zenodo"
+
     def getDataset(self, id):
         """Returns None if the dataset not exists.
         """
@@ -356,11 +358,28 @@ class DB:
         sex = []
         for s in json.loads(row[20]):
             sex.append(dicom.getSexInMiabisFormat(s))
+        if row[10] is None:
+            prefPid = None
+            customPidUrl = None
+        elif row[10] == self.PREFERRED_ZENODO:
+            prefPid = "zenodoDoi"
+            customPidUrl = None
+        else: 
+            prefPid = "custom"
+            customPidUrl = row[10]
+        
         return dict(id = row[0], name = row[1], previousId = row[2], 
                     authorId = row[3], authorName = row[4], authorEmail = row[5], 
                     creationDate = str(row[6]), description = row[7], 
-                    license = dict(title = row[8], url = row[9]), contactInfo = row[12],
-                    pidUrl = dict(preferred = row[10], zenodoDoi = row[11]), 
+                    license = dict(
+                        title = row[8], 
+                        url = row[9]), 
+                    contactInfo = row[12],
+                    pids = dict(
+                        preferred = prefPid, 
+                        urls = dict(
+                            zenodoDoi = row[11], 
+                            custom = customPidUrl)), 
                     draft = row[13], public = row[14], invalidated = row[15], 
                     studiesCount = row[16], subjectsCount = row[17], 
                     ageLow = ageLow, ageHigh = ageHigh, ageUnit = ageUnit, sex = sex, 
@@ -460,17 +479,6 @@ class DB:
             res.append(dict(title = row[0], url = row[1]))
         return res
 
-    def getZenodoDOI(self, id):
-        self.cursor.execute("""
-            SELECT dataset.id, dataset.zenodo_doi 
-            FROM dataset
-            WHERE dataset.id=%s
-            LIMIT 1;""",
-            (id,))
-        row = self.cursor.fetchone()
-        if row is None: return None
-        return row[1]
-
     def setZenodoDOI(self, id, newValue):
         self.cursor.execute("UPDATE dataset SET zenodo_doi = %s WHERE id = %s;", (newValue, id))
 
@@ -494,7 +502,8 @@ class DB:
         self.cursor.execute("UPDATE dataset SET license_title = %s, license_url = %s WHERE id = %s;", 
                             (newTitle, newUrl, id))
 
-    def setDatasetPidUrl(self, id, newValue):
+    def setDatasetPid(self, id, preferred, custom = None):
+        newValue = self.PREFERRED_ZENODO if preferred == "zenodoDoi" else custom
         self.cursor.execute("UPDATE dataset SET pid_url = %s WHERE id = %s;", (newValue, id))
 
     def setDatasetContactInfo(self, id, newValue):

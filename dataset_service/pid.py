@@ -54,7 +54,7 @@ def createDeposition(connection, url_path, accessToken, dataset, dataset_link_fo
 
     response = json.loads(msg)
     bucket_url = response["links"]["bucket"]
-    deposition_id = response["id"]
+    deposition_id = str(response["id"])
     return bucket_url, deposition_id
 
 def updateDeposition(connection, url_path, accessToken, dataset, dataset_link_format, community, grant, depositionId):

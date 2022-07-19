@@ -299,14 +299,19 @@ $ curl -i -H "devToken: SECRET-TOKEN" -d "http://158.42.154.23:19000/build.zip" 
 
 ## Deployment
 
+```
+set IMAGE_NAME=harbor.chaimeleon-eu.i3m.upv.es/chaimeleon-services/dataset-service-backend
+set IMAGE_TAG=1.78
+```
+
 ### Build the image
 ```
-docker build -t harbor.chaimeleon-eu.i3m.upv.es/chaimeleon-services/dataset-service-backend:1.73 .
+docker build -t %IMAGE_NAME%:%IMAGE_TAG% .
 ```
 ### Upload the image
 ```
 docker login -u registryUser harbor.chaimeleon-eu.i3m.upv.es
-docker push harbor.chaimeleon-eu.i3m.upv.es/chaimeleon-services/dataset-service-backend:1.73
+docker push %IMAGE_NAME%:%IMAGE_TAG%
 docker logout harbor.chaimeleon-eu.i3m.upv.es
 ```
 
