@@ -1,4 +1,3 @@
-from array import array
 import os
 import logging
 import urllib.parse
@@ -76,8 +75,6 @@ def addFileAsResource(body, filePath, id):
         dict(id = id,
              contentType = 'HASH',
              hashType = 'SHA3_256',
-             name = os.path.basename(filePath),
-             resourceType = 'IMAGING_DATA',
              hash = getHashOfFile(filePath)))
 
 def addFilesFromDirectoryAsResources(body, datasetDirPath, dirRelativePath):
@@ -100,20 +97,16 @@ def traceDatasetCreation(authUrl, clientId, clientSecret, tracerUrl, datasetsDir
 
     body = dict(
         userId = userId, 
-        userAction = 'CREATE_NEW_DATASET', 
+        userAction = 'CREATE_DATASET', 
         datasetId = dataset["id"],
         resources = [
             dict(id = 'datasetList',
                  contentType = 'HASH',       # contentTypes: FILE_DATA, HTTP_FTP, HASH
                  hashType = 'SHA3_256',
-                 name = 'datasetList',
-                 resourceType = 'IMAGING_DATA',
                  hash = ''),
             dict(id = 'clinicalData',
                  contentType = 'HASH',
                  hashType = 'SHA3_256',
-                 name = 'clinicalData',
-                 resourceType = 'PATIENT_INFO',
                  hash = '')
         ])
             # dict(id = 'clinicalData',
@@ -122,9 +115,9 @@ def traceDatasetCreation(authUrl, clientId, clientSecret, tracerUrl, datasetsDir
             #      resourceType = 'PATIENT_INFO',
             #      data = '')
 
-    if dataset["previousId"] != None:
-        body['userAction'] = 'CREATE_VERSION_DATASET'
-        body['previousId'] = dataset["previousId"]
+    # if dataset["previousId"] != None:
+    #     body['userAction'] = 'CREATE_VERSION_DATASET'
+    #     body['previousId'] = dataset["previousId"]
 
     # studiesListStr = ''
     # for study in dataset["studies"]:
@@ -159,7 +152,7 @@ def traceDatasetCreation(authUrl, clientId, clientSecret, tracerUrl, datasetsDir
         #print(response)
 
 
-def traceDatasetAccess(authUrl, clientId, clientSecret, tracerUrl, datasetsIds, userId, toolName, toolVersion):
+def traceDatasetsAccess(authUrl, clientId, clientSecret, tracerUrl, datasetsIds, userId, toolName, toolVersion):
     token = login(authUrl, clientId, clientSecret)
 
     tracer = urllib.parse.urlparse(tracerUrl)
@@ -170,7 +163,7 @@ def traceDatasetAccess(authUrl, clientId, clientSecret, tracerUrl, datasetsIds, 
     headers['Content-Type'] = 'application/json;charset=UTF-8'
     body = dict(
         userId = userId,
-        userAction = 'USE_DATASETS_POD',
+        userAction = 'USE_DATASETS',
         datasetsIds = datasetsIds,
         toolName = toolName,
         toolVersion = toolVersion )
@@ -188,5 +181,33 @@ def traceDatasetAccess(authUrl, clientId, clientSecret, tracerUrl, datasetsIds, 
         logging.root.debug('Tracer call success.')
         #response = json.loads(msg)
         #print(response)
+    
+def traceDatasetUpdate(authUrl, clientId, clientSecret, tracerUrl, datasetId, userId, updateDetails):
+    token = login(authUrl, clientId, clientSecret)
 
+    tracer = urllib.parse.urlparse(tracerUrl)
+    connection = http.client.HTTPSConnection(tracer.hostname, tracer.port)
+
+    headers = {}
+    headers['Authorization'] = 'bearer ' + token
+    headers['Content-Type'] = 'application/json;charset=UTF-8'
+    body = dict(
+        userId = userId,
+        userAction = 'UPDATE_DATASET',
+        datasetId = datasetId,
+        details = updateDetails )
+
+    payload = json.dumps(body)
+    logging.root.debug("BODY: " + payload)
+    connection.request("POST", tracer.path + "api/v1/traces", payload, headers)
+    res = connection.getresponse()
+    httpStatusCode = res.status
+    msg = res.read()  # whole response must be readed in order to do more requests using the same connection
+    if httpStatusCode != 204 and httpStatusCode != 200:
+        logging.root.error('Tracer error. Code: %d %s' % (httpStatusCode, res.reason))
+        raise TraceException('Internal server error: tracer call failed.')
+    else:
+        logging.root.debug('Tracer call success.')
+        #response = json.loads(msg)
+        #print(response)
 

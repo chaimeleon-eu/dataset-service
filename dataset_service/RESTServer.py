@@ -310,7 +310,6 @@ def getEditablePropertiesByTheUser(user_info, dataset):
         editableProperties.append("invalidated")
         editableProperties.append("contactInfo")
         editableProperties.append("license")
-    dataset["editablePropertiesByTheUser"] = editableProperties
     return editableProperties
 
 
@@ -671,18 +670,16 @@ def patchDataset(id):
     ok, ret = checkAuthorizationHeader()
     if not ok: return ret
     else: user_info = ret # can be None
-
+    if user_info is None:
+        return setErrorResponse(401,"unauthorized user")
+    userId = user_info["sub"]
     datasetId = id
-    if bottle.request.method == 'DELETE':
-        # Transitional condition while clients change to new PUT operation
-        property = "invalidated"
-        newValue = True
-    else:
-        read_data = bottle.request.body.read().decode('UTF-8')
-        LOG.debug("BODY: " + read_data)
-        patch = json.loads( read_data )
-        property = patch["property"]
-        newValue = patch["value"]
+    read_data = bottle.request.body.read().decode('UTF-8')
+    LOG.debug("BODY: " + read_data)
+    patch = json.loads( read_data )
+    property = patch["property"]
+    newValue = patch["value"]
+    trace_details = None
 
     with DB(CONFIG.db) as db:
         dataset = db.getDataset(datasetId)
@@ -693,6 +690,8 @@ def patchDataset(id):
 
         if property == "draft":
             db.setDatasetDraft(datasetId, bool(newValue))
+            if bool(newValue) == False:
+                trace_details = "RELEASE"
         elif property == "public":
             db.setDatasetPublic(datasetId, bool(newValue))
             dataset["public"] = bool(newValue)
@@ -702,12 +701,14 @@ def patchDataset(id):
                 db.setDatasetPid(datasetId, "zenodoDoi")
             else:
                 updateZenodoDeposition(db, dataset)
+            trace_details = "PUBLISH" if bool(newValue) else "UNPUBLISH"
         elif property == "invalidated":
             db.setDatasetInvalidated(datasetId, bool(newValue))
-            if newValue == True:
+            if bool(newValue):
                 LOG.debug('Removing ACL entries in dataset %s ...' % (datasetId))
                 datasetDirName = datasetId
-                invalidate_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
+                invalidate_dataset(CONFIG.self.datasets_mount_path, datasetDirName)              
+            trace_details = "INVALIDATE" if bool(newValue) else "REACTIVATE"
         elif property == "name":
             db.setDatasetName(datasetId, str(newValue))
         elif property == "description":
@@ -718,6 +719,7 @@ def patchDataset(id):
             db.setDatasetLicense(datasetId, newTitle, newUrl)
             # dataset["license"] = dict(title=newTitle,url=newUrl)  license is written in a PDF file
             # updateZenodoDeposition(db, dataset)                   and deposition files cannot be changed once published
+            trace_details = "LICENSE_UPDATED"
         elif property == "pids":
             preferred = str(newValue["preferred"]).strip()
             custom = None
@@ -729,13 +731,20 @@ def patchDataset(id):
                     return setErrorResponse(400, "invalid value for urls.custom")
             else: return setErrorResponse(400, "invalid value for preferred")
             db.setDatasetPid(datasetId, preferred, custom)
+            trace_details = "PID_UPDATED"
         elif property == "contactInfo":
             db.setDatasetContactInfo(datasetId, str(newValue))
             # dataset["contactInfo"] = str(newValue)       contactInfo is written in a PDF file
             # updateZenodoDeposition(db, dataset)          and deposition files cannot be changed once published
+            trace_details = "CONTACT_INFORMATION_UPDATED"
         else:
             return setErrorResponse(400, "invalid property")
 
+        if CONFIG.tracer.url != '' and trace_details != None:
+            LOG.debug('Notifying to tracer-service...')
+            # Note this tracer call is inside of "with db" because if tracer fails the database changes will be reverted (transaction rollback).
+            tracer.traceDatasetUpdate(CONFIG.tracer.auth_url, CONFIG.tracer.client_id, CONFIG.tracer.client_secret, CONFIG.tracer.url, 
+                                      datasetId, userId, trace_details)
     bottle.response.status = 200
 
 @app.route('/api/datasets', method='GET')
@@ -939,7 +948,7 @@ def postDatasetAccess(id):
             db.createDatasetAccess(datasetAccessId, datasetIDs, userGID, toolName, toolVersion)
             if CONFIG.tracer.url != '':
                 # Note this tracer call is inside of "with db" because if tracer fails the database changes will be reverted (transaction rollback).
-                tracer.traceDatasetAccess(CONFIG.tracer.auth_url, CONFIG.tracer.client_id, CONFIG.tracer.client_secret, CONFIG.tracer.url, 
+                tracer.traceDatasetsAccess(CONFIG.tracer.auth_url, CONFIG.tracer.client_id, CONFIG.tracer.client_secret, CONFIG.tracer.url, 
                                           datasetIDs, userId, toolName, toolVersion)
         
         LOG.debug('Dataset access granted.')
