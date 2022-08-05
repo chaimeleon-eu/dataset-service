@@ -5,6 +5,7 @@ import psycopg2
 from psycopg2 import sql
 import json
 from dataset_service import dicom
+from dataset_service import authorization
 
 class DB:
     def __init__(self, dbConfig):
@@ -407,7 +408,7 @@ class DB:
                             path = row[3], series = json.loads(row[5]), url = row[4]))
         return res, total
 
-    def getDatasets(self, skip, limit, searchString, searchFilter):
+    def getDatasets(self, skip, limit, searchString, searchFilter: authorization.User.Search_filter):
         whereClause = sql.Composed([])
 
         if searchFilter.public != None:

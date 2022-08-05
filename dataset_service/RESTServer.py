@@ -1,7 +1,6 @@
 #! /usr/bin/env python3
 
 from datetime import datetime
-from enum import Enum
 from pathlib import Path
 import bottle
 import threading
@@ -23,6 +22,7 @@ import dataset_service.tracer as tracer
 import dataset_service.pid as pid
 from dataset_service.dataset import *
 from dataset_service import dicom
+from dataset_service import authorization
 
 #LOG = logging.getLogger('kube-authorizer')
 LOG = logging.root
@@ -83,6 +83,7 @@ class RESTServer (bottle.ServerAdapter):
 def run(host, port, config):
     global thisRESTServer, LOG, KUBERNETES_CONFIG, KUBERNETES_API_CLIENT, CONFIG, AUTH_PUBLIC_KEY
     CONFIG = config
+    authorization.User.roles = CONFIG.auth.roles
 
     LOG.info("Obtaining the public key from %s..." % CONFIG.auth.token_issuer_public_keys_url)
     LOG.info("kid: %s" % CONFIG.auth.kid)
@@ -198,120 +199,18 @@ def setErrorResponse(code, message):
     bottle.response.content_type = "application/json"
     return json.dumps(dict(error = message, status_code = code))
 
-def appendIfNotExists(array, item):
-    if item not in array: array.append(item)
-
 def checkAuthorizationHeader(serviceAccount=False):
     if not "authorization" in bottle.request.headers: 
         LOG.debug("Not registered user.")
-        return True, None
+        return False, None
     try:
         encodedToken = bottle.request.headers["authorization"][7:]
     except Exception as e:
         return False, setErrorResponse(401, "invalid authorization header")
-    user_info = validate_token(encodedToken)
-    if not "sub" in user_info.keys(): return False, setErrorResponse(401,"invalid access token: missing 'sub'")
-    if not serviceAccount:
-        if not "preferred_username" in user_info.keys(): return False, setErrorResponse(401,"invalid access token: missing 'preferred_username'")
-        if not "name" in user_info.keys(): return False, setErrorResponse(401,"invalid access token: missing 'name'")
-        if not "email" in user_info.keys(): return False, setErrorResponse(401,"invalid access token: missing 'email'")
-
-    try:
-        user_info["appRoles"] = user_info["resource_access"]["dataset-service"]["roles"]
-    except:
-        return False, setErrorResponse(401,"invalid access token: missing 'resource_access.dataset-service.roles'")
-
-    # ensure roles included in other roles
-    if CONFIG.auth.roles.admin_datasets in user_info["appRoles"]:
-        appendIfNotExists(user_info["appRoles"], CONFIG.auth.roles.access_all_datasets)
-    if CONFIG.auth.roles.superadmin_datasets in user_info["appRoles"]:
-        appendIfNotExists(user_info["appRoles"], CONFIG.auth.roles.access_all_datasets)
-        appendIfNotExists(user_info["appRoles"], CONFIG.auth.roles.admin_datasets)
-
-    return True, user_info
-
-def userCanCreateDatasets(user_info):
-    return user_info != None and CONFIG.auth.roles.admin_datasets in user_info["appRoles"]
-
-class Access_type(Enum):
-    VIEW_DETAILS = 1
-    USE = 2
-
-def userCanAccessDataset(user_info, dataset, access_type = Access_type.VIEW_DETAILS):
-    if user_info != None and CONFIG.auth.roles.superadmin_datasets in user_info["appRoles"]: return True
-
-    if dataset["invalidated"] and access_type is Access_type.USE: return False
-
-    if dataset["draft"] and (user_info is None or user_info["sub"] != dataset["authorId"]):
-        return False
-
-    if dataset["public"]: return True
-
-    return (user_info != None and CONFIG.auth.roles.access_all_datasets in user_info["appRoles"])
-
-def tmpUserCanAccessDataset(userId, userGroups, dataset, access_type = Access_type.USE):
-    if "cloud-services-and-security-management" in userGroups: return True
-
-    if dataset["invalidated"] and access_type is Access_type.USE: return False
-
-    if dataset["draft"] and userId != dataset["authorId"]:
-        return False
-
-    if dataset["public"]: return True
-    
-    return "data-scientists" in userGroups
-    
-def userCanModifyDataset(user_info, dataset):
-    if user_info is None: return False
-    if not CONFIG.auth.roles.admin_datasets in user_info["appRoles"]: return False
-    if CONFIG.auth.roles.superadmin_datasets in user_info["appRoles"]: return True
-    return user_info["sub"] == dataset["authorId"]
-
-class Search_filter():
-    def __init__(self, draft, public, invalidated):
-        self.draft = draft
-        self.public = public
-        self.invalidated = invalidated
-        self.userIdForInvalidatedAndDraft = None
-
-def adjustSearchFilterByUser(user_info, search_filter):
-    if user_info is None or not CONFIG.auth.roles.access_all_datasets in user_info["appRoles"]:
-        search_filter.public = True
-        search_filter.invalidated = False
-        search_filter.draft = False
-        return search_filter
-
-    if not CONFIG.auth.roles.admin_datasets in user_info["appRoles"]:
-        search_filter.invalidated = False
-        search_filter.draft = False
-        return search_filter
-
-    if not CONFIG.auth.roles.superadmin_datasets in user_info["appRoles"]:
-        search_filter.userIdForInvalidatedAndDraft = user_info["sub"]
-
-    return search_filter
-
-def userCanAdminUsers(user_info):
-    return user_info != None and CONFIG.auth.roles.admin_users in user_info["appRoles"]
-
-def userCanAdminDatasetAccess(user_info):
-    return user_info != None and CONFIG.auth.roles.admin_datasetAccess in user_info["appRoles"]
-
-def getEditablePropertiesByTheUser(user_info, dataset):
-    editableProperties = []
-    if userCanModifyDataset(user_info, dataset):
-        if dataset["draft"]: 
-            editableProperties.append("draft")
-            editableProperties.append("name")
-            editableProperties.append("description")
-        else:
-            editableProperties.append("public")
-            editableProperties.append("pids")
-        editableProperties.append("invalidated")
-        editableProperties.append("contactInfo")
-        editableProperties.append("license")
-    return editableProperties
-
+    token = validate_token(encodedToken)
+    ok, missingProperty = authorization.User.validateToken(token, serviceAccount)
+    if not ok: return False, setErrorResponse(401,"invalid access token: missing '%s'" % missingProperty)
+    return True, token
 
 def get_header_media_types(header):
     """
@@ -488,16 +387,17 @@ def collectMetadata2(dataset):
 @app.route('/api/datasets', method='POST')
 def postDataset():
     LOG.debug("Received POST /dataset")
-    ok, ret = checkAuthorizationHeader()
-    if not ok: return ret
-    else: user_info = ret # can be None
-    if user_info is None or not userCanCreateDatasets(user_info):
+    ok, details = checkAuthorizationHeader()
+    if not ok and details != None: return details  # return error
+    user = authorization.User(details)
+
+    if user.isUnregistered() or not user.canCreateDatasets():
         return setErrorResponse(401,"unauthorized user")
 
-    userId = user_info["sub"]
-    userUsername = user_info["preferred_username"]
-    userName = user_info["name"]
-    userEmail = user_info["email"]
+    userId = user.token["sub"]
+    userUsername = user.token["preferred_username"]
+    userName = user.token["name"]
+    userEmail = user.token["email"]
 
     content_types = get_header_media_types('Content-Type')
     if "external" in bottle.request.params and bottle.request.params["external"].lower() == "true":
@@ -610,9 +510,9 @@ def postDataset():
 @app.route('/api/datasets/<id>', method='GET')
 def getDataset(id):
     LOG.debug("Received GET /dataset/%s" % id)
-    ok, ret = checkAuthorizationHeader()
-    if not ok: return ret
-    else: user_info = ret # can be None
+    ok, details = checkAuthorizationHeader()
+    if not ok and details != None: return details  # return error
+    user = authorization.User(details)
 
     datasetId = id
     skip = int(bottle.request.params['studiesSkip']) if 'studiesSkip' in bottle.request.params else 0
@@ -626,10 +526,10 @@ def getDataset(id):
             return setErrorResponse(404,"not found")
 
         # check access permission
-        if not userCanAccessDataset(user_info, dataset):
+        if not user.canAccessDataset(dataset):
             return setErrorResponse(401,"unauthorized user")
 
-        dataset["editablePropertiesByTheUser"] = getEditablePropertiesByTheUser(user_info, dataset)
+        dataset["editablePropertiesByTheUser"] = user.getEditablePropertiesByTheUser(dataset)
 
         studies, total = db.getStudiesFromDataset(datasetId, limit, skip)
         if not 'v2' in bottle.request.params:  
@@ -667,12 +567,13 @@ def updateZenodoDeposition(db, dataset):
 @app.route('/api/datasets/<id>', method='PATCH')
 def patchDataset(id):
     LOG.debug("Received PATCH /dataset/%s" % id)
-    ok, ret = checkAuthorizationHeader()
-    if not ok: return ret
-    else: user_info = ret # can be None
-    if user_info is None:
+    ok, details = checkAuthorizationHeader()
+    if not ok and details != None: return details  # return error
+    user = authorization.User(details)
+    if user.isUnregistered():
         return setErrorResponse(401,"unauthorized user")
-    userId = user_info["sub"]
+
+    userId = user.token["sub"]
     datasetId = id
     read_data = bottle.request.body.read().decode('UTF-8')
     LOG.debug("BODY: " + read_data)
@@ -685,7 +586,7 @@ def patchDataset(id):
         dataset = db.getDataset(datasetId)
         if dataset is None:
             return setErrorResponse(404,"not found")
-        if property not in getEditablePropertiesByTheUser(user_info, dataset):
+        if property not in user.getEditablePropertiesByTheUser(dataset):
             return setErrorResponse(400,"the property is not in the editablePropertiesByTheUser list")
 
         if property == "draft":
@@ -750,11 +651,11 @@ def patchDataset(id):
 @app.route('/api/datasets', method='GET')
 def getDatasets():
     LOG.debug("Received GET /datasets")
-    ok, ret = checkAuthorizationHeader()
-    if not ok: return ret
-    else: user_info = ret # can be None
+    ok, details = checkAuthorizationHeader()
+    if not ok and details != None: return details  # return error
+    user = authorization.User(details)
 
-    searchFilter = Search_filter(draft = None, public = None, invalidated = None)
+    searchFilter = authorization.User.Search_filter(draft = None, public = None, invalidated = None)
     if 'draft' in bottle.request.params:
         searchFilter.draft = bool(bottle.request.params['draft'])
     if 'public' in bottle.request.params:
@@ -762,7 +663,7 @@ def getDatasets():
     if 'invalidated' in bottle.request.params:
         searchFilter.invalidated = bool(bottle.request.params['invalidated'])
     #authorId
-    searchFilter = adjustSearchFilterByUser(user_info, searchFilter)
+    searchFilter = user.adjustSearchFilterByUser(searchFilter)
 
     skip = int(bottle.request.params['skip']) if 'skip' in bottle.request.params else 0
     limit = int(bottle.request.params['limit']) if 'limit' in bottle.request.params else 30
@@ -790,9 +691,9 @@ def getDatasets():
 @app.route('/api/licenses', method='GET')
 def getLicenses():
     LOG.debug("Received GET /licenses")
-    ok, ret = checkAuthorizationHeader()
-    if not ok: return ret
-    else: user_info = ret # can be None
+    ok, details = checkAuthorizationHeader()
+    if not ok and details != None: return details  # return error
+    # user = authorization.User(details)
 
     with DB(CONFIG.db) as db:
         licenses = db.getLicenses()
@@ -810,11 +711,10 @@ def postUser(userName):
 @app.route('/api/users/<userName>', method='PUT')
 def putUser(userName):
     LOG.debug("Received PUT %s" % bottle.request.path)
-    ok, ret = checkAuthorizationHeader(serviceAccount=True)
-    if not ok: return ret
-    else: user_info = ret # can be None
-
-    if not userCanAdminUsers(user_info):
+    ok, details = checkAuthorizationHeader(serviceAccount=True)
+    if not ok and details != None: return details  # return error
+    user = authorization.User(details)
+    if not user.userCanAdminUsers():
         return setErrorResponse(401,"unauthorized user")
 
     content_types = get_header_media_types('Content-Type')
@@ -843,11 +743,10 @@ def putUser(userName):
 @app.route('/api/users/<userName>', method='GET')
 def getUser(userName):
     LOG.debug("Received GET %s" % bottle.request.path)
-    ok, ret = checkAuthorizationHeader(serviceAccount=True)
-    if not ok: return ret
-    else: user_info = ret # can be None
-
-    if not userCanAdminUsers(user_info):
+    ok, details = checkAuthorizationHeader(serviceAccount=True)
+    if not ok and details != None: return details  # return error
+    user = authorization.User(details)
+    if not user.userCanAdminUsers():
         return setErrorResponse(401,"unauthorized user")
     
     with DB(CONFIG.db) as db:
@@ -869,18 +768,17 @@ def checkDatasetListAccess(datasetIDs, userName):
             if dataset is None:
                 # invalidated or not exists
                 badIDs.append(id)
-            elif not tmpUserCanAccessDataset(userId, userGroups, dataset):
+            elif not authorization.User.tmpUserCanAccessDataset(userId, userGroups, dataset):
                 badIDs.append(id)
     return badIDs
 
 @app.route('/api/datasetAccessCheck', method='POST')
 def postDatasetAccessCheck():
     LOG.debug("Received POST %s" % bottle.request.path)
-    ok, ret = checkAuthorizationHeader(serviceAccount=True)
-    if not ok: return ret
-    else: user_info = ret # can be None
-
-    if not userCanAdminDatasetAccess(user_info):
+    ok, details = checkAuthorizationHeader(serviceAccount=True)
+    if not ok and details != None: return details  # return error
+    user = authorization.User(details)
+    if not user.userCanAdminDatasetAccess():
         return setErrorResponse(401,"unauthorized user")
 
     content_types = get_header_media_types('Content-Type')
@@ -911,11 +809,10 @@ def postDatasetAccessCheck():
 @app.route('/api/datasetAccess/<id>', method='POST')
 def postDatasetAccess(id):
     LOG.debug("Received POST %s" % bottle.request.path)
-    ok, ret = checkAuthorizationHeader(serviceAccount=True)
-    if not ok: return ret
-    else: user_info = ret # can be None
-
-    if not userCanAdminDatasetAccess(user_info):
+    ok, details = checkAuthorizationHeader(serviceAccount=True)
+    if not ok and details != None: return details  # return error
+    user = authorization.User(details)
+    if not user.userCanAdminDatasetAccess():
         return setErrorResponse(401,"unauthorized user")
 
     content_types = get_header_media_types('Content-Type')
