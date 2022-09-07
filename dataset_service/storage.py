@@ -30,6 +30,8 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
+    CURRENT_SCHEMA_VERSION = 12
+
     def setup(self):
         version = self.getSchemaVersion()
         logging.root.info("Database schema version: %d " % version)
@@ -48,7 +50,7 @@ class DB:
             if version < 11: self.updateDB_v10To11()
             if version < 12: self.updateDB_v11To12()
             ### Finally update schema_version
-            self.cursor.execute("UPDATE metadata set schema_version = 12;")
+            self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
     def getSchemaVersion(self):
         self.cursor.execute("SELECT EXISTS ( SELECT FROM information_schema.tables WHERE table_name = 'metadata');")
@@ -68,7 +70,7 @@ class DB:
                 constraint pk_metadata primary key (id)
             );
             INSERT INTO metadata (schema_version) 
-            VALUES ('5')
+            VALUES ('%d')
             ON CONFLICT (id) DO UPDATE
                 SET schema_version = excluded.schema_version;
                 
@@ -151,7 +153,7 @@ class DB:
                 url varchar(256),
                 constraint pk_license primary key (id)
             );
-        """)
+        """ % self.CURRENT_SCHEMA_VERSION)
     
     def updateDB_v1To2(self):
         logging.root.info("Updating database from v1 to v2...")
