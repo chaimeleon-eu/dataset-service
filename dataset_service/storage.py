@@ -34,12 +34,12 @@ class DB:
 
     def setup(self):
         version = self.getSchemaVersion()
-        logging.root.info("Database schema version: %d " % version)
         if version == 0:
-            logging.root.info("Creating tables...")
+            logging.root.info("Database is empty, creating tables...")
             self.createSchema()
             return
         else:
+            logging.root.info("Current database schema version: %d " % version)
             if version < 2: self.updateDB_v1To2()
             if version < 3: self.updateDB_v2To3()
             if version < 4: self.updateDB_v3To4()

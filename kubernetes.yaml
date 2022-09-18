@@ -44,7 +44,8 @@ spec:
             claimName: postgres-data
       containers:
       - name: db
-        image: "postgres:12"
+#       image: "postgres:12"
+        image: "chaimeleon-eu.i3m.upv.es:10443/dockerhub/library/postgres:12"
         env:
           - name: POSTGRES_DB
             value: dataset-service
@@ -52,7 +53,6 @@ spec:
             value: dataset-service-user
           - name: POSTGRES_PASSWORD
             value: "XXXXXX"
-        resources: {}
         ports:
           - containerPort: 5432
             # standard postgres DB port
@@ -60,6 +60,10 @@ spec:
         volumeMounts:
           - mountPath: "/var/lib/postgresql/data"
             name: postgres-data-pv
+        resources:
+          requests:
+            memory: "250Mi"
+            cpu: "250m"
       restartPolicy: Always
 
 ---
@@ -83,7 +87,7 @@ metadata:
 type: Opaque
 stringData:
   key: "XXXXXXXX"
-  
+
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -123,51 +127,55 @@ spec:
             readOnly: false
       containers:
         - name: dataset-service-backend
-          image:  chaimeleon-eu.i3m.upv.es:10443/chaimeleon-services/dataset-service-backend:1.74
+          image:  chaimeleon-eu.i3m.upv.es:10443/chaimeleon-services/dataset-service-backend:1.81
           ports:
             - containerPort: 11000
               name: dssport
           volumeMounts:
-          - mountPath: "/dataset-service/log"
-            subPath: "log"
-            name: dataset-service-data-volume
-          - mountPath: "/var/www/dataset-service-ui"
-            subPath: "ui"
-            name: dataset-service-data-volume
-          - mountPath: "/mnt/datalake"
-            name: datalake-volume
-          - mountPath: "/mnt/datasets"
-            name: datasets-volume
+            - mountPath: "/dataset-service/log"
+              subPath: "log"
+              name: dataset-service-data-volume
+            - mountPath: "/var/www/dataset-service-ui"
+              subPath: "ui"
+              name: dataset-service-data-volume
+            - mountPath: "/mnt/datalake"
+              name: datalake-volume
+            - mountPath: "/mnt/datasets"
+              name: datasets-volume
           env:
-          - name: DATASET_SERVICE_CONFIG
-            value: |
-              { "db": { "host": "db", "port": 5432, "dbname": "dataset-service", "user": "dataset-service-user", "password": "XXXXXX" },
-                "auth": {
-                    "token_issuer_public_keys_url": "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/certs",
-                    "kid": "T7yU60He9Irc8iNJ7zCBVUQEkXe9yq0XrHLu4fBi1gU",
-                    "audience": ["dataset-service"],
-                    "issuer": "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON"
-                },
-                "tracer": {
-                    "url": "https://chaimeleon-eu.i3m.upv.es/tracer-service/tracer/",
-                    "auth_url": "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token",
-                    "client_id": "dataset-service",
-                    "client_secret": "XXXXXXXX"
-                },
-                "zenodo": {
-                    "url": "https://zenodo.org/",
-                    "access_token": "XXXXXXXX",
-                    "community": "chaimeleon_h2020",
-                    "grant": "10.13039/501100000780::952172"
-                },
-                "self": { 
-                    "port": 11000, 
-                    "log": { "level": "DEBUG", "file": "./log/dataset-service.log" },
-                    "static_files_dir_path": "/var/www/dataset-service-ui",
-                    "datalake_mount_path": "/mnt/datalake",
-                    "datasets_mount_path": "/mnt/datasets"
+            - name: DATASET_SERVICE_CONFIG
+              value: |
+                { "db": { "host": "db", "port": 5432, "dbname": "dataset-service", "user": "dataset-service-user", "password": "XXXXXX" },
+                  "auth": {
+                      "token_issuer_public_keys_url": "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/certs",
+                      "kid": "T7yU60He9Irc8iNJ7zCBVUQEkXe9yq0XrHLu4fBi1gU",
+                      "audience": ["dataset-service"],
+                      "issuer": "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON"
+                  },
+                  "tracer": {
+                      "url": "https://chaimeleon-eu.i3m.upv.es/tracer-service/tracer/",
+                      "auth_url": "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token",
+                      "client_id": "dataset-service",
+                      "client_secret": "XXXXXXXX"
+                  },
+                  "zenodo": {
+                      "url": "https://zenodo.org/",
+                      "access_token": "XXXXXXXX",
+                      "community": "chaimeleon_h2020",
+                      "grant": "10.13039/501100000780::952172"
+                  },
+                  "self": { 
+                      "port": 11000, 
+                      "log": { "level": "DEBUG", "file": "./log/dataset-service.log" },
+                      "static_files_dir_path": "/var/www/dataset-service-ui",
+                      "datalake_mount_path": "/mnt/datalake",
+                      "datasets_mount_path": "/mnt/datasets"
+                  }
                 }
-              }
+          resources:
+            requests:
+              memory: "250Mi"
+              cpu: "300m"
       restartPolicy: Always
       
 ---
@@ -194,10 +202,10 @@ metadata:
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
 #   nginx.ingress.kubernetes.io/ssl-redirect: "false"
 spec:
-  tls:
-    - hosts:
-        - chaimeleon-eu.i3m.upv.es
-#         secretName:  chaimeleon-eu.i3m.upv.es     # letsencryp-cert-tls, comment to use the default, which is set in the ingress controller param --default-ssl-certificate
+# tls:
+#   - hosts:
+#       - chaimeleon-eu.i3m.upv.es
+#         secretName:  chaimeleon-eu.i3m.upv.es
   rules:
     - host: chaimeleon-eu.i3m.upv.es
       http:

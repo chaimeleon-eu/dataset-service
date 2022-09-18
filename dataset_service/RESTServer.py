@@ -16,6 +16,7 @@ from dataset_service.storage import DB
 import jwt
 from jwt import PyJWKClient
 import urllib
+import urllib.error
 import uuid
 import pydicom
 import dataset_service.tracer as tracer
@@ -112,7 +113,7 @@ def run(host, port, config):
     LOG.info("host: %s, port: %s, dbname: %s, user: %s" % (CONFIG.db.host, CONFIG.db.port, CONFIG.db.dbname, CONFIG.db.user))
     try:
         with DB(CONFIG.db) as db:
-            LOG.info("Initializing database...")
+            LOG.info("Checking database...")
             db.setup()
     except Exception as e:
         LOG.exception(e)
@@ -184,6 +185,7 @@ def run_in_thread(host, port, config):
     
 
 def validate_token(token):
+    if AUTH_PUBLIC_KEY is None or CONFIG is None: raise Exception()
     headers = jwt.get_unverified_header(token)
     LOG.debug("Token key id (kid header):" + headers['kid'])
 
@@ -200,11 +202,11 @@ def setErrorResponse(code, message):
     return json.dumps(dict(error = message, status_code = code))
 
 def checkAuthorizationHeader(serviceAccount=False):
-    if not "authorization" in bottle.request.headers: 
+    if bottle.request.get_header("authorization") is None: 
         LOG.debug("Not registered user.")
         return False, None
     try:
-        encodedToken = bottle.request.headers["authorization"][7:]
+        encodedToken = bottle.request.get_header("authorization")[7:]
     except Exception as e:
         return False, setErrorResponse(401, "invalid authorization header")
     token = validate_token(encodedToken)
@@ -218,7 +220,7 @@ def get_header_media_types(header):
     Returns a List of strings.
     """
     res = []
-    accept = bottle.request.headers.get(header)
+    accept = bottle.request.get_header(header)
     if accept:
         media_types = accept.split(",")
         for media_type in media_types:
@@ -241,10 +243,11 @@ def getHello():
 
 @app.route('/api/set-ui', method='POST')
 def postSetUI():
+    if CONFIG is None: raise Exception()
     LOG.debug("Received POST /api/set-ui")
     if CONFIG.self.dev_token == "":
         return setErrorResponse(404, "Not found: '%s'" % bottle.request.path)
-    if bottle.request.headers["devToken"] != CONFIG.self.dev_token:
+    if bottle.request.get_header("devToken") != CONFIG.self.dev_token:
         return setErrorResponse(401,"unauthorized user")
     sourceUrl = bottle.request.body.read().decode('UTF-8')
     LOG.debug("BODY: " + sourceUrl )
@@ -265,6 +268,7 @@ def checkPath(basePath, relativePath):
         raise PathException("Wrong path: " + str(base / relativePath))
 
 def completeDatasetFromCSV(dataset, csvdata):
+    if CONFIG is None: raise Exception()
     dataset["studies"] = []
     dataset["subjects"] = []
     import csv
@@ -322,6 +326,7 @@ def getMetadataFromFirstDicomFile(serieDirPath):
     return None, None, None, None
 
 def collectMetadata(dataset):
+    if CONFIG is None: raise Exception()
     differentSubjects = set()
     studiesCount = 0
     maxAge = "000D"
@@ -365,6 +370,7 @@ def collectMetadata(dataset):
     
 
 def collectMetadata2(dataset):
+    if CONFIG is None: raise Exception()
     if CONFIG.self.CONFIG.self.datalake_mount_path == '': return
     from pydicom.fileset import FileSet
     fs = FileSet()
@@ -386,6 +392,11 @@ def collectMetadata2(dataset):
 
 @app.route('/api/datasets', method='POST')
 def postDataset():
+    if CONFIG is None \
+       or not isinstance(bottle.request.query, bottle.FormsDict) \
+       or not isinstance(bottle.request.forms, bottle.FormsDict) \
+       or not isinstance(bottle.request.files, bottle.FormsDict): 
+        raise Exception()
     LOG.debug("Received POST /dataset")
     ok, details = checkAuthorizationHeader()
     if not ok and details != None: return details  # return error
@@ -400,7 +411,7 @@ def postDataset():
     userEmail = user.token["email"]
 
     content_types = get_header_media_types('Content-Type')
-    if "external" in bottle.request.params and bottle.request.params["external"].lower() == "true":
+    if "external" in bottle.request.query and bottle.request.query["external"].lower() == "true":
         if not 'multipart/form-data' in content_types:
             return setErrorResponse(400,"invalid 'Content-Type' header, required 'multipart/form-data'")
     else:
@@ -410,7 +421,7 @@ def postDataset():
     datasetDirName = ''
     datasetId = str(uuid.uuid4())
     try:
-        if "external" in bottle.request.params and bottle.request.params["external"].lower() == "true":
+        if "external" in bottle.request.query and bottle.request.query["external"].lower() == "true":
             # This is for manually create datasets out of the standard ingestion procedure 
             clinicalDataFile = bottle.request.files["clinical_data"]
             name, ext = os.path.splitext(clinicalDataFile.filename)
@@ -484,7 +495,6 @@ def postDataset():
                     json.dump(dataset["studies"], outputStream)
 
                 if CONFIG.tracer.url != '':
-                    LOG.debug('Calculating SHAs and notifying to tracer-service.')
                     # Note this tracer call is inside of "with db" because if tracer fails the database changes will be reverted (transaction rollback).
                     tracer.traceDatasetCreation(CONFIG.tracer.auth_url, CONFIG.tracer.client_id, CONFIG.tracer.client_secret, CONFIG.tracer.url, 
                                                 CONFIG.self.datasets_mount_path, datasetDirName, dataset, userId)
@@ -502,21 +512,22 @@ def postDataset():
         return setErrorResponse(500, str(e))
     except Exception as e:
         LOG.exception(e)
-        if not "external" in bottle.request.params or bottle.request.params["external"].lower() != "true":
+        if not "external" in bottle.request.query or bottle.request.query["external"].lower() != "true":
             LOG.error("May be the body of the request is wrong: %s" % read_data)
         if datasetDirName != '': remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
         return setErrorResponse(500,"Unexpected error, may be the input is wrong")
 
 @app.route('/api/datasets/<id>', method='GET')
 def getDataset(id):
+    if CONFIG is None or not isinstance(bottle.request.query, bottle.FormsDict): raise Exception()
     LOG.debug("Received GET /dataset/%s" % id)
     ok, details = checkAuthorizationHeader()
     if not ok and details != None: return details  # return error
     user = authorization.User(details)
 
     datasetId = id
-    skip = int(bottle.request.params['studiesSkip']) if 'studiesSkip' in bottle.request.params else 0
-    limit = int(bottle.request.params['studiesLimit']) if 'studiesLimit' in bottle.request.params else 30
+    skip = int(bottle.request.query['studiesSkip']) if 'studiesSkip' in bottle.request.query else 0
+    limit = int(bottle.request.query['studiesLimit']) if 'studiesLimit' in bottle.request.query else 30
     if skip < 0: skip = 0
     if limit < 0: limit = 0
 
@@ -548,6 +559,7 @@ def getDataset(id):
     return json.dumps(dataset)
 
 def createZenodoDeposition(db, dataset):
+    if CONFIG is None: raise Exception()
     if dataset["pids"]["urls"]["zenodoDoi"] is None: 
         datasetId = dataset["id"]
         studies, total = db.getStudiesFromDataset(datasetId)
@@ -556,6 +568,7 @@ def createZenodoDeposition(db, dataset):
         db.setZenodoDOI(datasetId, newValue)
 
 def updateZenodoDeposition(db, dataset):
+    if CONFIG is None: raise Exception()
     pidUrl = dataset["pids"]["urls"]["zenodoDoi"]
     if pidUrl != None: 
         i = pidUrl.rfind('.') + 1
@@ -566,6 +579,7 @@ def updateZenodoDeposition(db, dataset):
 
 @app.route('/api/datasets/<id>', method='PATCH')
 def patchDataset(id):
+    if CONFIG is None: raise Exception()
     LOG.debug("Received PATCH /dataset/%s" % id)
     ok, details = checkAuthorizationHeader()
     if not ok and details != None: return details  # return error
@@ -650,26 +664,27 @@ def patchDataset(id):
 
 @app.route('/api/datasets', method='GET')
 def getDatasets():
+    if CONFIG is None or not isinstance(bottle.request.query, bottle.FormsDict): raise Exception()
     LOG.debug("Received GET /datasets")
     ok, details = checkAuthorizationHeader()
     if not ok and details != None: return details  # return error
     user = authorization.User(details)
 
     searchFilter = authorization.User.Search_filter(draft = None, public = None, invalidated = None)
-    if 'draft' in bottle.request.params:
-        searchFilter.draft = bool(bottle.request.params['draft'])
-    if 'public' in bottle.request.params:
-        searchFilter.public = bool(bottle.request.params['public'])
-    if 'invalidated' in bottle.request.params:
-        searchFilter.invalidated = bool(bottle.request.params['invalidated'])
+    if 'draft' in bottle.request.query:
+        searchFilter.draft = bool(bottle.request.query['draft'])
+    if 'public' in bottle.request.query:
+        searchFilter.public = bool(bottle.request.query['public'])
+    if 'invalidated' in bottle.request.query:
+        searchFilter.invalidated = bool(bottle.request.paqueryrams['invalidated'])
     #authorId
     searchFilter = user.adjustSearchFilterByUser(searchFilter)
 
-    skip = int(bottle.request.params['skip']) if 'skip' in bottle.request.params else 0
-    limit = int(bottle.request.params['limit']) if 'limit' in bottle.request.params else 30
+    skip = int(bottle.request.query['skip']) if 'skip' in bottle.request.query else 0
+    limit = int(bottle.request.query['limit']) if 'limit' in bottle.request.query else 30
     if skip < 0: skip = 0
     if limit < 0: limit = 0
-    searchString = str(bottle.request.params['searchString']).strip() if 'searchString' in bottle.request.params else ""
+    searchString = str(bottle.request.query['searchString']).strip() if 'searchString' in bottle.request.query else ""
     
     with DB(CONFIG.db) as db:
         datasets, total = db.getDatasets(skip, limit, searchString, searchFilter)
@@ -690,6 +705,7 @@ def getDatasets():
 
 @app.route('/api/licenses', method='GET')
 def getLicenses():
+    if CONFIG is None: raise Exception()
     LOG.debug("Received GET /licenses")
     ok, details = checkAuthorizationHeader()
     if not ok and details != None: return details  # return error
@@ -710,6 +726,7 @@ def postUser(userName):
 
 @app.route('/api/users/<userName>', method='PUT')
 def putUser(userName):
+    if CONFIG is None: raise Exception()
     LOG.debug("Received PUT %s" % bottle.request.path)
     ok, details = checkAuthorizationHeader(serviceAccount=True)
     if not ok and details != None: return details  # return error
@@ -808,6 +825,7 @@ def postDatasetAccessCheck():
 
 @app.route('/api/datasetAccess/<id>', method='POST')
 def postDatasetAccess(id):
+    if CONFIG is None: raise Exception()
     LOG.debug("Received POST %s" % bottle.request.path)
     ok, details = checkAuthorizationHeader(serviceAccount=True)
     if not ok and details != None: return details  # return error

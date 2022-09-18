@@ -1,4 +1,4 @@
-bottle==0.12.21      # REST-API framework
+bottle==0.12.23      # REST-API framework
 cheroot==8.6.0      # HTTP service
 PyYAML==5.4.1
 # kubernetes==18.20.0

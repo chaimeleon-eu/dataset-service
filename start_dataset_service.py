@@ -38,8 +38,9 @@ def update(d, u):
     return d
 
 def load_config():
-    DEFAULT_CONFIG_FILE_PATH = get_first_existing_path(DEFAULT_CONFIG_FILE_PATHS)
     try:
+        DEFAULT_CONFIG_FILE_PATH = get_first_existing_path(DEFAULT_CONFIG_FILE_PATHS)
+        if DEFAULT_CONFIG_FILE_PATH is None: raise Exception()
         with open(DEFAULT_CONFIG_FILE_PATH) as f:
             config = yaml.load(f, Loader=yaml.SafeLoader)
     except:
@@ -79,7 +80,7 @@ class ExtraInfoFilter(logging.Filter):
     """
     def filter(self, record):
         import socket
-        record.hostname = socket.gethostname()
+        setattr(record, 'hostname', socket.gethostname())
         return True
 
 def config_logger(CONFIG):
@@ -108,13 +109,13 @@ def config_logger(CONFIG):
     else:
         log_level = logging.WARN
 
-    logging.RootLogger.propagate = 0
+    logging.RootLogger.propagate = False
     logging.root.setLevel(logging.ERROR)
 
     #log = logging.getLogger('module1')
     log = logging.root
     log.setLevel(log_level)
-    log.propagate = 0
+    log.propagate = False
     log.addHandler(fileh)
 
     # Add the filter to add extra fields
@@ -141,7 +142,7 @@ def stop_daemon( ):
     global THREAD
     RESTServer.stop()
 
-    while THREAD.is_alive():
+    while THREAD != None and THREAD.is_alive():
         time.sleep(0.1)
 
     logging.root.info( '------------- %s stopped -------------' % __appname__ )

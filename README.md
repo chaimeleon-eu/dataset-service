@@ -301,7 +301,7 @@ $ curl -i -H "devToken: SECRET-TOKEN" -d "http://158.42.154.23:19000/build.zip" 
 
 ```
 set IMAGE_NAME=harbor.chaimeleon-eu.i3m.upv.es/chaimeleon-services/dataset-service-backend
-set IMAGE_TAG=1.78
+set IMAGE_TAG=1.81
 ```
 
 ### Build the image
@@ -317,13 +317,13 @@ docker logout harbor.chaimeleon-eu.i3m.upv.es
 
 ### Deploy with Kubernetes
 
-Copy the template: `cp kubernetes.yaml kubernetes.mine.yaml`
+Copy the template: `cp kubernetes.yaml kubernetes.private.yaml`
 
-Configure: edit `kubernetes.mine.yaml` (set passwords, urls, etc.)
+Configure: edit `kubernetes.private.yaml` (set passwords, urls, etc.)
 
 Create a namespace: `kubectl create namespace dataset-service`
 
-And finally: `kubectl apply -f kubernetes.mine.yaml`
+And finally: `kubectl apply -f kubernetes.private.yaml`
 
 
 ### Run locally for testing purposes:

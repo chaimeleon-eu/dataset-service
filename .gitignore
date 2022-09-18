@@ -1,6 +1,5 @@
 etc/*local.yaml
-kubernetes.mine.yaml
-kubernetes.mine.test.yaml
+*.private.yaml
 log/*
 var/*
 setup.py
