@@ -10,6 +10,7 @@ class TraceException(Exception):
     pass
     
 def login(oidc_url, client_id, client_secret):
+    logging.root.debug("Logging into the tracer...")
     auth = urllib.parse.urlparse(oidc_url)
     connection = http.client.HTTPSConnection(auth.hostname, auth.port)
 
@@ -47,10 +48,11 @@ def getSupportedHashAlgorithms(authUrl, clientId, clientSecret, tracerUrl):
         response = json.loads(msg)
         return response
 
-def getHashOfString(s):
-    return base64.b64encode(hashlib.sha256(bytes(s, 'utf-8')).digest()).decode('ascii')
+def getHashOfString(s: str) -> str:
+    return base64.b64encode(hashlib.sha3_256(bytes(s, 'utf-8')).digest()).decode('ascii')
+    # return base64.b64encode(hashlib.blake2s(bytes(s, 'utf-8')).digest()).decode('ascii')
 
-def getHashOfFile(filePath):
+def getHashOfFile(filePath: str) -> str:
     # Same result in one line, but requires loading the complete file content in memory, 
     # which can be a problem on big files.
     #return hashlib.sha256(open(filePath).read()).hexdigest()
@@ -83,16 +85,12 @@ def addFilesFromDirectoryAsResources(body, datasetDirPath, dirRelativePath):
         filePath = os.path.join(dirPath, name)
         fileRelativePath = os.path.join(dirRelativePath, name)
         if os.path.isdir(filePath): addFilesFromDirectoryAsResources(body, datasetDirPath, fileRelativePath)
-        else:                       addFileAsResource(body, filePath, fileRelativePath)
+        else:                       addFileAsResource(body, filePath, getHashOfString(fileRelativePath))
 
 def traceDatasetCreation(authUrl, clientId, clientSecret, tracerUrl, datasetsDirPath, datasetDirName, dataset, userId):
-    token = login(authUrl, clientId, clientSecret)
-
     tracer = urllib.parse.urlparse(tracerUrl)
     connection = http.client.HTTPSConnection(tracer.hostname, tracer.port)
     headers = {}
-    headers['Authorization'] = 'bearer ' + token
-    # headers['Authorization'] = 'Basic XXXXXXXXXXXX'
     headers['Content-Type'] = 'application/json;charset=UTF-8'
 
     body = dict(
@@ -125,6 +123,7 @@ def traceDatasetCreation(authUrl, clientId, clientSecret, tracerUrl, datasetsDir
     # body['resources']['datasetList']['data'] = base64.b64encode(bytes(studiesListStr, 'utf-8')).decode('ascii')
 
     # Calculate hashes
+    logging.root.debug('Calculating SHAs...')
     datasetDirPath = os.path.join(datasetsDirPath, datasetDirName)
     for study in dataset["studies"]:
         for serie in study["series"]:
@@ -138,7 +137,15 @@ def traceDatasetCreation(authUrl, clientId, clientSecret, tracerUrl, datasetsDir
 
     payload = json.dumps(body)
     #logging.root.debug("BODY: " + payload)
-    #logging.root.debug("============================")   
+    #logging.root.debug("============================")
+    with open(os.path.join("/tmp", datasetDirName + ".json") , 'w') as outputStream:
+        json.dump(body, outputStream)
+
+    token = login(authUrl, clientId, clientSecret)
+    headers['Authorization'] = 'bearer ' + token
+    # headers['Authorization'] = 'Basic XXXXXXXXXXXX'
+
+    logging.root.debug("Calling tracer...")
     connection.request("POST", tracer.path + "api/v1/traces", payload, headers)
     res = connection.getresponse()
     httpStatusCode = res.status
