@@ -444,8 +444,9 @@ According to value of the flags a dataset can be in one of these states:
             - Publish (_public_ -> true) goes to Published state.  
             - Invalidate (_invalidated_ -> true), goes to Invalidated state.
  - __Published__: (_draft_ = false, _public_ = __true__, _invalidated_ = false)  
-           When published, the dataset can be seen and used by any registered user.
+           When published, the dataset can be seen and used by any registered user.  
            It can be seen (not used) by unregistered users.  
+           If there is not a pidUrl yet for the dataset, the metadata and a small index of studies will be deposited publicly in Zenodo.org in order to obtain a DOI for the pidUrl.  
            Possible actions:  
             - Set to non-public (_public_ -> false), returns to Released state.  
             - Invalidate (_invalidated_ -> true), goes to Invalidated state.

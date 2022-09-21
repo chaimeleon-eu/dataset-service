@@ -166,12 +166,16 @@ def generateDescriptionPdf(dataset, dataset_link_format):
     return pdf.getvalue()   # bytes
 
 def generateIndexJson(studies): 
-    # Clear paths and urls, not relevant to Zenodo
+    index = []
+    # Only some properties will copied to the index for zenodo
     for study in studies:
-        study["path"] = "-"
-        study["url"] = "-"
+        index.append(dict(studyId = study["studyId"],
+                          studyName = study["studyName"],
+                          subjectName = study["subjectName"],
+                          url = study["url"], 
+                          series = study["series"]))
     # And dump to the outputString
-    return json.dumps(studies)
+    return json.dumps(index)
 
 def getZenodoDOI(url, accessToken, dataset, studies, dataset_link_format, community, grant):
     zenodo = urllib.parse.urlparse(url)
