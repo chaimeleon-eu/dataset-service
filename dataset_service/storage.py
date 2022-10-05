@@ -9,7 +9,8 @@ from dataset_service import authorization
 
 class DB:
     def __init__(self, dbConfig):
-        self.conn = psycopg2.connect(host=dbConfig.host, port=dbConfig.port, dbname=dbConfig.dbname, user=dbConfig.user, password=dbConfig.password)
+        self.conn = psycopg2.connect(host=dbConfig.host, port=dbConfig.port, 
+                                     dbname=dbConfig.dbname, user=dbConfig.user, password=dbConfig.password)
         self.cursor = self.conn.cursor()
 
     def __enter__(self):
@@ -30,7 +31,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 12
+    CURRENT_SCHEMA_VERSION = 13
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -40,6 +41,10 @@ class DB:
             return
         else:
             logging.root.info("Current database schema version: %d " % version)
+            if version > self.CURRENT_SCHEMA_VERSION:
+                raise Exception("""The database schema version is greater than the last known by this app (%d). 
+                                   Maybe you are trying to run an old app version over a database formated by a newer app version.
+                                """ % self.CURRENT_SCHEMA_VERSION)
             if version < 2: self.updateDB_v1To2()
             if version < 3: self.updateDB_v2To3()
             if version < 4: self.updateDB_v3To4()
@@ -49,6 +54,7 @@ class DB:
             if version < 10: self.updateDB_v7To10()
             if version < 11: self.updateDB_v10To11()
             if version < 12: self.updateDB_v11To12()
+            if version < 13: self.updateDB_v12To13()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -95,7 +101,7 @@ class DB:
                 id varchar(40),
                 name varchar(128) NOT NULL,
                 subject_name varchar(128) NOT NULL,
-                path varchar(256),
+                path_in_datalake varchar(256),
                 url varchar(256),
                 constraint pk_study primary key (id)
             );
@@ -245,6 +251,10 @@ class DB:
         self.cursor.execute("""INSERT INTO license (name, url) 
                                VALUES ('CC BY 4.0', 'https://creativecommons.org/licenses/by/4.0/')""")
 
+    def updateDB_v12To13(self):
+        logging.root.info("Updating database from v12 to v13...")
+        self.cursor.execute("ALTER TABLE study RENAME COLUMN path TO path_in_datalake;")
+
 
     def createOrUpdateAuthor(self, userId, username, name, email):
         self.cursor.execute("""
@@ -308,15 +318,15 @@ class DB:
 
     def createOrUpdateStudy(self, study, datasetId):
         self.cursor.execute("""
-            INSERT INTO study (id, name, subject_name, path, url)
+            INSERT INTO study (id, name, subject_name, path_in_datalake, url)
             VALUES (%s,%s,%s,%s,%s)
             ON CONFLICT (id) DO UPDATE
                 SET name = excluded.name,
                     subject_name = excluded.subject_name,
-                    path = excluded.path,
+                    path_in_datalake = excluded.path_in_datalake,
                     url = excluded.url;""",
             (study["studyId"], study["studyName"], study["subjectName"], 
-             study["path"], study["url"]))
+             study["pathInDatalake"], study["url"]))
         self.cursor.execute("""
             INSERT INTO dataset_study (dataset_id, study_id, series)
             VALUES (%s,%s,%s);""",
@@ -397,7 +407,7 @@ class DB:
         total = row[0] if row != None else 0
 
         self.cursor.execute(sql.SQL("""
-            SELECT study.id, study.name, study.subject_name, study.path, study.url, dataset_study.series
+            SELECT study.id, study.name, study.subject_name, study.url, dataset_study.series
             FROM study, dataset_study 
             WHERE dataset_study.dataset_id = %s AND dataset_study.study_id = study.id 
             ORDER BY study.name 
@@ -407,8 +417,20 @@ class DB:
         res = []
         for row in self.cursor:
             res.append(dict(studyId = row[0], studyName = row[1], subjectName = row[2], 
-                            path = row[3], series = json.loads(row[5]), url = row[4]))
+                            series = json.loads(row[4]), url = row[3]))
         return res, total
+
+    def getPathsOfStudiesFromDataset(self, datasetId):
+        self.cursor.execute(sql.SQL("""
+            SELECT study.id, study.path_in_datalake 
+            FROM study, dataset_study 
+            WHERE dataset_study.dataset_id = %s AND dataset_study.study_id = study.id;"""),
+            (datasetId,)
+        )
+        res = []
+        for row in self.cursor:
+            res.append(row[1])
+        return res
 
     def getDatasets(self, skip, limit, searchString, searchFilter: authorization.User.Search_filter):
         whereClause = sql.Composed([])

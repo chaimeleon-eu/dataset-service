@@ -256,21 +256,20 @@ def postSetUI():
     output, status = execute_cmd("unzip -uo \"" + CONFIG.self.static_files_dir_path + "/build.zip\" -d \"" + CONFIG.self.static_files_dir_path + "/\"")
     return output
 
-class PathException(Exception):
+class WrongInputException(Exception):
     pass
 
-def checkPath(basePath, relativePath):
-    # Ensures relativePath is in fact a subpath of basePath. Raises an exception if wrong path.
-    # This is to avoid a malicious user try to access system directories with "..", absolute paths like "/etc" or symbolic links.
+def checkPath(basePath: str, relativePath: str):
+    ''' Ensures relativePath is in fact a subpath of basePath. Raises an exception if wrong path.
+        This is to avoid a malicious user try to access system directories with "..", absolute paths like "/etc" or symbolic links.
+    '''
     base = Path(basePath).resolve()  # Resolve symbolic links and returns absolute path
     path = (base / relativePath).resolve()
     if not base in path.parents:
-        raise PathException("Wrong path: " + str(base / relativePath))
+        raise WrongInputException("Wrong path: " + str(base / relativePath))
 
 def completeDatasetFromCSV(dataset, csvdata):
     if CONFIG is None: raise Exception()
-    dataset["studies"] = []
-    dataset["subjects"] = []
     import csv
     #LOG.debug("======" + csvdata)
     csvreader = csv.reader(csvdata) #, delimiter=',')
@@ -299,7 +298,7 @@ def completeDatasetFromCSV(dataset, csvdata):
                         'studyId': str(uuid.uuid4()),
                         'studyName': studyDirName,
                         'subjectName': subjectName,
-                        'path': studyDirPath,
+                        'pathInDatalake': studyDirPath,
                         'series': series,
                         'url': ""
                     })
@@ -339,12 +338,12 @@ def collectMetadata(dataset):
         if not study["subjectName"] in differentSubjects: 
             differentSubjects.add(study["subjectName"])
         if CONFIG.self.datalake_mount_path != '':
-            seriePathInDatalake = os.path.join(CONFIG.self.datalake_mount_path, study['path'], study['series'][0])
+            seriePathInDatalake = os.path.join(CONFIG.self.datalake_mount_path, study['pathInDatalake'], study['series'][0])
             age, sex, bodyPart, modality = getMetadataFromFirstDicomFile(seriePathInDatalake)
             if (age is None or sex is None or bodyPart is None or modality is None):
                 # sometimes first serie is special, try with the second if exists
                 if len(study['series']) > 1:
-                    seriePathInDatalake = os.path.join(CONFIG.self.datalake_mount_path, study['path'], study['series'][1])
+                    seriePathInDatalake = os.path.join(CONFIG.self.datalake_mount_path, study['pathInDatalake'], study['series'][1])
                     age, sex, bodyPart, modality = getMetadataFromFirstDicomFile(seriePathInDatalake)
             if age != None:
                 minAge = min(minAge, age, key=lambda x: dicom.getAgeInDays(x))
@@ -376,7 +375,7 @@ def collectMetadata2(dataset):
     fs = FileSet()
     for study in dataset["studies"]:
         for serie in study["series"]:
-            seriePathInDatalake = os.path.join(CONFIG.self.datalake_mount_path, study['path'], study['series'][0])
+            seriePathInDatalake = os.path.join(CONFIG.self.datalake_mount_path, study['pathInDatalake'], study['series'][0])
             fs.add(seriePathInDatalake)
     values = fs.find_values(["StudyInstanceUID", "PatientID", (0x0010, 0x1010), (0x0010, 0x0040), (0x0008, 0x0016), (0x0018, 0x0015), (0x0008, 0x0060)])
     dataset["studiesCount"] = len(values["StudyInstanceUID"])
@@ -402,7 +401,7 @@ def postDataset():
     if not ok and details != None: return details  # return error
     user = authorization.User(details)
 
-    if user.isUnregistered() or not user.canCreateDatasets():
+    if not user.canCreateDatasets():
         return setErrorResponse(401,"unauthorized user")
 
     userId = user.token["sub"]
@@ -433,18 +432,24 @@ def postDataset():
             )
             if 'previousId' in bottle.request.forms: dataset['previousId'] = bottle.request.forms.get('previousId')
             #if 'public' in bottle.request.forms: dataset['public'] = bottle.request.forms.get('public')
+            dataset["studies"] = []
+            dataset["subjects"] = []
             completeDatasetFromCSV(dataset, clinicalDataFile.file.read().decode('UTF-8').splitlines())
             #return  json.dumps(dataset)
         else:
             read_data = bottle.request.body.read().decode('UTF-8')
             LOG.debug("BODY: " + read_data)
             dataset = json.loads( read_data )
+            if not isinstance(dataset, dict): raise WrongInputException("The body must be a json object.")
+            if not 'studies' in dataset.keys() or not isinstance(dataset["studies"], list): 
+                raise WrongInputException("'studies' property is required and must be an array.")
+            
             # Security check: review all data sent by the user which is involved in path constructions
             if CONFIG.self.datalake_mount_path != '':
                 for study in dataset["studies"]:
-                    checkPath(CONFIG.self.datalake_mount_path, study['path'])
+                    checkPath(CONFIG.self.datalake_mount_path, study['pathInDatalake'])
                     for serie in study["series"]:
-                        checkPath(CONFIG.self.datalake_mount_path, os.path.join(study['path'], serie))
+                        checkPath(CONFIG.self.datalake_mount_path, os.path.join(study['pathInDatalake'], serie))
             if CONFIG.self.datasets_mount_path != '':
                 for study in dataset["studies"]:
                     checkPath(CONFIG.self.datasets_mount_path, os.path.join(datasetId, study['subjectName']))
@@ -459,8 +464,8 @@ def postDataset():
             else:
                 dataset["previousId"] = None
 
+            LOG.debug("UUID generated: " + datasetId)
             dataset["id"] = datasetId
-            LOG.debug("UUID generated: " + dataset["id"])
             dataset["creationDate"] = datetime.now()
             #if not "public" in dataset.keys(): 
             dataset["public"] = False
@@ -480,31 +485,35 @@ def postDataset():
                 datasetDirName = datasetId
                 create_dataset(CONFIG.self.datasets_mount_path, datasetDirName, CONFIG.self.datalake_mount_path, dataset["studies"])
                 
-                LOG.debug('Writing E-FORM:' + CONFIG.self.eforms_file_name)
-                with open(os.path.join(CONFIG.self.datasets_mount_path, datasetDirName, CONFIG.self.eforms_file_name) , 'w') as outputStream:
+                datasetDirPath = os.path.join(CONFIG.self.datasets_mount_path, datasetDirName)
+                LOG.debug('Writing E-FORM: ' + CONFIG.self.eforms_file_name)
+                with open(os.path.join(datasetDirPath, CONFIG.self.eforms_file_name) , 'w') as outputStream:
                     json.dump(dataset["subjects"], outputStream)
 
                 LOG.debug('Writing INDEX: ' + CONFIG.self.index_file_name)
-                # dataset["studies"] contains just the information we want to save in the index.json file
-                # Set paths relative to the dataset directory
+                # dataset["studies"] contains just the information we want to save in the index.json file,
+                # but we have to set paths relative to the dataset directory
                 for study in dataset["studies"]:
                     subjectDirName = study['subjectName']
-                    study["path"] = os.path.join(subjectDirName, os.path.basename(study['path']))
-                # And dump to the file in the dataset directory
-                with open(os.path.join(CONFIG.self.datasets_mount_path, datasetDirName, CONFIG.self.index_file_name) , 'w') as outputStream:
+                    studyDirName = os.path.basename(study['pathInDatalake'])
+                    # example of study['path']: 17B76FEW/TCPEDITRICOABDOMINOPLVICO20150129
+                    study['path'] = os.path.join(subjectDirName, studyDirName)
+                    del study['pathInDatalake']
+                # and dump to the index file in the dataset directory
+                with open(os.path.join(datasetDirPath, CONFIG.self.index_file_name) , 'w') as outputStream:
                     json.dump(dataset["studies"], outputStream)
 
                 if CONFIG.tracer.url != '':
                     # Note this tracer call is inside of "with db" because if tracer fails the database changes will be reverted (transaction rollback).
                     tracer.traceDatasetCreation(CONFIG.tracer.auth_url, CONFIG.tracer.client_id, CONFIG.tracer.client_secret, CONFIG.tracer.url, 
-                                                CONFIG.self.datasets_mount_path, datasetDirName, dataset, userId)
+                                                datasetDirPath, CONFIG.self.index_file_name, CONFIG.self.eforms_file_name, dataset, userId)
                 
         LOG.debug('Dataset successfully created.')
         bottle.response.status = 201
         bottle.response.content_type = "application/json"
         return json.dumps(dict(url = "/api/datasets/" + datasetId))
 
-    except (PathException) as e:
+    except (WrongInputException) as e:
         if datasetDirName != '': remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
         return setErrorResponse(400, str(e))
     except (tracer.TraceException, DatasetException) as e:
@@ -515,7 +524,34 @@ def postDataset():
         if not "external" in bottle.request.query or bottle.request.query["external"].lower() != "true":
             LOG.error("May be the body of the request is wrong: %s" % read_data)
         if datasetDirName != '': remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
-        return setErrorResponse(500,"Unexpected error, may be the input is wrong")
+        return setErrorResponse(500, "Unexpected error, may be the input is wrong")
+
+@app.route('/api/datasets/<id>/checkIntegrity', method='GET')
+def checkDatasetIntegrity(id):
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received GET /dataset/%s" % id)
+    ok, details = checkAuthorizationHeader()
+    if not ok and details != None: return details  # return error
+    user = authorization.User(details)
+
+    if not user.isSuperAdminDatasets():
+        return setErrorResponse(401,"unauthorized user")
+
+    datasetId = id
+    result = dict(success=False, msg="Not checked.")
+    if CONFIG.self.datasets_mount_path != '':
+        datasetDirName = datasetId
+        datasetDirPath = os.path.join(CONFIG.self.datasets_mount_path, datasetDirName)
+        if CONFIG.tracer.url != '':
+            wrongHash = tracer.checkDatasetIntegrity(CONFIG.tracer.auth_url, CONFIG.tracer.client_id, CONFIG.tracer.client_secret, CONFIG.tracer.url, 
+                                                     datasetId, datasetDirPath, CONFIG.self.index_file_name, CONFIG.self.eforms_file_name)
+            if wrongHash is None: 
+                result = dict(success=True, msg="Integrity OK.")
+            else: result = dict(success=False, msg="Resource hash mismatch: %s" % wrongHash) 
+
+    bottle.response.status = 201
+    bottle.response.content_type = "application/json"
+    return json.dumps(result)
 
 @app.route('/api/datasets/<id>', method='GET')
 def getDataset(id):
@@ -855,10 +891,10 @@ def postDatasetAccess(id):
             userId, userGID = db.getUserIDs(userName)
             if CONFIG.self.datasets_mount_path != '':
                 for id in datasetIDs:
-                    studies, total = db.getStudiesFromDataset(id)
+                    pathsOfStudies = db.getPathsOfStudiesFromDataset(id)
                     LOG.debug('Setting ACLs in dataset %s for GID %s ...' % (id, userGID))
                     datasetDirName = id
-                    give_access_to_dataset(CONFIG.self.datasets_mount_path, datasetDirName, CONFIG.self.datalake_mount_path, studies, userGID)
+                    give_access_to_dataset(CONFIG.self.datasets_mount_path, datasetDirName, CONFIG.self.datalake_mount_path, pathsOfStudies, userGID)
 
             db.createDatasetAccess(datasetAccessId, datasetIDs, userGID, toolName, toolVersion)
             if CONFIG.tracer.url != '':

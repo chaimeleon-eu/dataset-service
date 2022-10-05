@@ -1,4 +1,4 @@
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 LABEL name="dataset-service-backend"
 LABEL description="https://github.com/chaimeleon-eu/dataset-service"
 LABEL maintainer="palollo@i3m.upv.es"
@@ -25,6 +25,6 @@ COPY ./etc/dataset-service.default.yaml ${MAIN_DIR}/etc/
 WORKDIR ${MAIN_DIR}
 RUN pip install --upgrade pip && pip install -r requirements.txt 
 
-CMD ./start_dataset_service.py 
+CMD python3 start_dataset_service.py 
 
 EXPOSE 11000

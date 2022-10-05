@@ -35,6 +35,9 @@ class User:
     def isUnregistered(self):
         return self.token is None
 
+    def isSuperAdminDatasets(self):
+        return self.token != None and User.roles.superadmin_datasets in self.token["appRoles"]
+
     def canCreateDatasets(self):
         return self.token != None and User.roles.admin_datasets in self.token["appRoles"]
 

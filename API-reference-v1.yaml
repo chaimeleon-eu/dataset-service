@@ -572,9 +572,9 @@ components:
             preferred:
               type: string
               description: |
-                The name of property in "urls" selected by the dataset creator.
+                The name of property in "urls" selected by the dataset creator, the preferred for references or citations.
                 It is null in newly created datasets.
-                The first time that the value of "zenodoDoi" is used, a deposition will be created in Zenodo for this dataset and the DOI obtained will be saved in the "zenodoDoi" property.
+                The first time that the value of "zenodoDoi" is used, a deposition will be created in Zenodo for this dataset and the DOI obtained will be saved in the "urls.zenodoDoi" property.
               example: "zenodoDoi"
             urls:
               type: object
@@ -690,10 +690,12 @@ components:
           maxLength: 128
           description: "The subject name, which is anonymized and unique: there should be an entry in the subjects array with that code."
           example: "17B76FEW"
-        path:
+        pathInDatalake:
           type: string
           maxLength: 256
-          description: "Path to the folder of the study in the datalake (the structure usually should be: <userName>/<subjectName>_<trial>/<studyName><studyDate>/)"
+          description: |
+            Path to the folder of the study in the datalake (the structure usually should be: <userName>/<subjectName>_<trial>/<studyName><studyDate>/). 
+            It is required in POST /datasets but it will not be included in GET /datasets/{id} for privacy reasons.
           example: "blancagomez/17B76FEW_Neuroblastoma/TCPEDITRICOABDOMINOPLVICOCONCONTRASTE20150129/"
         series:
           type: array
