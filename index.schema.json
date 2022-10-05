@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chaimeleon-eu/dataset-service/blob/main/index.schema.json",
+  "title": "Dataset Index",
+  "description": "The index.json is a file with a list of the studies composing the dataset (and series selected for each study). The index file should be used for walking through the contents of the dataset: images (as DICOM files) and clinical data (as json objects).",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "title": "Study",
+    "description": "This is a study selected for the dataset. The study has been performed on a subject with clinical data. The 'subjectName' property should be used as a reference key to find the corresponding entry (json object) with the clinical data in the array contained in the eforms.json file. And the images of the study are grouped in series which are directories in the study path. To walk through the images (list the DICOM files) of the first serie you must concatenate the 'path' property with the first item of 'series' property.",
+    "properties": {
+      "studyId": {
+        "description": "The unique identifier of the study in the Case Explorer database.",
+        "type": "string",
+        "examples": ["5e5629835938d12160636353"]
+      },
+      "studyName": {
+        "description": "The name of the study in the Case Explorer.",
+        "type": "string",
+        "examples": ["TCPEDITRICOABDOMINOPLVICOCONCONTRASTE"]
+      },
+      "subjectName": {
+        "description": "The subject name, which is anonymized and unique. There should be an entry for that subject (with the same subjectName) in the array contained in the eforms.json file.",
+        "type": "string",
+        "examples": ["17B76FEW"]
+      },
+      "path": {
+        "description": "The path to the study directory (relative to the dataset directory, where is this index.json file). The study directory contains a directory for each serie.",
+        "type": "string",
+        "examples": ["17B76FEW/TCPEDITRICOABDOMINOPLVICO20150129"]
+      },
+      "series": {
+        "description": "A list of the directory names of series selected in this study for the dataset. The directory of a serie contains the DICOM files. It important for the reproducibility of experiments that you only walk through the series listed here, because there can be other series not selected for this dataset. The path of a serie is the concatenation of the study path with the serie dir name.",
+        "type": "array",
+        "items": {
+          "type": "string",
+          "examples": ["AXT1XL", "SAGITALT1FSE"]
+        }
+      },
+      "url": {
+        "description": "An url to access this study in the Case Explorer",
+        "type": "string",
+        "format": "uri",
+        "examples": ["https://chaimeleon-eu.i3m.upv.es/omni/studies?id=5e5629835938d12160636353"]
+      }
+    },
+    "required": [ "studyId", "studyName", "subjectName", "path", "url" ]
+  }
+}

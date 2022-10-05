@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chaimeleon-eu/dataset-service/blob/main/eforms.schema.json",
+  "title": "Eform List",
+  "description": "The eforms.json is a file with a list of the subjects of the studies composing the dataset. For each study in the index.json file should be an entry in the eforms.json with the same subjectName property.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "title": "Subject",
+    "properties": {
+      "subjectName": {
+        "description": "The subject name, which is anonymized and unique. This is the key to find the subject. There should be one or more studies in the index.json corresponding to that subject (with the same subjectName).",
+        "type": "string",
+        "examples": ["17B76FEW"]
+      },
+      "eForm": {
+        "$ref": "Reference to the eform structure definition to be defined"
+      }
+    },
+    "required": [ "subjectName", "eForm" ]
+  }
+}
