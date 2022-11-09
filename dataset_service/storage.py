@@ -287,7 +287,7 @@ class DB:
     def getUserIDs(self, userName):
         self.cursor.execute("SELECT id, gid FROM author WHERE username=%s LIMIT 1;", (userName,))
         row = self.cursor.fetchone()
-        if row is None: return None
+        if row is None: return None, None
         return row[0], row[1]
 
     def getUserGroups(self, userName):

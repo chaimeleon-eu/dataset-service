@@ -805,16 +805,17 @@ def getUser(userName):
     with DB(CONFIG.db) as db:
         userId, userGid = db.getUserIDs(userName)
 
-    if userGid is None: return setErrorResponse(404, "not found")
+    if userGid is None: return setErrorResponse(404, "user not found")
 
     bottle.response.content_type = "application/json"
     return json.dumps(dict(gid = userGid))
 
 
-def checkDatasetListAccess(datasetIDs, userName):
+def checkDatasetListAccess(datasetIDs: list, userName: str):
     badIDs = []
     with DB(CONFIG.db) as db:
         userId, userGID = db.getUserIDs(userName)
+        if userId is None: return datasetIDs.copy()  # all datasetIDs are bad
         userGroups = db.getUserGroups(userName)
         for id in datasetIDs:
             dataset = db.getDataset(id)
@@ -940,7 +941,7 @@ def getStaticFileWeb(file_path):
 # So this is to send appropiate error to missing file but with the /web prefix.
 # Just to not continue evaluating the rest of routes.
 @app.route('/web/<any_path:re:.+>', method='GET')
-def getUnknown(any_path):
+def getUnknownWeb(any_path):
     LOG.debug("Received unknown %s" % bottle.request.path)
     return setErrorResponse(404, "Not found '%s'" % bottle.request.path)
 

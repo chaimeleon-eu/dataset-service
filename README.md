@@ -316,11 +316,15 @@ docker logout harbor.chaimeleon-eu.i3m.upv.es
 
 ### Deploy with Kubernetes
 
+`cd k8s`
+
 Copy the template: `cp kubernetes.yaml kubernetes.private.yaml`
 
 Configure: edit `kubernetes.private.yaml` (set passwords, urls, etc.)
 
 Create a namespace: `kubectl create namespace dataset-service`
+
+Create the persistent volumes: `kubectl apply -f pvcs.yaml`
 
 And finally: `kubectl apply -f kubernetes.private.yaml`
 
