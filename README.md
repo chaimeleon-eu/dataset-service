@@ -25,7 +25,7 @@ Other managed routes outside /api/:
 ## API Usage
 
 ```
-set DSS_ENDPOINT=https://chaimeleon-eu.i3m.upv.es/dataset-service/api
+DSS_ENDPOINT=https://chaimeleon-eu.i3m.upv.es/dataset-service/api
 ```
 
 ### Authentication to obtain a bearer token
@@ -46,11 +46,13 @@ When the user comes back to our client application, the bearer token will be inc
 
 For development/testing purposes you can use curl to obtain a token:
 ```
-curl -i -d "client_id=dataset-service-ui" -d "username=user" -d "password=pass" -d "grant_type=password" "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token"
-set DSS_TOKEN=eyJ...79w1rA
+echo 'Write <yourUserName> <yourPassword>' && read DSS_USER DSS_PASS
 ```
-Warning: please ensure you are using "https" in the URL to avoid send password in clear text 
-and take into account that it can be stored in clear also in the shell history.
+```
+DSS_TOKEN=$(curl -d "client_id=dataset-explorer" -d "username=$DSS_USER" -d "password=$DSS_PASS" -d "grant_type=password" \
+                 "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token" | jq -r ".access_token")
+```
+Warning: please ensure you are using "https" in the URL to avoid send password in clear text.
 
 Once the token has been obtained it must be included in a header like this:
 `Authorization: bearer <token>`
@@ -71,11 +73,11 @@ Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/d
 
 Example:
 ```
-$ curl -i -X POST ^
-       -H "Authorization: bearer %DSS_TOKEN%" ^
-       -H "Content-Type: application/json" ^
-       -d "{\"name\": \"TestDataset3\", \"description\": \"This is a dataset for testing.\", \"studies\": [{     \"studyId\": \"5e57a4356af19d299c17026d\",     \"studyName\": \"GMIBG2DECUERPOENTERO\",     \"subjectName\": \"17B76FEW\",     \"pathInDatalake\": \"blancagomez/17B76FEW_Neuroblastoma/GMIBG2DECUERPOENTERO20160225\",   \"series\": [\"serie1\", \"serie2\", \"serie3\"],    \"url\": \"\"   },   {     \"studyId\": \"5e5629835938d32160636353\",     \"studyName\": \"RM431RMRENAL\",     \"subjectName\": \"17B76FEW\",     \"pathInDatalake\": \"blancagomez/17B76FEW_Neuroblastoma/RM431RMRENAL20130820\",    \"series\": [\"serie1\"],   \"url\": \"\"   },   {     \"studyId\": \"5e6a422939b892367c8a5c23\",     \"studyName\": \"TCPEDITRICOABDOMINOPLVICOCONCONTRASTE\",     \"subjectName\": \"17B76FEW\",     \"pathInDatalake\": \"blancagomez/17B76FEW_Neuroblastoma/TCPEDITRICOABDOMINOPLVICOCONCONTRASTE20150129\",   \"series\": [\"serie1\"],    \"url\": \"\"   },   {     \"studyId\": \"5e6b449a3144dc2bc0841efc\",     \"studyName\": \"RM411RMABDOMEN\",     \"subjectName\": \"21N56F7T\",     \"pathInDatalake\": \"blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20100804\",    \"series\": [\"serie1\"],   \"url\": \"\"   },   {     \"studyId\": \"5e6a3d41c9065c475c32b3fe\",     \"studyName\": \"RM411RMABDOMEN\",     \"subjectName\": \"21N56F7T\",     \"pathInDatalake\": \"blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20150109\",   \"series\": [\"serie1\"],    \"url\": \"\"   },   {     \"studyId\": \"5eeba960903aec091076c180\",     \"studyName\": \"RM815RMDORSAL\",     \"subjectName\": \"1GB90F75\",     \"pathInDatalake\": \"blancagomez/1GB90F75_Neuroblastoma/RM815RMDORSAL20121123\",    \"series\": [\"serie1\"],   \"url\": \"\"   }], \"subjects\": [{\"subjectName\": \"17B76FEW\", \"eForm\": {}}, {\"subjectName\": \"21N56F7T\", \"eForm\": {}}, {\"subjectName\": \"1GB90F75\", \"eForm\": {}}]}" ^
-       "%DSS_ENDPOINT%/datasets"
+$ curl -i -X POST \
+       -H "Authorization: bearer $DSS_TOKEN" \
+       -H "Content-Type: application/json" \
+       -d '{"name": "TestDataset3", "description": "This is a dataset for testing.", "studies": [{     "studyId": "5e57a4356af19d299c17026d",     "studyName": "GMIBG2DECUERPOENTERO",     "subjectName": "17B76FEW",     "pathInDatalake": "blancagomez/17B76FEW_Neuroblastoma/GMIBG2DECUERPOENTERO20160225",   "series": ["serie1", "serie2", "serie3"],    "url": ""   },   {     "studyId": "5e5629835938d32160636353",     "studyName": "RM431RMRENAL",     "subjectName": "17B76FEW",     "pathInDatalake": "blancagomez/17B76FEW_Neuroblastoma/RM431RMRENAL20130820",    "series": ["serie1"],   "url": ""   },   {     "studyId": "5e6a422939b892367c8a5c23",     "studyName": "TCPEDITRICOABDOMINOPLVICOCONCONTRASTE",     "subjectName": "17B76FEW",     "pathInDatalake": "blancagomez/17B76FEW_Neuroblastoma/TCPEDITRICOABDOMINOPLVICOCONCONTRASTE20150129",   "series": ["serie1"],    "url": ""   },   {     "studyId": "5e6b449a3144dc2bc0841efc",     "studyName": "RM411RMABDOMEN",     "subjectName": "21N56F7T",     "pathInDatalake": "blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20100804",    "series": ["serie1"],   "url": ""   },   {     "studyId": "5e6a3d41c9065c475c32b3fe",     "studyName": "RM411RMABDOMEN",     "subjectName": "21N56F7T",     "pathInDatalake": "blancagomez/21N56F7T_Neuroblastoma/RM411RMABDOMEN20150109",   "series": ["serie1"],    "url": ""   },   {     "studyId": "5eeba960903aec091076c180",     "studyName": "RM815RMDORSAL",     "subjectName": "1GB90F75",     "pathInDatalake": "blancagomez/1GB90F75_Neuroblastoma/RM815RMDORSAL20121123",    "series": ["serie1"],   "url": ""   }], "subjects": [{"subjectName": "17B76FEW", "eForm": {}}, {"subjectName": "21N56F7T", "eForm": {}}, {"subjectName": "1GB90F75", "eForm": {}}]}" \
+       "${DSS_ENDPOINT}/datasets"
 
 HTTP/1.1 100 Continue
 
@@ -88,11 +90,11 @@ Content-Type: application/json
 
 Example of "external" dataset creation:
 ```
-$ curl -i -X POST ^
-       -H "Authorization: bearer %DSS_TOKEN%" ^
-       -F name="Maastricht Lung1" -F description="Test dataset from Maastricht University." ^
-       -F clinical_data=@"NSCLC Radiomics Lung1.clinical.csv" ^
-       "%DSS_ENDPOINT%/datasets?external=True"
+$ curl -i -X POST \
+       -H "Authorization: bearer $DSS_TOKEN" \
+       -F name="Maastricht Lung1" -F description="Test dataset from Maastricht University." \
+       -F clinical_data=@"NSCLC Radiomics Lung1.clinical.csv" \
+       "${DSS_ENDPOINT}/datasets?external=True"
 
 HTTP/1.1 100 Continue
 
@@ -115,9 +117,9 @@ Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/d
 
 Example:
 ```
-$ curl -i -X GET ^
-       -H "Authorization: bearer %DSS_TOKEN%" ^
-       "%DSS_ENDPOINT%/datasets?limit=30&skip=0"
+$ curl -i -X GET \
+       -H "Authorization: bearer $DSS_TOKEN" \
+       "${DSS_ENDPOINT}/datasets?limit=30&skip=0"
 HTTP/1.1 200 OK
 Content-Type: application/json
 Content-Length: 728
@@ -135,9 +137,9 @@ Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/d
 
 Example:
 ```
-$ curl -i -X GET ^
-       -H "Authorization: bearer %DSS_TOKEN%" ^
-       "%DSS_ENDPOINT%/datasets?searchString=dataset3"
+$ curl -i -X GET \
+       -H "Authorization: bearer $DSS_TOKEN" \
+       "${DSS_ENDPOINT}/datasets?searchString=dataset3"
 HTTP/1.1 200 OK
 Content-Type: application/json
 Content-Length: 182
@@ -157,9 +159,9 @@ Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/d
 
 Example:
 ```
-$ curl -i -X GET ^
-       -H "Authorization: bearer %DSS_TOKEN%" ^
-       "%DSS_ENDPOINT%/datasets/f99017af-9015-4222-b064-77f3c1b49d8b?studiesLimit=30"
+$ curl -i -X GET \
+       -H "Authorization: bearer $DSS_TOKEN" \
+       "${DSS_ENDPOINT}/datasets/f99017af-9015-4222-b064-77f3c1b49d8b?studiesLimit=30"
 HTTP/1.1 200 OK
 Content-Type: application/json
 Content-Length: 1506
@@ -187,11 +189,11 @@ Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/d
 
 Example:
 ```
-$ curl -i -X PATCH ^
-       -H "Authorization: bearer %DSS_TOKEN%" ^
-       -H "Content-Type: application/json" ^
-       -d "{\"property\": \"public\", \"value\": true}" ^
-       "%DSS_ENDPOINT%/datasets/00e821c4-e92b-48f7-a034-ba2df547e2bf"
+$ curl -i -X PATCH \
+       -H "Authorization: bearer $DSS_TOKEN" \
+       -H "Content-Type: application/json" \
+       -d '{"property": "public", "value": true}' \
+       "${DSS_ENDPOINT}/datasets/00e821c4-e92b-48f7-a034-ba2df547e2bf"
 HTTP/1.1 200 OK
 Content-Length: 0
 Content-Type: text/html; charset=UTF-8
@@ -209,13 +211,13 @@ Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/u
 
 Example authenticating previously with a service account:
 ```
-$ curl -i -d "client_id=kubeauthorizer-pod" -d "client_secret=XXXX-XXXX-XXXX" -d "grant_type=client_credentials" "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token"
-$ set DSS_TOKEN=eyJ...79w1rA
+$ DSS_TOKEN=$(curl -d "client_id=kubeauthorizer-pod" -d "client_secret=XXXX-XXXX-XXXX" -d "grant_type=client_credentials" \
+                   "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token" | jq -r ".access_token")
 ```
 ```
-$ curl -i -X PUT -H "Authorization: bearer %DSS_TOKEN%" -H "Content-Type: application/json" ^
-       -d "{\"uid\": \"d290f1ee-6c54-4b01-90e6-d701748f0851\", \"groups\": [\"data-scientists\", \"dataset-administrator\"]}" ^
-       "%DSS_ENDPOINT%/users/user1"
+$ curl -i -X PUT -H "Authorization: bearer $DSS_TOKEN" -H "Content-Type: application/json" \
+       -d '{"uid": "d290f1ee-6c54-4b01-90e6-d701748f0851", "groups": ["data-scientists", "dataset-administrator"]}' \
+       "${DSS_ENDPOINT}/users/user1"
 HTTP/1.1 201 Created
 Content-Length: 0
 Content-Type: text/html; charset=UTF-8
@@ -233,7 +235,7 @@ Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/u
 
 Example:
 ```
-$ curl -i -X GET -H "Authorization: bearer %DSS_TOKEN%" "%DSS_ENDPOINT%/users/user1"
+$ curl -i -X GET -H "Authorization: bearer $DSS_TOKEN" "${DSS_ENDPOINT}/users/user1"
 HTTP/1.1 200 OK
 Content-Type: application/json
 Content-Length: 13
@@ -254,13 +256,13 @@ Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/d
 
 Example authenticating previously with a service account:
 ```
-$ curl -i -d "client_id=kubernetes-operator" -d "client_secret=XXXX-XXXX-XXXX" -d "grant_type=client_credentials" "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token"
-$ set DSS_TOKEN=eyJ...79w1rA
+$ DSS_TOKEN=$(curl -d "client_id=kubernetes-operator" -d "client_secret=XXXX-XXXX-XXXX" -d "grant_type=client_credentials" \
+                   "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token" | jq -r ".access_token")
 ```
 ```
-$ curl -i -X POST -H "Authorization: bearer %DSS_TOKEN%" -H "Content-Type: application/json" ^
-       -d "{\"userName\": \"user1\", \"datasets\": [\"00e821c4-e92b-48f7-a034-ba2df547e2bf\", \"f99017af-9015-4222-b064-77f3c1b49d8b\"]}" ^
-       "%DSS_ENDPOINT%/datasetAccessCheck"
+$ curl -i -X POST -H "Authorization: bearer $DSS_TOKEN" -H "Content-Type: application/json" \
+       -d '{"userName": "user1", "datasets": ["00e821c4-e92b-48f7-a034-ba2df547e2bf", "f99017af-9015-4222-b064-77f3c1b49d8b"]}' \
+       "${DSS_ENDPOINT}/datasetAccessCheck"
 HTTP/1.1 204 No Content
 Content-Length: 0
 ```
@@ -278,9 +280,9 @@ Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/d
 
 Example:
 ```
-$ curl -i -X POST -H "Authorization: bearer %DSS_TOKEN%" -H "Content-Type: application/json" ^
-       -d "{\"userName\": \"user1\", \"datasets\": [\"f99017af-9015-4222-b064-77f3c1b49d8b\"], \"toolName\": \"desktop-tensorflow\", \"toolVersion\": \"0.3.1\"}" ^
-       "%DSS_ENDPOINT%/datasetAccess/c0bd6506-219b-4fc2-8fdb-3deb1d1a4ac2"
+$ curl -i -X POST -H "Authorization: bearer $DSS_TOKEN" -H "Content-Type: application/json" \
+       -d '{"userName": "user1", "datasets": ["f99017af-9015-4222-b064-77f3c1b49d8b"], "toolName": "desktop-tensorflow", "toolVersion": "0.3.1"}' \
+       "${DSS_ENDPOINT}/datasetAccess/c0bd6506-219b-4fc2-8fdb-3deb1d1a4ac2"
 HTTP/1.1 201 Created
 Content-Length: 0
 ```
@@ -300,7 +302,7 @@ $ curl -i -H "devToken: SECRET-TOKEN" -d "http://158.42.154.23:19000/build.zip" 
 
 ```
 set IMAGE_NAME=harbor.chaimeleon-eu.i3m.upv.es/chaimeleon-services/dataset-service-backend
-set IMAGE_TAG=1.82
+set IMAGE_TAG=1.83
 ```
 
 ### Build the image

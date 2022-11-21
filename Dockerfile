@@ -23,7 +23,7 @@ COPY ./etc/dataset-service.default.yaml ${MAIN_DIR}/etc/
 # CMD start_dataset_service.py 
 
 WORKDIR ${MAIN_DIR}
-RUN pip install --upgrade pip && pip install -r requirements.txt 
+RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir -r requirements.txt 
 
 CMD python3 start_dataset_service.py 
 
