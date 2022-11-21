@@ -494,6 +494,26 @@ class DB:
                             studiesCount = row[7], subjectsCount = row[8]))
         return res, total
         
+    def deleteDataset(self, datasetId):
+        self.cursor.execute("DELETE FROM dataset_study WHERE dataset_id=%s;", (datasetId,))
+        self.cursor.execute("DELETE FROM dataset WHERE id=%s;", (datasetId,))
+
+    def deleteOrphanStudies(self):
+        '''This a kind of garbage-collection that deletes all the studies not included in any dataset.'''
+        self.cursor.execute("""
+            SELECT COUNT(*) FROM study as s
+            WHERE not exists (select ds.dataset_id, ds.study_id 
+                              from dataset_study as ds
+                              where ds.study_id = s.id);""")
+        row = self.cursor.fetchone()
+        total = row[0] if row != None else 0  
+        logging.root.debug("There are %d studies not included in any dataset, removing..." % total )
+        self.cursor.execute("""
+            DELETE FROM study as s
+            WHERE not exists (select ds.dataset_id, ds.study_id 
+                              from dataset_study as ds
+                              where ds.study_id = s.id);""")
+
     def getLicenses(self):
         self.cursor.execute("""
             SELECT name, url
@@ -546,3 +566,52 @@ class DB:
                 VALUES (%s, %s);""", 
                 (datasetAccessId, id)
             )
+
+    def existDatasetAccess(self, datasetAccessId):
+        self.cursor.execute("SELECT id FROM dataset_access WHERE id=%s", (datasetAccessId,))
+        return self.cursor.rowcount > 0
+
+    def getDatasetAccess(self, datasetAccessId):
+        self.cursor.execute("""
+            SELECT dataset_access.user_gid, dataset_access_dataset.dataset_id
+            FROM dataset_access, dataset_access_dataset
+            WHERE dataset_access.id = %s
+                  AND dataset_access.id = dataset_access_dataset.dataset_access_id;""", 
+            (datasetAccessId,))
+        datasetIDs = []
+        userGID = None
+        for row in self.cursor:
+            userGID = row[0]  # the same in all rows
+            datasetIDs.append(row[1])
+        return userGID, datasetIDs
+
+    def getDatasetsAccessedByUser(self, userGID):
+        self.cursor.execute("""
+            SELECT dataset_access_dataset.dataset_id
+            FROM dataset_access, dataset_access_dataset
+            WHERE dataset_access.user_gid = %s
+                  AND dataset_access.id = dataset_access_dataset.dataset_access_id;""", 
+            (userGID,))
+        datasetIDs = []
+        for row in self.cursor:
+            datasetIDs.append(row[1])
+        return datasetIDs
+
+    def getDatasetAccesses(self, datasetId):
+        self.cursor.execute("""
+            SELECT author.username, dataset_access.tool_name, dataset_access.tool_version
+            FROM dataset_access, dataset_access_dataset, author
+            WHERE dataset_access_dataset.dataset_id = %s
+                  AND dataset_access_dataset.dataset_access_id = dataset_access.id 
+                  AND dataset_access.user_gid = author.gid;""", (datasetId,))
+        res = []
+        for row in self.cursor:
+            res.append(dict(title = row[0], url = row[1]))
+        return res
+
+    def deleteDatasetAccess(self, datasetAccessId):
+        self.cursor.execute("DELETE FROM dataset_access_dataset WHERE dataset_access_id=%s;", (datasetAccessId,))
+        self.cursor.execute("DELETE FROM dataset_access WHERE id=%s;", (datasetAccessId,))
+        
+
+

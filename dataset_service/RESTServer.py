@@ -738,6 +738,41 @@ def getDatasets():
         return json.dumps(response["list"])
     return json.dumps(response)
 
+@app.route('/api/datasets/<id>', method='DELETE')
+def deleteDataset(id):
+    '''
+    Warning: The normal procedure is to invalidate the datasets, because they can not be deleted from the tracer-service, but it will be hidden;
+             this method is only intended for development state, to delete test datasets when the tracer-service is also cleaned
+             or is going to be cleaned when changing to the production state.
+    '''
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received DELETE /dataset/%s" % id)
+    ok, details = checkAuthorizationHeader()
+    if not ok and details != None: return details  # return error
+    user = authorization.User(details)
+    if not user.canDeleteDatasets():
+        return setErrorResponse(401, "unauthorized user")
+
+    datasetId = id
+    with DB(CONFIG.db) as db:
+        if not db.existDataset(datasetId):
+            return setErrorResponse(404, "not found")
+        accesses = db.getDatasetAccesses(datasetId)
+        if len(accesses) > 0:
+            return setErrorResponse(400, "The dataset can't be removed because it is currently accessed by: " + json.dumps(accesses))
+
+        LOG.debug("Removing dataset in the database...")
+        db.deleteDataset(datasetId)
+        db.deleteOrphanStudies()   # delete studies not included in other datasets
+
+        if CONFIG.self.datasets_mount_path != '':
+            LOG.debug("Removing dataset directory...")
+            datasetDirName = datasetId
+            remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
+
+    LOG.debug('Dataset successfully removed.')
+    bottle.response.status = 204
+
 
 @app.route('/api/licenses', method='GET')
 def getLicenses():
@@ -913,8 +948,41 @@ def postDatasetAccess(id):
 
 @app.route('/api/datasetAccess/<id>', method='DELETE')
 def deleteDatasetAccess(id):
-    LOG.debug("Received DELETE %s" % bottle.request.path)
-    return setErrorResponse(404, "Not implemented, not yet")
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received DELETE /datasetAccess/%s" % id)
+    ok, details = checkAuthorizationHeader(serviceAccount=True)
+    if not ok and details != None: return details  # return error
+    user = authorization.User(details)
+    if not user.userCanAdminDatasetAccess():
+        return setErrorResponse(401,"unauthorized user")
+
+    datasetAccessId = id
+    with DB(CONFIG.db) as db:
+        if not db.existDatasetAccess(datasetAccessId):
+            return setErrorResponse(404, "not found")    
+
+        if CONFIG.self.datasets_mount_path != '':
+            userGID, datasetIDsCandidatesForRemovePermission = db.getDatasetAccess(datasetAccessId)
+            db.deleteDatasetAccess(datasetAccessId)
+            # collect all the datasets still accessed after the removal of this datasetAccess
+            datasetIDsAccessedAfterRemoval = db.getDatasetsAccessedByUser(userGID)
+            # collect all the studies still accessed after the removal of this datasetAccess
+            pathsOfstudiesAfterRemoval = set()
+            for id in datasetIDsAccessedAfterRemoval:
+                pathsOfstudiesAfterRemoval.update(db.getPathsOfStudiesFromDataset(id))
+
+            for id in datasetIDsCandidatesForRemovePermission:
+                if id in datasetIDsAccessedAfterRemoval: continue  # this dataset is still accessed, skip without remove permissions
+                datasetDirName = id
+                LOG.debug('Removing ACLs for GID %s in dataset directory %s not accessed anymore by this user...' % (userGID, datasetDirName))
+                remove_access_to_dataset(CONFIG.self.datasets_mount_path, datasetDirName, userGID)
+                pathsOfStudies = set(db.getPathsOfStudiesFromDataset(id))
+                pathsOfStudies.difference_update(pathsOfstudiesAfterRemoval)  # take out the studies still accessed to avoid remove permissions on them
+                LOG.debug('Removing ACLs for GID %s in %d studies no accessed anymore by this user...' % (userGID, len(pathsOfStudies)))
+                remove_access_to_studies(CONFIG.self.datalake_mount_path, pathsOfStudies, userGID)
+
+    LOG.debug('Dataset access successfully removed.')
+    bottle.response.status = 204
 
 # Routes are evaluated in the order they were defined.
 # So this is to send appropiate error to unknown operations but with the /api prefix.

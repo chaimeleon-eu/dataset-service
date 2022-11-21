@@ -52,7 +52,7 @@ def create_dataset(datasets_dir_path, dataset_dir_name, datalake_dir_path, studi
             # At this level all the people have read access, the control with ACLs is done in the upper level.
 
 
-def give_access_to_dataset (datasets_dir_path, dataset_dir_name, datalake_dir_path, pathsOfStudies, acl_gid):
+def give_access_to_dataset(datasets_dir_path, dataset_dir_name, datalake_dir_path, pathsOfStudies, acl_gid):
     '''
     Applies the ACL rules to the files.
     PARAMS:
@@ -82,6 +82,23 @@ def give_access_to_dataset (datasets_dir_path, dataset_dir_name, datalake_dir_pa
         # # ACL to the directory that contains the file
         # ok &= set_acl_group(str(acl_gid), str(acl_permissions), os.path.dirname(linkDestination), recursive=False) 
     
+def remove_access_to_dataset(datasets_dir_path, dataset_dir_name, acl_gid):
+    dataset_dir_path = os.path.join(datasets_dir_path, dataset_dir_name)
+    # ACL of the dataset folder 
+    ok = delete_acl_group(str(acl_gid), dataset_dir_path, recursive=False)
+    if not ok: 
+        logging.root.error("Error in delete acl to: " + dataset_dir_path)
+        raise DatasetException("Error in delete acl.")
+
+def remove_access_to_studies(datalake_dir_path, pathsOfStudies, acl_gid):
+    for pathInDatalake in pathsOfStudies:
+        # pathInDatalake example: blancagomez/01_Neuroblastoma_4_Neuroblastoma/TCPEDITRICOABDOMINOPLVICO20150129/
+        linkDestination = os.path.join(datalake_dir_path, pathInDatalake)
+        # ACL to the destination study directory (not the symbolic link)
+        ok = delete_acl_group(str(acl_gid), linkDestination, recursive=False) 
+        if not ok: 
+            logging.root.error("Error in delete acl to: " + linkDestination)
+            raise DatasetException("Error in delete acl.")
 
 def invalidate_dataset(datasets_dir_path, dataset_dir_name):
     '''

@@ -41,6 +41,9 @@ class User:
     def canCreateDatasets(self):
         return self.token != None and User.roles.admin_datasets in self.token["appRoles"]
 
+    def canDeleteDatasets(self):
+        return self.token != None and User.roles.superadmin_datasets in self.token["appRoles"]
+
     class Access_type(Enum):
         VIEW_DETAILS = 1
         USE = 2
@@ -64,9 +67,9 @@ class User:
                 editableProperties.append("draft")
                 editableProperties.append("name")
                 editableProperties.append("description")
-            else:
-                editableProperties.append("public")
-                editableProperties.append("pids")
+#           else:
+#               editableProperties.append("public")
+#               editableProperties.append("pids")
             editableProperties.append("invalidated")
             editableProperties.append("contactInfo")
             editableProperties.append("license")
