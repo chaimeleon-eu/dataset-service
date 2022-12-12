@@ -504,9 +504,13 @@ def postDataset():
                     json.dump(dataset["studies"], outputStream)
 
                 if CONFIG.tracer.url != '':
+                    studiesHashes = []
                     # Note this tracer call is inside of "with db" because if tracer fails the database changes will be reverted (transaction rollback).
                     tracer.traceDatasetCreation(CONFIG.tracer.auth_url, CONFIG.tracer.client_id, CONFIG.tracer.client_secret, CONFIG.tracer.url, 
-                                                datasetDirPath, CONFIG.self.index_file_name, CONFIG.self.eforms_file_name, dataset, userId)
+                                                datasetDirPath, CONFIG.self.index_file_name, CONFIG.self.eforms_file_name, 
+                                                dataset, userId, studiesHashes)
+                    for study, hash in zip(dataset["studies"], studiesHashes):
+                        db.setDatasetStudyHash(datasetId, study, hash)
                 
         LOG.debug('Dataset successfully created.')
         bottle.response.status = 201

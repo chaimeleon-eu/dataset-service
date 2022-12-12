@@ -65,11 +65,12 @@ def _getHashOfStudy(series, studyDirPath):
         sha.update(serieHash)
     return sha.digest()
 
-def _getHashOfDatasetImages(datasetDirPath, studies):
+def _getHashOfDatasetImages(datasetDirPath, studies, hashes = None ):
     sha = _createNewSHA()
     for study in studies:
         studyDirPath = os.path.join(datasetDirPath, study['path'])
         studyHash = _getHashOfStudy(study["series"], studyDirPath)
+        if hashes != None: hashes.append(_bytesToBase64String(studyHash))
         sha.update(studyHash)
     return sha.digest()
 
@@ -82,10 +83,14 @@ def getHashOfFile(filePath):
 def getHashOfSerie(serieDirPath):
     return _bytesToBase64String(_getHashOfSerie(serieDirPath))
 
-def getHashOfDatasetImages(datasetDirPath, studies):
-    return _bytesToBase64String(_getHashOfDatasetImages(datasetDirPath, studies))
+def getHashOfDatasetImages(datasetDirPath, studies, hashes = None):
+    return _bytesToBase64String(_getHashOfDatasetImages(datasetDirPath, studies, hashes))
 
-def getHashesOfDataset(datasetDirPath, indexFileName, eformsFileName, studies = None):
+def getHashesOfDataset(datasetDirPath, indexFileName, eformsFileName, studies = None, hashes = None):
+    '''
+    "studies" is an optional array (just for optimization), if it is None, the studies will be read from the index file.
+    "hashes" is an optional (empty) array that will be filled with the hashes of studies.
+    '''
     indexFilePath = os.path.join(datasetDirPath, indexFileName)
     eformsFilePath = os.path.join(datasetDirPath, eformsFileName)
     if studies is None:
@@ -97,7 +102,7 @@ def getHashesOfDataset(datasetDirPath, indexFileName, eformsFileName, studies = 
     else: 
         indexHash = getHashOfFile(indexFilePath)
 
-    imagesHash = getHashOfDatasetImages(datasetDirPath, studies)
+    imagesHash = getHashOfDatasetImages(datasetDirPath, studies, hashes)
     clinicalDataHash = getHashOfFile(eformsFilePath)
     return indexHash, imagesHash, clinicalDataHash
 

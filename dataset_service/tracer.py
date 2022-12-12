@@ -65,15 +65,10 @@ def getSupportedHashAlgorithms(authUrl, clientId, clientSecret, tracerUrl):
 #         if os.path.isdir(filePath): addFilesFromDirectoryAsResources(body, datasetDirPath, fileRelativePath)
 #         else:                       addFileAsResource(body, filePath, hash.getHashOfString(fileRelativePath))
 
-def getResources(datasetDirPath, indexFileName, eformsFileName, studies):
+def getResources(datasetDirPath, indexFileName, eformsFileName, studies, hashes = None):
     resources = []
-    # studiesListStr = ''
-    # for study in dataset["studies"]:
-    #     studiesListStr += study["studyId"] + ","
-    # resources['datasetList']['data'] = base64.b64encode(bytes(studiesListStr, 'utf-8')).decode('ascii')
-
     logging.root.debug('Calculating SHAs...')
-    indexHash, imagesHash, clinicalDataHash = hash.getHashesOfDataset(datasetDirPath, indexFileName, eformsFileName, studies)
+    indexHash, imagesHash, clinicalDataHash = hash.getHashesOfDataset(datasetDirPath, indexFileName, eformsFileName, studies, hashes)
     resources.append(
         dict(id = 'index',
              contentType = 'HASH',       # contentTypes: FILE_DATA, HTTP_FTP, HASH
@@ -104,7 +99,11 @@ def getResources(datasetDirPath, indexFileName, eformsFileName, studies):
     return resources
 
 
-def traceDatasetCreation(authUrl, clientId, clientSecret, tracerUrl, datasetDirPath, indexFileName, eformsFileName, dataset, userId):
+def traceDatasetCreation(authUrl, clientId, clientSecret, tracerUrl, datasetDirPath, indexFileName, eformsFileName, 
+                         dataset, userId, studiesHashes = None):
+    '''
+    "studiesHashes" is an optional array that will be filled with the hashes of studies
+    '''
     tracer = urllib.parse.urlparse(tracerUrl)
     if tracer.hostname is None: raise Exception('Wrong tracerUrl.')
     connection = http.client.HTTPSConnection(tracer.hostname, tracer.port)
@@ -115,7 +114,7 @@ def traceDatasetCreation(authUrl, clientId, clientSecret, tracerUrl, datasetDirP
         userId = userId, 
         userAction = 'CREATE_DATASET', 
         datasetId = dataset["id"],
-        resources = getResources(datasetDirPath, indexFileName, eformsFileName, dataset["studies"])
+        resources = getResources(datasetDirPath, indexFileName, eformsFileName, dataset["studies"], studiesHashes)
     )
 
     # if dataset["previousId"] != None:

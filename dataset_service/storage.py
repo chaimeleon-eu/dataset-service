@@ -31,7 +31,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 13
+    CURRENT_SCHEMA_VERSION = 14
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -55,6 +55,7 @@ class DB:
             if version < 11: self.updateDB_v10To11()
             if version < 12: self.updateDB_v11To12()
             if version < 13: self.updateDB_v12To13()
+            if version < 14: self.updateDB_v13To14()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -135,6 +136,7 @@ class DB:
                 dataset_id varchar(40),
                 study_id varchar(40),
                 series text NOT NULL DEFAULT '[]',
+                hash varchar(50) NOT NULL DEFAULT '',
                 constraint pk_dataset_study primary key (dataset_id, study_id),
                 constraint fk_dataset foreign key (dataset_id) references dataset(id),
                 constraint fk_study foreign key (study_id) references study(id)
@@ -255,6 +257,10 @@ class DB:
         logging.root.info("Updating database from v12 to v13...")
         self.cursor.execute("ALTER TABLE study RENAME COLUMN path TO path_in_datalake;")
 
+    def updateDB_v13To14(self):
+        logging.root.info("Updating database from v13 to v14...")
+        self.cursor.execute("ALTER TABLE dataset_study ADD COLUMN hash varchar(50) NOT NULL DEFAULT '';")
+
 
     def createOrUpdateAuthor(self, userId, username, name, email):
         self.cursor.execute("""
@@ -332,6 +338,11 @@ class DB:
             VALUES (%s,%s,%s);""",
             (datasetId, study["studyId"], json.dumps(study["series"])))
 
+    def setDatasetStudyHash(self, datasetId, studyId, hash):
+        self.cursor.execute("""
+            UPDATE dataset_study set hash=%s 
+            WHERE dataset_id = %s AND study_id = %s);""",
+            (hash, datasetId, studyId))
 
     def existDataset(self, id):
         """Note: invalidated datasets also exist.
