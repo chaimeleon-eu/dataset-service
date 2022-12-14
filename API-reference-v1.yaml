@@ -504,12 +504,6 @@ components:
           description: 'Subjects of studies and their clinical data.'
           items:
             $ref: '#/components/schemas/Subject'
-        serieTags:
-          type: array
-          description: '(Optional) Type of series considered in the dataset.'
-          example: '["T1W", "T2W"]'
-          items:
-            type: string
     
     DatasetDetails:
       type: object
@@ -675,6 +669,12 @@ components:
           example: '["CT"]'
           items:
             type: string
+        seriesTags:
+          type: array
+          description: "Array of different tags in series of the studies of the dataset."
+          example: '["Axial", "T2W"]'
+          items:
+            type: string
     Study:
       type: object
       properties:
@@ -699,10 +699,9 @@ components:
           example: "blancagomez/17B76FEW_Neuroblastoma/TCPEDITRICOABDOMINOPLVICOCONCONTRASTE20150129/"
         series:
           type: array
-          description: 'Directory names of series considered in the dataset. This is needed because new series can be added later.'
-          example: '["AXT1XL", "SAGITALT1FSE"]'
+          description: 'Series considered in the dataset. This is needed because new series can be added later in the datalake for this study but the dataset can not change.'
           items:
-            type: string
+            $ref: '#/components/schemas/Series'
         url:
           type: string
           maxLength: 256
@@ -710,16 +709,33 @@ components:
           description: "link to the study in the case explorer web portal" 
           example: 'https://www.quibim.com/studies?id=5e5629835938d12160636353'
           
+    Series:
+      type: object
+      properties:
+        folderName:
+          type: string
+          description: 'Directory name of the series'
+          example: "AXT1XL"
+        tags:
+          type: array
+          description: 'A list of tags assigned to the series'
+          example: '["Axial", "T2W"]'
+          items:
+            type: string
     Subject:
       type: object
       properties:
         subjectName:
           type: string
           maxLength: 128
-          description: "the subject name, which is anonymized and unique"
+          description: "The subject name, which is anonymized and unique"
+        subjectId:
+          type: string
+          maxLength: 32
+          description: "The datalake explorer internal ID"
         eForm:
           type: object
-          description: "the clinical data of the subject"
+          description: "The clinical data of the subject"
       
     License:
       type: object

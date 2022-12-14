@@ -128,6 +128,7 @@ class DB:
                 sex varchar(16) NOT NULL DEFAULT '[]',
                 body_part text NOT NULL DEFAULT '[]',
                 modality text NOT NULL DEFAULT '[]',
+                series_tags text NOT NULL DEFAULT '[]',
                 constraint pk_dataset primary key (id),
                 constraint fk_author foreign key (author_id) references author(id)
             );
@@ -260,6 +261,7 @@ class DB:
     def updateDB_v13To14(self):
         logging.root.info("Updating database from v13 to v14...")
         self.cursor.execute("ALTER TABLE dataset_study ADD COLUMN hash varchar(50) NOT NULL DEFAULT '';")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN series_tags text NOT NULL DEFAULT '[]';")
 
 
     def createOrUpdateAuthor(self, userId, username, name, email):
@@ -313,14 +315,14 @@ class DB:
                                  creation_date, description, public,
                                  studies_count, subjects_count, 
                                  age_low, age_high, 
-                                 sex, body_part, modality)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s);""",
+                                 sex, body_part, modality, series_tags)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s);""",
             (dataset["id"], dataset["name"], dataset["previousId"], userId, 
              dataset["creationDate"], dataset["description"], dataset["public"], 
              dataset["studiesCount"], dataset["subjectsCount"], 
              dataset["ageLow"], dataset["ageHigh"], 
              json.dumps(dataset["sex"]), json.dumps(dataset["bodyPart"]), 
-             json.dumps(dataset["modality"])))
+             json.dumps(dataset["modality"]), json.dumps(dataset["seriesTags"])))
 
     def createOrUpdateStudy(self, study, datasetId):
         self.cursor.execute("""
@@ -341,7 +343,7 @@ class DB:
     def setDatasetStudyHash(self, datasetId, studyId, hash):
         self.cursor.execute("""
             UPDATE dataset_study set hash=%s 
-            WHERE dataset_id = %s AND study_id = %s);""",
+            WHERE dataset_id = %s AND study_id = %s;""",
             (hash, datasetId, studyId))
 
     def existDataset(self, id):
@@ -364,7 +366,7 @@ class DB:
                    dataset.draft, dataset.public, dataset.invalidated, 
                    dataset.studies_count, dataset.subjects_count, 
                    dataset.age_low, dataset.age_high, 
-                   dataset.sex, dataset.body_part, dataset.modality 
+                   dataset.sex, dataset.body_part, dataset.modality, dataset.series_tags 
             FROM dataset, author 
             WHERE dataset.id=%s AND author.id = dataset.author_id 
             LIMIT 1;""",
@@ -407,7 +409,8 @@ class DB:
                     draft = row[13], public = row[14], invalidated = row[15], 
                     studiesCount = row[16], subjectsCount = row[17], 
                     ageLow = ageLow, ageHigh = ageHigh, ageUnit = ageUnit, sex = sex, 
-                    bodyPart = json.loads(row[21]), modality = json.loads(row[22]))
+                    bodyPart = json.loads(row[21]), modality = json.loads(row[22]),
+                    seriesTags = json.loads(row[23]))
 
     def getStudiesFromDataset(self, datasetId, limit = 0, skip = 0):
         if limit == 0: limit = 'ALL'

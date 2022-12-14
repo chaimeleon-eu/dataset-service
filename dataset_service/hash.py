@@ -60,7 +60,7 @@ def _getHashOfSerie(serieDirPath):
 def _getHashOfStudy(series, studyDirPath):
     sha = _createNewSHA()
     for serie in series:
-        serieDirPath = os.path.join(studyDirPath, serie)
+        serieDirPath = os.path.join(studyDirPath, serie["folderName"])
         serieHash = _getHashOfSerie(serieDirPath)
         sha.update(serieHash)
     return sha.digest()

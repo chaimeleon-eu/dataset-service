@@ -30,11 +30,25 @@
         "examples": ["17B76FEW/TCPEDITRICOABDOMINOPLVICO20150129"]
       },
       "series": {
-        "description": "A list of the directory names of series selected in this study for the dataset. The directory of a serie contains the DICOM files. It important for the reproducibility of experiments that you only walk through the series listed here, because there can be other series not selected for this dataset. The path of a serie is the concatenation of the study path with the serie dir name.",
+        "description": "A list of the series selected in this study for the dataset. It is important for the reproducibility of experiments that you only walk through the series listed here, because there can be other series not selected for this dataset. The path of a serie is the concatenation of the study path with the series dir name.",
         "type": "array",
         "items": {
-          "type": "string",
-          "examples": ["AXT1XL", "SAGITALT1FSE"]
+          "type": "object",
+          "properties": {
+            "folderName": {
+              "description": "Directory name of the series. The path of a series is the concatenation of the study path with this directory name. This directory contains the DICOM files.",
+              "type": "string",
+              "examples": "AXT1XL"
+            },
+            "tags": {
+              "description": "A list of tags assigned to the series.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "examples": ["Axial", "T2W"]
+              } 
+            }
+          }
         }
       },
       "url": {

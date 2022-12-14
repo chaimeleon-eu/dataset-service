@@ -292,7 +292,7 @@ def completeDatasetFromCSV(dataset, csvdata):
                     series = []
                     for serieDirName in os.listdir(os.path.join(CONFIG.self.datalake_mount_path, studyDirPath)):
                         seriePath = os.path.join(CONFIG.self.datalake_mount_path, studyDirPath, serieDirName)
-                        if os.path.isdir(seriePath):  series.append(serieDirName)
+                        if os.path.isdir(seriePath):  series.append({'folderName': serieDirName, 'tags': []})
 
                     dataset["studies"].append({
                         'studyId': str(uuid.uuid4()),
@@ -333,17 +333,18 @@ def collectMetadata(dataset):
     sexList = set()
     bodyPartList = set()
     modalityList = set()
+    seriesTagsList = set()
     for study in dataset["studies"]:
         studiesCount += 1
         if not study["subjectName"] in differentSubjects: 
             differentSubjects.add(study["subjectName"])
         if CONFIG.self.datalake_mount_path != '':
-            seriePathInDatalake = os.path.join(CONFIG.self.datalake_mount_path, study['pathInDatalake'], study['series'][0])
+            seriePathInDatalake = os.path.join(CONFIG.self.datalake_mount_path, study['pathInDatalake'], study['series'][0]['folderName'])
             age, sex, bodyPart, modality = getMetadataFromFirstDicomFile(seriePathInDatalake)
             if (age is None or sex is None or bodyPart is None or modality is None):
                 # sometimes first serie is special, try with the second if exists
                 if len(study['series']) > 1:
-                    seriePathInDatalake = os.path.join(CONFIG.self.datalake_mount_path, study['pathInDatalake'], study['series'][1])
+                    seriePathInDatalake = os.path.join(CONFIG.self.datalake_mount_path, study['pathInDatalake'], study['series'][1]['folderName'])
                     age, sex, bodyPart, modality = getMetadataFromFirstDicomFile(seriePathInDatalake)
             if age != None:
                 minAge = min(minAge, age, key=lambda x: dicom.getAgeInDays(x))
@@ -351,6 +352,8 @@ def collectMetadata(dataset):
             if sex != None: sexList.add(sex)
             if bodyPart != None: bodyPartList.add(bodyPart) 
             if modality != None: modalityList.add(modality)
+        for series in study["series"]:
+            seriesTagsList.update(series["tags"])
             
     dataset["studiesCount"] = studiesCount
     dataset["subjectsCount"] = len(differentSubjects)
@@ -359,6 +362,7 @@ def collectMetadata(dataset):
     dataset["sex"] = list(sexList)
     dataset["bodyPart"] = list(bodyPartList)
     dataset["modality"] = list(modalityList)
+    dataset["seriesTags"] = list(seriesTagsList)
     LOG.debug("  -studiesCount: %s" % dataset["studiesCount"])
     LOG.debug("  -subjectsCount: %s" % dataset["subjectsCount"])
     LOG.debug("  -ageLow: %s" % dataset["ageLow"])
@@ -366,6 +370,7 @@ def collectMetadata(dataset):
     LOG.debug("  -sex: %s" % dataset["sex"])
     LOG.debug("  -bodyPart: %s" % dataset["bodyPart"])
     LOG.debug("  -modality: %s" % dataset["modality"])
+    LOG.debug("  -seriesTags: %s" % dataset["seriesTags"])
     
 
 def collectMetadata2(dataset):
@@ -443,16 +448,30 @@ def postDataset():
             if not isinstance(dataset, dict): raise WrongInputException("The body must be a json object.")
             if not 'studies' in dataset.keys() or not isinstance(dataset["studies"], list): 
                 raise WrongInputException("'studies' property is required and must be an array.")
+            if not 'subjects' in dataset.keys() or not isinstance(dataset["subjects"], list): 
+                raise WrongInputException("'subjects' property is required and must be an array.")
             
             # Security check: review all data sent by the user which is involved in path constructions
             if CONFIG.self.datalake_mount_path != '':
                 for study in dataset["studies"]:
                     checkPath(CONFIG.self.datalake_mount_path, study['pathInDatalake'])
                     for serie in study["series"]:
-                        checkPath(CONFIG.self.datalake_mount_path, os.path.join(study['pathInDatalake'], serie))
+                        checkPath(CONFIG.self.datalake_mount_path, os.path.join(study['pathInDatalake'], serie["folderName"]))
             if CONFIG.self.datasets_mount_path != '':
                 for study in dataset["studies"]:
                     checkPath(CONFIG.self.datasets_mount_path, os.path.join(datasetId, study['subjectName']))
+
+            # Integrity checks
+            subjects = set()
+            for subject in dataset["subjects"]:
+                if subject["subjectName"] in subjects: 
+                    raise WrongInputException("The subjectName '%s' is duplicated in 'subjects' array of "
+                                             +"the dataset." % subject["subjectName"])
+                subjects.add(subject["subjectName"])
+            for study in dataset["studies"]:
+                if not study["subjectName"] in subjects:
+                    raise WrongInputException("The study with id '%s' has a 'subjectName' which is not in the "
+                                             +"'subjects' array of the dataset." % study["studyId"])
 
         with DB(CONFIG.db) as db:
             LOG.debug("Updating author: %s, %s, %s, %s" % (userId, userUsername, userName, userEmail))
@@ -510,7 +529,7 @@ def postDataset():
                                                 datasetDirPath, CONFIG.self.index_file_name, CONFIG.self.eforms_file_name, 
                                                 dataset, userId, studiesHashes)
                     for study, hash in zip(dataset["studies"], studiesHashes):
-                        db.setDatasetStudyHash(datasetId, study, hash)
+                        db.setDatasetStudyHash(datasetId, study["studyId"], hash)
                 
         LOG.debug('Dataset successfully created.')
         bottle.response.status = 201
