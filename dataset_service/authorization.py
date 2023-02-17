@@ -81,30 +81,6 @@ class User:
         if User.roles.superadmin_datasets in self.token["appRoles"]: return True
         return self.token["sub"] == dataset["authorId"]
 
-    class Search_filter():
-        def __init__(self, draft, public, invalidated):
-            self.draft = draft
-            self.public = public
-            self.invalidated = invalidated
-            self.userIdForInvalidatedAndDraft = None
-
-    def adjustSearchFilterByUser(self, search_filter):
-        if self.token is None or not User.roles.access_all_datasets in self.token["appRoles"]:
-            search_filter.public = True
-            search_filter.invalidated = False
-            search_filter.draft = False
-            return search_filter
-
-        if not User.roles.admin_datasets in self.token["appRoles"]:
-            search_filter.invalidated = False
-            search_filter.draft = False
-            return search_filter
-
-        if not User.roles.superadmin_datasets in self.token["appRoles"]:
-            search_filter.userIdForInvalidatedAndDraft = self.token["sub"]
-
-        return search_filter
-
     def userCanAdminUsers(self):
         return self.token != None and self.roles.admin_users in self.token["appRoles"]
 
@@ -124,4 +100,30 @@ class User:
         
         return "data-scientists" in userGroups
 
+
+class Search_filter():
+        def __init__(self, draft, public, invalidated, modificable):
+            self.draft = draft
+            self.public = public
+            self.invalidated = invalidated
+            self._userId = None   # for filter invalidated and draft datasets,
+                                  # if normal user only the author can see them
+
+        def getUserId(self):
+            return self._userId
+
+        def adjustByUser(self, user: User):
+            if user.token is None or not User.roles.access_all_datasets in user.token["appRoles"]:
+                self.public = True
+                self.invalidated = False
+                self.draft = False
+                return
+
+            if not User.roles.admin_datasets in user.token["appRoles"]:
+                self.invalidated = False
+                self.draft = False
+                return
+
+            if not User.roles.superadmin_datasets in user.token["appRoles"]:
+                self._userId = user.token["sub"]
 

@@ -241,6 +241,12 @@ def getHello():
     bottle.response.content_type = "text/plain"
     return "Hello from Dataset Service"
 
+@app.route('/health', method='GET')
+def getAlive():
+    #LOG.debug("Received GET /health")   not fill the log with that
+    bottle.response.content_type = "text/plain"
+    return "ok"
+
 @app.route('/api/set-ui', method='POST')
 def postSetUI():
     if CONFIG is None: raise Exception()
@@ -729,15 +735,15 @@ def getDatasets():
     if not ok and details != None: return details  # return error
     user = authorization.User(details)
 
-    searchFilter = authorization.User.Search_filter(draft = None, public = None, invalidated = None)
+    searchFilter = authorization.Search_filter(draft = None, public = None, invalidated = None)
     if 'draft' in bottle.request.query:
         searchFilter.draft = bool(bottle.request.query['draft'])
     if 'public' in bottle.request.query:
         searchFilter.public = bool(bottle.request.query['public'])
     if 'invalidated' in bottle.request.query:
-        searchFilter.invalidated = bool(bottle.request.paqueryrams['invalidated'])
+        searchFilter.invalidated = bool(bottle.request.query['invalidated'])
     #authorId
-    searchFilter = user.adjustSearchFilterByUser(searchFilter)
+    searchFilter.adjustByUser(user)
 
     skip = int(bottle.request.query['skip']) if 'skip' in bottle.request.query else 0
     limit = int(bottle.request.query['limit']) if 'limit' in bottle.request.query else 30

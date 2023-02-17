@@ -446,7 +446,7 @@ class DB:
             res.append(row[1])
         return res
 
-    def getDatasets(self, skip, limit, searchString, searchFilter: authorization.User.Search_filter):
+    def getDatasets(self, skip, limit, searchString, searchFilter: authorization.Search_filter):
         whereClause = sql.Composed([])
 
         if searchFilter.public != None:
@@ -457,8 +457,8 @@ class DB:
         elif searchFilter.invalidated == True:
             whereClause += sql.SQL(" AND dataset.invalidated = true")
         else: # searchFilter.invalidated is None:
-            if searchFilter.userIdForInvalidatedAndDraft != None:
-                authorId = sql.Literal(str(searchFilter.userIdForInvalidatedAndDraft))
+            if searchFilter.getUserId() != None:
+                authorId = sql.Literal(str(searchFilter.getUserId()))
                 whereClause += sql.SQL(" AND ({} OR {})").format(
                     sql.SQL("(dataset.invalidated = true AND dataset.author_id = {})").format(authorId),
                     sql.SQL("dataset.invalidated = false")
@@ -469,16 +469,16 @@ class DB:
         elif searchFilter.draft == True:
             whereClause += sql.SQL(" AND dataset.draft = true")
         else: # searchFilter.draft is None:
-            if searchFilter.userIdForInvalidatedAndDraft != None:
-                authorId = sql.Literal(str(searchFilter.userIdForInvalidatedAndDraft))
+            if searchFilter.getUserId() != None:
+                authorId = sql.Literal(str(searchFilter.getUserId()))
                 whereClause += sql.SQL(" AND ({} OR {})").format(
                     sql.SQL("(dataset.draft = true AND dataset.author_id = {})").format(authorId),
                     sql.SQL("dataset.draft = false")
                 )
 
         if (searchFilter.draft == True or searchFilter.invalidated == True) \
-            and searchFilter.userIdForInvalidatedAndDraft != None:
-            authorId = sql.Literal(str(searchFilter.userIdForInvalidatedAndDraft))
+            and searchFilter.getUserId() != None:
+            authorId = sql.Literal(str(searchFilter.getUserId()))
             whereClause += sql.SQL(" AND dataset.author_id = ") + authorId
 
         if searchString != '': 
