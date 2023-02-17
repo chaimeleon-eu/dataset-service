@@ -353,13 +353,19 @@ python .\start_dataset_service.py .\etc\dataset-service-local.yaml
 
 ## Configuration
 
+Configuration values especification: see `etc/dataset-service.default.yaml`
+
 First of all, **default configuration values** will be loaded from a file located in (the first that exists):
  - `./etc/dataset-service.default.yaml`
  - `/etc/dataset-service/dataset-service.default.yaml`
 
-You should change at least the password values... Please **do not modify the default config file** for that, 
+You should change at least the password values... but please **do not modify the default config file** for that, 
 it is useful as a template to always see the full configuration keys available with descriptive comments. 
-To set your own configuration you should make a copy of the file or better just write only the keys you want to change to a new file.
+To set your own configuration you should make a copy of the file:
+```
+cp dataset-service.default.yaml dataset-service.yaml 
+```
+Then adjust the values of keys you want to change and next you can delete all the others (the default values will be taken).
 
 The **configuration file** will be loaded from path (the first that exists):
  - `./etc/dataset-service.yaml`

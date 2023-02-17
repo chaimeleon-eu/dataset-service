@@ -25,6 +25,8 @@ auth:   # These are the parameters for the validation of auth tokens received.
     admin_datasetAccess: "admin_datasetAccess"
 
 tracer:
+  # The url of the tracer service for notifying dataset events. 
+  # You can set it to empty to disable the notification to tracer.
   url: "https://chaimeleon-eu.i3m.upv.es/tracer-service/tracer/"
   # The url of authentication service for accessing to tracer service.
   auth_url: "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token"

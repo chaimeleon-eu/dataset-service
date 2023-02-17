@@ -117,7 +117,7 @@ class DB:
                 license_url varchar(256) NOT NULL DEFAULT '',
                 pid_url varchar(256) DEFAULT NULL,
                 zenodo_doi varchar(128) DEFAULT NULL,
-                contact_info varchar(256) DEFAULT NULL
+                contact_info varchar(256) DEFAULT NULL,
                 draft boolean NOT NULL DEFAULT true,
                 public boolean NOT NULL DEFAULT false,
                 invalidated boolean NOT NULL DEFAULT false,
