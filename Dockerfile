@@ -25,6 +25,7 @@ COPY ./etc/dataset-service.default.yaml ${MAIN_DIR}/etc/
 WORKDIR ${MAIN_DIR}
 RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir -r requirements.txt 
 
-CMD python3 start_dataset_service.py 
+#CMD python3 start_dataset_service.py && tail -f /dataset-service/log/dataset-service.log
+CMD python3 start_dataset_service.py
 
 EXPOSE 11000

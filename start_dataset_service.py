@@ -92,9 +92,9 @@ def config_logger(CONFIG):
     if not os.path.isdir(log_dir):
         os.makedirs(log_dir)
 
-    fileh = logging.handlers.RotatingFileHandler(filename=CONFIG.self.log.file, maxBytes=CONFIG.self.log.file_max_size, backupCount=3)
+    file_handler = logging.handlers.RotatingFileHandler(filename=CONFIG.self.log.file, maxBytes=CONFIG.self.log.file_max_size, backupCount=3)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    fileh.setFormatter(formatter)
+    file_handler.setFormatter(formatter)
 
     if CONFIG.self.log.level == "DEBUG":
         log_level = logging.DEBUG
@@ -116,7 +116,7 @@ def config_logger(CONFIG):
     log = logging.root
     log.setLevel(log_level)
     log.propagate = False
-    log.addHandler(fileh)
+    log.addHandler(file_handler)
 
     # Add the filter to add extra fields
     try:
@@ -128,6 +128,11 @@ def config_logger(CONFIG):
         print(ex)
 
     print("Log file is being written in: " + CONFIG.self.log.file)
+
+    stdout_handler = logging.StreamHandler(sys.stdout)
+    stdout_handler.setFormatter(formatter)
+    log.addHandler(stdout_handler)
+    print("Log file is also being written in the standard output.")
 
 def start_daemon(CONFIG):
     global THREAD
