@@ -31,6 +31,9 @@ class User:
             cls._appendIfNotExists(token["appRoles"], User.roles.admin_datasets)
         return True, None
 
+    def getUserName(self): 
+        if self.token is None: return "Unregistered"
+        else: return self.token["preferred_username"]
 
     def isUnregistered(self):
         return self.token is None
@@ -102,28 +105,38 @@ class User:
 
 
 class Search_filter():
-        def __init__(self, draft, public, invalidated, modificable):
-            self.draft = draft
-            self.public = public
-            self.invalidated = invalidated
-            self._userId = None   # for filter invalidated and draft datasets,
-                                  # if normal user only the author can see them
+    def __init__(self, draft, public, invalidated):
+        self.draft = draft
+        self.public = public
+        self.invalidated = invalidated
+        self._userId = None   # for filter invalidated and draft datasets,
+                                # if normal user only the author can see them
 
-        def getUserId(self):
-            return self._userId
+    def getUserId(self):
+        return self._userId
 
-        def adjustByUser(self, user: User):
-            if user.token is None or not User.roles.access_all_datasets in user.token["appRoles"]:
-                self.public = True
-                self.invalidated = False
-                self.draft = False
-                return
+    def adjustByUser(self, user: User):
+        if user.token is None or not User.roles.access_all_datasets in user.token["appRoles"]:
+            self.public = True
+            self.invalidated = False
+            self.draft = False
+            return
 
-            if not User.roles.admin_datasets in user.token["appRoles"]:
-                self.invalidated = False
-                self.draft = False
-                return
+        if not User.roles.admin_datasets in user.token["appRoles"]:
+            self.invalidated = False
+            self.draft = False
+            return
 
-            if not User.roles.superadmin_datasets in user.token["appRoles"]:
-                self._userId = user.token["sub"]
+        if not User.roles.superadmin_datasets in user.token["appRoles"]:
+            self._userId = user.token["sub"]
 
+class Upgradables_filter():
+    def __init__(self):
+        self._userId = None
+
+    def getUserId(self):
+        return self._userId
+        
+    def adjustByUser(self, user: User):
+        if not User.roles.superadmin_datasets in user.token["appRoles"]:
+            self._userId = user.token["sub"]

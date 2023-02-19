@@ -225,6 +225,37 @@ paths:
         '404':
           description: "not found"
           
+  /upgradableDatasets:
+    get:
+      tags:
+        - datasets
+      summary: list datasets that can be upgraded by the user
+      operationId: listUpgradableDatasets
+      description: |
+        Lists all datasets that can be upgraded by the authenticated user. 
+        Upgrade a dataset means create another dataset that improves or correct this one and thus the previousId property of the new one will be filled with the id of this one.
+      responses:
+        '200':
+          description: "list successfully retrieved"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      format: uuid
+                      example: "00e821c4-e92b-48f7-a034-ba2df547e2bf"
+                    name:
+                      type: string
+                      description: "Short descriptive name."
+                      example: "Lung cancer v3"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      
+  
   /users/{userName}:
     put:
       tags:
@@ -453,11 +484,11 @@ components:
         name:
           type: string
           description: "Short descriptive name."
-          example: Lung cancer v3
+          example: "Lung cancer v3"
         authorName:
           type: string
           description: "The name of the user wich created the dataset."
-          example: James Gordon
+          example: "James Gordon"
         creationDate:
           type: string
           format: date-time
@@ -486,7 +517,7 @@ components:
           minLength: 3
           maxLength: 128
           description: "Short descriptive name."
-          example: Lung cancer v3
+          example: "Lung cancer v3"
         previousId:
           type: string
           format: uuid

@@ -486,6 +486,9 @@ def postDataset():
             if 'previousId' in dataset.keys():
                 if not db.existDataset(dataset["previousId"]):
                     return setErrorResponse(400,"dataset.previousId does not exist")
+                if not user.canModifyDataset(db.getDataset(dataset["previousId"])):
+                    return setErrorResponse(401,"the dataset selected as previous (%s) "
+                                               +"must be editable by the user (%s)" % (dataset["previousId"], user.getUserName()))
             else:
                 dataset["previousId"] = None
 
@@ -766,6 +769,26 @@ def getDatasets():
         # transitional param while clients change to the new reponse type
         return json.dumps(response["list"])
     return json.dumps(response)
+
+@app.route('/api/upgradableDatasets', method='GET')
+def getUpgradableDatasets():
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received GET /upgradableDatasets")
+    ok, details = checkAuthorizationHeader()
+    if not ok and details != None: return details  # return error
+    user = authorization.User(details)
+    if not user.canCreateDatasets():
+        return setErrorResponse(401,"unauthorized user")
+
+    searchFilter = authorization.Upgradables_filter()
+    searchFilter.adjustByUser(user)
+
+    with DB(CONFIG.db) as db:
+        datasets = db.getUpgradableDatasets(searchFilter)
+        
+    bottle.response.content_type = "application/json"
+    return json.dumps(datasets)
+
 
 @app.route('/api/datasets/<id>', method='DELETE')
 def deleteDataset(id):

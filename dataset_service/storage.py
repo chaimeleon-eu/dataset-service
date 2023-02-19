@@ -507,7 +507,22 @@ class DB:
                             draft = row[4], public = row[5], invalidated = row[6],
                             studiesCount = row[7], subjectsCount = row[8]))
         return res, total
-        
+    
+    def getUpgradableDatasets(self, filter: authorization.Upgradables_filter):
+        whereClause = sql.SQL("")
+        if filter.getUserId() != None:
+            authorId = sql.Literal(str(filter.getUserId()))
+            whereClause = sql.SQL(" AND dataset.author_id = ") + authorId
+        self.cursor.execute(sql.SQL("""
+            SELECT dataset.id, dataset.name
+            FROM dataset
+            WHERE dataset.draft = false {}
+            ORDER BY name;""").format(whereClause))
+        res = []
+        for row in self.cursor:
+            res.append(dict(id = row[0], name = row[1]))
+        return res
+
     def deleteDataset(self, datasetId):
         self.cursor.execute("DELETE FROM dataset_study WHERE dataset_id=%s;", (datasetId,))
         self.cursor.execute("DELETE FROM dataset WHERE id=%s;", (datasetId,))
