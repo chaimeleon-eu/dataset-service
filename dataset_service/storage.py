@@ -572,6 +572,9 @@ class DB:
     def setDatasetDescription(self, id, newValue):
         self.cursor.execute("UPDATE dataset SET description = %s WHERE id = %s;", (newValue, id))
 
+    def setDatasetPreviousId(self, id, newValue):
+        self.cursor.execute("UPDATE dataset SET previous_id = %s WHERE id = %s;", (newValue, id))
+
     def setDatasetLicense(self, id, newTitle, newUrl):
         self.cursor.execute("UPDATE dataset SET license_title = %s, license_url = %s WHERE id = %s;", 
                             (newTitle, newUrl, id))

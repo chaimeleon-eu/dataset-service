@@ -70,6 +70,7 @@ class User:
                 editableProperties.append("draft")
                 editableProperties.append("name")
                 editableProperties.append("description")
+                editableProperties.append("previousId")
 #           else:
 #               editableProperties.append("public")
 #               editableProperties.append("pids")
@@ -136,7 +137,7 @@ class Upgradables_filter():
 
     def getUserId(self):
         return self._userId
-        
+
     def adjustByUser(self, user: User):
         if not User.roles.superadmin_datasets in user.token["appRoles"]:
             self._userId = user.token["sub"]

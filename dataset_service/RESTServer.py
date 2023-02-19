@@ -484,11 +484,12 @@ def postDataset():
             db.createOrUpdateAuthor(userId, userUsername, userName, userEmail)
 
             if 'previousId' in dataset.keys():
-                if not db.existDataset(dataset["previousId"]):
+                previousDataset = db.getDataset(dataset["previousId"])
+                if previousDataset is None:
                     return setErrorResponse(400,"dataset.previousId does not exist")
-                if not user.canModifyDataset(db.getDataset(dataset["previousId"])):
+                if not user.canModifyDataset(previousDataset):
                     return setErrorResponse(401,"the dataset selected as previous (%s) "
-                                               +"must be editable by the user (%s)" % (dataset["previousId"], user.getUserName()))
+                                               +"must be editable by the user (%s)" % (previousDataset["id"], user.getUserName()))
             else:
                 dataset["previousId"] = None
 
@@ -694,8 +695,20 @@ def patchDataset(id):
             trace_details = "INVALIDATE" if bool(newValue) else "REACTIVATE"
         elif property == "name":
             db.setDatasetName(datasetId, str(newValue))
+            # Don't notify the tracer, this property can be changed only in draft state
         elif property == "description":
             db.setDatasetDescription(datasetId, str(newValue))
+            # Don't notify the tracer, this property can be changed only in draft state
+        elif property == "previousId":
+            if newValue != None:
+                previousDataset = db.getDataset(str(newValue))
+                if previousDataset is None:
+                    return setErrorResponse(400,"invalid value, the dataset id does not exist")
+                if not user.canModifyDataset(previousDataset):
+                    return setErrorResponse(401,"the dataset selected as previous (%s) "
+                                                +"must be editable by the user (%s)" % (previousDataset["id"], user.getUserName()))
+            db.setDatasetPreviousId(datasetId, newValue)  # newValue can be None or str
+            # Don't notify the tracer, this property can be changed only in draft state
         elif property == "license":
             newTitle = str(newValue["title"])
             newUrl = str(newValue["url"])
