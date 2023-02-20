@@ -197,6 +197,7 @@ def validate_token(token):
     return decodedToken
 
 def setErrorResponse(code, message):
+    LOG.debug("Sending error code %d, with message: %s" % (code, message))
     bottle.response.status = code
     bottle.response.content_type = "application/json"
     return json.dumps(dict(error = message, status_code = code))
@@ -673,6 +674,17 @@ def patchDataset(id):
             return setErrorResponse(400,"the property is not in the editablePropertiesByTheUser list")
 
         if property == "draft":
+            if bool(newValue) == False and dataset["previousId"] != None:
+                # Set in the previous dataset the reference to this one
+                # This way, the UI can show a notice in the previous dataset that there is a new version, with a link to this one
+                previousDataset = db.getDataset(dataset["previousId"])
+                if previousDataset is None: raise Exception()
+                if previousDataset["nextId"] != None:
+                    return setErrorResponse(400,"The previousId (%s) is not valid, " % dataset["previousId"]
+                                               +"it references to an old dataset which already has a new version (%s). " % previousDataset["nextId"]
+                                               +"You may want to set the previousId to that new version (\"rebase\" your dataset), "
+                                               +"or you can simply set to null (and put some link to the base dataset in the description).")
+                db.setDatasetNextId(previousDataset["id"], datasetId)
             db.setDatasetDraft(datasetId, bool(newValue))
             if bool(newValue) == False:
                 trace_details = "RELEASE"

@@ -31,7 +31,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 14
+    CURRENT_SCHEMA_VERSION = 15
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -56,6 +56,7 @@ class DB:
             if version < 12: self.updateDB_v11To12()
             if version < 13: self.updateDB_v12To13()
             if version < 14: self.updateDB_v13To14()
+            if version < 15: self.updateDB_v14To15()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -109,7 +110,8 @@ class DB:
             CREATE TABLE dataset (
                 id varchar(40),
                 name varchar(256) NOT NULL,
-                previous_id varchar(32) DEFAULT NULL,
+                previous_id varchar(40) DEFAULT NULL,
+                next_id varchar(40) DEFAULT NULL,
                 author_id varchar(64) NOT NULL,
                 creation_date timestamp NOT NULL,
                 description text NOT NULL DEFAULT '',
@@ -263,6 +265,11 @@ class DB:
         self.cursor.execute("ALTER TABLE dataset_study ADD COLUMN hash varchar(50) NOT NULL DEFAULT '';")
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN series_tags text NOT NULL DEFAULT '[]';")
 
+    def updateDB_v14To15(self):
+        logging.root.info("Updating database from v14 to v15...")
+        self.cursor.execute("ALTER TABLE dataset ALTER COLUMN previous_id TYPE varchar(40);")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN next_id varchar(40) DEFAULT NULL;")
+
 
     def createOrUpdateAuthor(self, userId, username, name, email):
         self.cursor.execute("""
@@ -366,7 +373,8 @@ class DB:
                    dataset.draft, dataset.public, dataset.invalidated, 
                    dataset.studies_count, dataset.subjects_count, 
                    dataset.age_low, dataset.age_high, 
-                   dataset.sex, dataset.body_part, dataset.modality, dataset.series_tags 
+                   dataset.sex, dataset.body_part, dataset.modality, dataset.series_tags, 
+                   dataset.next_id
             FROM dataset, author 
             WHERE dataset.id=%s AND author.id = dataset.author_id 
             LIMIT 1;""",
@@ -394,7 +402,8 @@ class DB:
             prefPid = "custom"
             customPidUrl = row[10]
         
-        return dict(id = row[0], name = row[1], previousId = row[2], 
+        return dict(id = row[0], name = row[1], 
+                    previousId = row[2], nextId = row[24], 
                     authorId = row[3], authorName = row[4], authorEmail = row[5], 
                     creationDate = str(row[6]), description = row[7], 
                     license = dict(
@@ -512,11 +521,11 @@ class DB:
         whereClause = sql.SQL("")
         if filter.getUserId() != None:
             authorId = sql.Literal(str(filter.getUserId()))
-            whereClause = sql.SQL(" AND dataset.author_id = ") + authorId
+            whereClause = sql.SQL(" AND author_id = ") + authorId
         self.cursor.execute(sql.SQL("""
-            SELECT dataset.id, dataset.name
+            SELECT id, name
             FROM dataset
-            WHERE dataset.draft = false {}
+            WHERE draft = false AND next_id is NULL {}
             ORDER BY name;""").format(whereClause))
         res = []
         for row in self.cursor:
@@ -574,6 +583,9 @@ class DB:
 
     def setDatasetPreviousId(self, id, newValue):
         self.cursor.execute("UPDATE dataset SET previous_id = %s WHERE id = %s;", (newValue, id))
+
+    def setDatasetNextId(self, id, newValue):
+        self.cursor.execute("UPDATE dataset SET next_id = %s WHERE id = %s;", (newValue, id))
 
     def setDatasetLicense(self, id, newTitle, newUrl):
         self.cursor.execute("UPDATE dataset SET license_title = %s, license_url = %s WHERE id = %s;", 

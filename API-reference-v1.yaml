@@ -209,6 +209,7 @@ paths:
                    - "invalidated"
                    - "name"
                    - "description"
+                   - "previousId"
                    - "license"
                    - "pids"
                    - "contactInfo"
@@ -554,6 +555,14 @@ components:
           format: uuid
           description: "Specified when this is a new version of a previous dataset. Otherwise null."
           example: "efa2cba6-4a17-4612-8074-7e9eb9c9d7ca"
+        nextId:
+          type: string
+          format: uuid
+          description: |
+            Specified when there is another dataset which is a new version of this one. Otherwise null.
+            It is automatically set when the new version is released (i.e. "draft" flag changed to false).
+            The new version is a dataset that have previousId referencing this one. Actually there can be more than one new versions in draft state, but only one can be released.
+          example: "4bda04db-8b73-4a65-b1bb-d2011769a91a"
         authorId:
           type: string
           description: "The unique id of the user wich created the dataset, it is not for showing but it can be useful to a possible new feature to show all datasets from an author."
