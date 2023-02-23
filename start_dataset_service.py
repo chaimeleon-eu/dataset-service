@@ -159,8 +159,10 @@ def signal_int_handler(signal, frame):
 
 
 if __name__ == "__main__":
-    signal.signal(signal.SIGINT, signal_int_handler)
-
+    # capture signals for graceful termination
+    signal.signal(signal.SIGINT, signal_int_handler)   # The signal sent by ctrl-c in shell (when the python process is in foreground).
+    signal.signal(signal.SIGTERM, signal_int_handler)  # The signal sent by command 'kill' (the default, i.e. no specifying the signal parameter)
+                                                       #             and by kubernetes 30 sec before SIGKILL and force the container deletion.
     CONFIG = load_config()
     config_logger(CONFIG)
     start_daemon(CONFIG)
