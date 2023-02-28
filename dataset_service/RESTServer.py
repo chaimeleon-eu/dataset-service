@@ -28,13 +28,13 @@ from dataset_service import authorization
 #LOG = logging.getLogger('kube-authorizer')
 LOG = logging.root
 
-# The block code below is just to translate the body of error responses to JSON format
+# The code below is just to translate the body of error responses to JSON format
 class MyBottle(bottle.Bottle):
     def default_error_handler(self, res):
         bottle.response.content_type = 'application/json'
         return json.dumps(dict(error = res.body, status_code = res.status_code))
 
-# The block code below is just to send the exception trace to the log
+# The code below is just to send the exception trace to the log
 def exception_catch(func):
     def wrapper(*args,**kwargs):
         try:
@@ -170,6 +170,9 @@ def run(host, port, config):
         
     thisRESTServer = RESTServer(host=host, port=port)
     LOG.info("Running the service in %s:%s..." % (host, port))
+    bottle.BaseRequest.MEMFILE_MAX = 1024 * 1024   # In bytes, default 102400
+                                                   # We have to increase to avoid error "413: request entity too large" 
+                                                   # when creating dataset.
     bottle.run(app, server=thisRESTServer, quiet=True)
 
 def stop():
@@ -472,13 +475,13 @@ def postDataset():
             subjects = set()
             for subject in dataset["subjects"]:
                 if subject["subjectName"] in subjects: 
-                    raise WrongInputException("The subjectName '%s' is duplicated in 'subjects' array of "
-                                             +"the dataset." % subject["subjectName"])
+                    raise WrongInputException("The subjectName '%s' is duplicated in 'subjects' array of " % subject["subjectName"]
+                                             +"the dataset." )
                 subjects.add(subject["subjectName"])
             for study in dataset["studies"]:
                 if not study["subjectName"] in subjects:
-                    raise WrongInputException("The study with id '%s' has a 'subjectName' which is not in the "
-                                             +"'subjects' array of the dataset." % study["studyId"])
+                    raise WrongInputException("The study with id '%s' has a 'subjectName' which is not in the " % study["studyId"]
+                                             +"'subjects' array of the dataset." )
 
         with DB(CONFIG.db) as db:
             LOG.debug("Updating author: %s, %s, %s, %s" % (userId, userUsername, userName, userEmail))
