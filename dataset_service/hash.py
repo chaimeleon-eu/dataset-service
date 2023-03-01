@@ -2,6 +2,7 @@ import os
 import base64
 import hashlib
 import json
+import logging
 
 def _createNewSHA():
     return hashlib.sha3_256()
@@ -23,7 +24,7 @@ def _updateSHAWithDirectoryContents(sha, dirPath):
     filesList.sort()
     for name in filesList:
         filePath = os.path.join(dirPath, name)
-        if os.path.isdir(filePath): _updateSHAWithDirectoryContents(sha, dirPath)
+        if os.path.isdir(filePath): _updateSHAWithDirectoryContents(sha, filePath)
         else:                       _updateSHAWithFile(sha, filePath)
 
 def _bytesToBase64String(b: bytes) -> str:
@@ -67,8 +68,12 @@ def _getHashOfStudy(series, studyDirPath):
 
 def _getHashOfDatasetImages(datasetDirPath, studies, hashes = None ):
     sha = _createNewSHA()
+    total = len(studies)
+    count = 0
     for study in studies:
+        count += 1
         studyDirPath = os.path.join(datasetDirPath, study['path'])
+        logging.root.debug('Calculating SHA of study (%d/%d) [%s] ...' % (count, total, studyDirPath))
         studyHash = _getHashOfStudy(study["series"], studyDirPath)
         if hashes != None: hashes.append(_bytesToBase64String(studyHash))
         sha.update(studyHash)

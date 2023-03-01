@@ -47,11 +47,15 @@ paths:
             application/json:
               schema:
                 type: object
-                example: '{"url": "/api/datasets/f99017af-9015-4222-b064-77f3c1b49d8b"}'
                 properties:
                   url:
                     type: string
-                    description: 'The URL where details of the new dataset can be obtained.'
+                    description: 'The URL to the dataset-explorer that you can show to the user as a link to the details of the new dataset.'
+                    example: 'https://chaimeleon-eu.i3m.upv.es/dataset-service/datasets/f99017af-9015-4222-b064-77f3c1b49d8b/details'
+                  apiUrl:
+                    type: string
+                    description: 'The URL to this API, where the details of the new dataset can be obtained.'
+                    example: '/api/datasets/f99017af-9015-4222-b064-77f3c1b49d8b'
         '400':
           description: 'invalid input, object invalid'
         '401':

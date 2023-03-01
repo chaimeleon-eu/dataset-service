@@ -40,7 +40,7 @@ def chown(path, uid=-1, gid=-1, recursive=True, follow_symlinks=False):
     
 def symlink(src, dst, target_is_directory=False, uid=-1, gid=-1):
     status = False
-    if not os.path.isfile(dst):
+    if not os.path.isfile(dst) and not os.path.islink(dst):
         if os.symlink(src, dst, target_is_directory)==None:
             status = True
             # Change ownership

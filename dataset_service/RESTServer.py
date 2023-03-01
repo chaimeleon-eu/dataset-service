@@ -453,7 +453,7 @@ def postDataset():
             #return  json.dumps(dataset)
         else:
             read_data = bottle.request.body.read().decode('UTF-8')
-            LOG.debug("BODY: " + read_data)
+            #LOG.debug("BODY: " + read_data)
             dataset = json.loads( read_data )
             if not isinstance(dataset, dict): raise WrongInputException("The body must be a json object.")
             if not 'studies' in dataset.keys() or not isinstance(dataset["studies"], list): 
@@ -548,7 +548,8 @@ def postDataset():
         LOG.debug('Dataset successfully created.')
         bottle.response.status = 201
         bottle.response.content_type = "application/json"
-        return json.dumps(dict(url = "/api/datasets/" + datasetId))
+        return json.dumps(dict(apiUrl = "/api/datasets/" + datasetId,
+                               url = CONFIG.self.dataset_link_format % datasetId))
 
     except (WrongInputException) as e:
         if datasetDirName != '': remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
@@ -637,7 +638,7 @@ def createZenodoDeposition(db, dataset):
         datasetId = dataset["id"]
         studies, total = db.getStudiesFromDataset(datasetId)
         newValue = pid.getZenodoDOI(CONFIG.zenodo.url, CONFIG.zenodo.access_token, dataset, studies, 
-                                    CONFIG.zenodo.dataset_link_format, CONFIG.zenodo.community, CONFIG.zenodo.grant)
+                                    CONFIG.self.dataset_link_format, CONFIG.zenodo.community, CONFIG.zenodo.grant)
         db.setZenodoDOI(datasetId, newValue)
 
 def updateZenodoDeposition(db, dataset):
@@ -647,7 +648,7 @@ def updateZenodoDeposition(db, dataset):
         i = pidUrl.rfind('.') + 1
         depositionId = pidUrl[i:]
         pid.updateZenodoDeposition(CONFIG.zenodo.url, CONFIG.zenodo.access_token, dataset, 
-                                   CONFIG.zenodo.dataset_link_format, CONFIG.zenodo.community, CONFIG.zenodo.grant, 
+                                   CONFIG.self.dataset_link_format, CONFIG.zenodo.community, CONFIG.zenodo.grant, 
                                    depositionId)
 
 @app.route('/api/datasets/<id>', method='PATCH')

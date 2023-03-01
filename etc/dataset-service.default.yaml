@@ -36,11 +36,10 @@ tracer:
   client_secret: "XXXXXXXXXXXXXXXXXXXXXXX"
 
 zenodo:
-  # The url of zenodo service to submit depositions.
+  # The url of Zenodo service to submit depositions.
   # Usually "https://sandbox.zenodo.org/" for testing, and "https://zenodo.org/" for production.
   url: "https://sandbox.zenodo.org/"
   access_token: "XXXXXXXXXXXXXXXXXXXXXXX"
-  dataset_link_format: "https://chaimeleon-eu.i3m.upv.es/dataset-service/datasets/%s/details"
   community: ""
   grant: ""
 
@@ -63,3 +62,7 @@ self:
   datasets_mount_path: "/mnt/datasets"
   eforms_file_name: "eforms.json"
   index_file_name: "index.json"
+  # Url format of public available details of a dataset (using the endpoint of the WebUI, the Dataset-explorer)
+  # It is used for the url returned in the dataset creation POST, 
+  # and also for the links incluided in the publication submited to Zenodo.
+  dataset_link_format: "https://chaimeleon-eu.i3m.upv.es/dataset-service/datasets/%s/details"
