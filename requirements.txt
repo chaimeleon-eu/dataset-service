@@ -1,7 +1,7 @@
 bottle==0.12.23      # REST-API framework
 cheroot==8.6.0      # HTTP service
 PyYAML==5.4.1
-# kubernetes==18.20.0
+kubernetes==26.1.0     # to launch jobs like dataset creation job
 psycopg2-binary==2.9.3         # postgres client
 pyjwt[crypto]==2.4.0      # to validate authentication tokens (crypto is needed to get RS256 algorithm)
 pydicom==2.2.2        # to collect metadata from dicom tags

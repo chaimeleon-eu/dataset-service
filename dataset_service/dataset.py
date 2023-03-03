@@ -6,9 +6,33 @@ import dataset_service.utils
 class DatasetException(Exception):
     pass
 
+def check_file_system(datalake_mount_path, datasets_mount_path):
+    logging.root.info("Checking mount paths...")
+    if os.path.isdir(datalake_mount_path):
+        logging.root.info("OK - datalake_mount_path: " + datalake_mount_path)
+    else: 
+        e = Exception("datalake_mount_path is not an existing directory: " + datalake_mount_path)
+        logging.root.exception(e)
+        raise e
+    if os.path.isdir(datasets_mount_path):
+        logging.root.info("OK - datasets_mount_path: " + datasets_mount_path)
+    else: 
+        e = Exception("datasets_mount_path is not an existing directory: " + datasets_mount_path)
+        logging.root.exception(e)
+        raise e
+
 def remove_dataset(datasets_dir_path, dataset_dir_name):
     dataset_dir_path = os.path.join(datasets_dir_path, dataset_dir_name)
     shutil.rmtree(dataset_dir_path, ignore_errors=True)
+
+def create_dataset_dir(datasets_dir_path, dataset_dir_name):
+    '''Extracted from create_dataset() because the directory has to be previously created to write some files (index, eforms)'''
+    owner_uid = 0
+    owner_gid = 0
+    dataset_dir_path = os.path.join(datasets_dir_path, dataset_dir_name)
+    # Create dataset directory
+    create_dir(dataset_dir_path, uid=owner_uid, gid=owner_gid, permissions=0o700)
+    # Now only root have access. The access to normal users will be granted later with ACLs.
 
 def create_dataset(datasets_dir_path, dataset_dir_name, datalake_dir_path, studies):
     '''
@@ -42,7 +66,7 @@ def create_dataset(datasets_dir_path, dataset_dir_name, datalake_dir_path, studi
         ok = symlink(linkDestination, linkLocation, target_is_directory=True, uid=owner_uid, gid=owner_gid)
         if not ok: 
             logging.root.error("Error creating symlink: " + linkLocation + " -> " + linkDestination)
-            raise DatasetException("Error creating symlink")
+            raise DatasetException("Error creating symlink (probably already exists)")
         chmod(linkDestination, 0o700)
         # Ensure only root have access. The access to normal users will be granted later with ACLs.
         for name in os.listdir(linkDestination):

@@ -67,7 +67,8 @@ class User:
         editableProperties = []
         if self.canModifyDataset(dataset):
             if dataset["draft"]: 
-                editableProperties.append("draft")
+                if not dataset["creating"]:
+                    editableProperties.append("draft")
                 editableProperties.append("name")
                 editableProperties.append("description")
                 editableProperties.append("previousId")

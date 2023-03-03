@@ -1,13 +1,36 @@
 import os
 import logging
 import urllib.parse
+import urllib.error
 import http.client
 import json
+import time
 from dataset_service import hash
 
 class TraceException(Exception):
     pass
     
+def check_connection(authUrl, clientId, clientSecret, tracerUrl):
+    logging.root.info("Checking connection to tracer-service on %s..." % tracerUrl)
+    try:
+        retries = 0
+        while retries < 5:
+            try:
+                hash_codes = getSupportedHashAlgorithms(authUrl, clientId, clientSecret, tracerUrl)
+                logging.root.info("Accepted hash codes: %s" % json.dumps(hash_codes))
+                break
+            except urllib.error.HTTPError as e1:
+                logging.root.error("HTTPError: " + str(e1.code) + " - " + str(e1.reason))
+            except urllib.error.URLError as e2:
+                logging.root.error("URLError: "+ str(e2.reason))
+            retries += 1
+            logging.root.info("Retrying in 5 seconds...")
+            time.sleep(5)
+        if retries >= 5: raise Exception("Unable to connect to tracer-service.")
+    except Exception as e:
+        logging.root.exception(e)
+        raise e
+
 def login(oidc_url, client_id, client_secret):
     logging.root.debug("Logging into the tracer...")
     auth = urllib.parse.urlparse(oidc_url)
@@ -65,10 +88,10 @@ def getSupportedHashAlgorithms(authUrl, clientId, clientSecret, tracerUrl):
 #         if os.path.isdir(filePath): addFilesFromDirectoryAsResources(body, datasetDirPath, fileRelativePath)
 #         else:                       addFileAsResource(body, filePath, hash.getHashOfString(fileRelativePath))
 
-def getResources(datasetDirPath, indexFileName, eformsFileName, studies, hashes = None):
+def getResources(datasetDirPath, indexFileName, eformsFileName, studies = None, studiesHashes = None):
     resources = []
     logging.root.debug('Calculating SHAs...')
-    indexHash, imagesHash, clinicalDataHash = hash.getHashesOfDataset(datasetDirPath, indexFileName, eformsFileName, studies, hashes)
+    indexHash, imagesHash, clinicalDataHash = hash.getHashesOfDataset(datasetDirPath, indexFileName, eformsFileName, studies, studiesHashes)
     resources.append(
         dict(id = 'index',
              contentType = 'HASH',       # contentTypes: FILE_DATA, HTTP_FTP, HASH
@@ -100,7 +123,7 @@ def getResources(datasetDirPath, indexFileName, eformsFileName, studies, hashes 
 
 
 def traceDatasetCreation(authUrl, clientId, clientSecret, tracerUrl, datasetDirPath, indexFileName, eformsFileName, 
-                         dataset, userId, studiesHashes = None):
+                         datasetId, userId, datasetStudies = None, studiesHashes = None):
     '''
     "studiesHashes" is an optional array that will be filled with the hashes of studies
     '''
@@ -113,8 +136,8 @@ def traceDatasetCreation(authUrl, clientId, clientSecret, tracerUrl, datasetDirP
     body = dict(
         userId = userId, 
         userAction = 'CREATE_DATASET', 
-        datasetId = dataset["id"],
-        resources = getResources(datasetDirPath, indexFileName, eformsFileName, dataset["studies"], studiesHashes)
+        datasetId = datasetId,
+        resources = getResources(datasetDirPath, indexFileName, eformsFileName, datasetStudies, studiesHashes)
     )
 
     # if dataset["previousId"] != None:

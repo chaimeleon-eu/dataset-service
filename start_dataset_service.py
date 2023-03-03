@@ -3,6 +3,7 @@
 import sys
 import logging
 import signal
+import threading
 import time
 
 import dataset_service.RESTServer as RESTServer
@@ -14,27 +15,23 @@ THREAD = None
 
 def start_daemon(CONFIG):
     global THREAD
-    logging.root.info( '------------- Starting %s %s -------------' % (__appname__, __version__))
-
-    THREAD = RESTServer.run_in_thread(host=CONFIG.self.host, port=CONFIG.self.port, config=CONFIG)
+    logging.root.info( '------------- Starting %s v%s -------------' % (__appname__, __version__))
+    THREAD = threading.Thread(target=RESTServer.run, args=(CONFIG.self.host, CONFIG.self.port, CONFIG))
+    THREAD.daemon = True
+    THREAD.start()
     while THREAD.is_alive():
         time.sleep(0.1)
 
-    
 def stop_daemon( ):
     global THREAD
     RESTServer.stop()
-
     while THREAD != None and THREAD.is_alive():
         time.sleep(0.1)
-
     logging.root.info( '------------- %s stopped -------------' % __appname__ )
-
 
 def signal_int_handler(signal, frame):
     """ Callback function to catch the system signals """
     stop_daemon()
-
 
 if __name__ == "__main__":
     # capture signals for graceful termination
@@ -44,5 +41,6 @@ if __name__ == "__main__":
     config_file_path = sys.argv[1] if len(sys.argv) > 1 else None
     CONFIG = load_config(config_file_path)
     if CONFIG is None: sys.exit(1)
-    config_logger(CONFIG)
+    log_conf = CONFIG.self.log.main_service
+    config_logger(log_conf.level, log_conf.file_path, log_conf.max_size)
     start_daemon(CONFIG)

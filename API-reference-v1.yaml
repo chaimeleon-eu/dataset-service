@@ -41,7 +41,7 @@ paths:
             schema:
               $ref: '#/components/schemas/DatasetCreationObject'
       responses:
-        '200':
+        '201':
           description: item created
           content:
             application/json:
@@ -229,7 +229,44 @@ paths:
           description: "bad request content"
         '404':
           description: "not found"
-          
+
+  /datasets/{id}/creationStatus:
+    get:
+      tags:
+        - datasets
+      summary: gets the status of creation of the dataset by its id
+      operationId: getDatasetCreationStatus
+      description: Returns the details of the creation of a dataset specified by its id.
+      parameters:
+        - name: id
+          description: the id of the dataset
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: "successful operation"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum:
+                     - "pending"
+                     - "running"
+                     - "finished"
+                     - "error"
+                  lastMessage:
+                    type: string
+                    description: "The last message of the process. This can be used to show the work progress to the user."
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: "not found"
+
   /upgradableDatasets:
     get:
       tags:
@@ -379,7 +416,7 @@ paths:
             application/json:
               schema:
                 type: array
-                description: the ids of datasets not found, invalidated or not available for the user
+                description: the ids of datasets not found, still being created, invalidated or not available for the user
                 items:
                   type: string
                   format: uuid
@@ -665,6 +702,13 @@ components:
         draft:
           type: boolean
           description: "If true then the dataset is only accesible by the author and some properties can be modified."
+        creating:
+          type: boolean
+          description: |
+            (This flag only appears when "draft" is true) 
+            If true then the dataset is still creating, and "draft" can not be changed to false until the end (it does not appear in "dataset.editablePropertiesByTheUser"). 
+            The progress can be retrieved with GET /datasets/{id}/creationStatus.
+            If false then the creation process has finished and "draft" already can be changed to false when the user want to release de dataset.
         public:
           type: boolean
           description: "If false then the dataset is only accessible to users with the role access_all_datasets (consortium researchers); if true then the dataset is also accessible to all users, including external researchers and non-registered users."

@@ -48,9 +48,17 @@ self:
   host: "0.0.0.0"
   port: 11000
   log: 
-    level: "DEBUG"
-    file: "./log/dataset-service.log"
-    file_max_size: 10485760
+    main_service:
+        # Possible levels from the most to the minimum verbose: DEBUG, INFO, WARN, ERROR, FATAL
+        level: "DEBUG"
+        file_path: "./log/dataset-service.log"
+        # Max size of file in bytes. When it get the max size it is closed and renamed appending ".1".
+        # If the file ending with ".1" already exists, it is renamed to ".2", and so on until the max backup of 3.
+        max_size: 10485760
+    dataset_creation_job:
+        level: "DEBUG"
+        file_path_format: "./log/dataset-creation-job-%s.log"
+        max_size: 10485760
   # Absolute directory path where the web UI static files are.
   # They will be served when a request of root path ("/") is received.
   static_files_dir_path: "/var/www/dataset-service-ui"

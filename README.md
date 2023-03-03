@@ -105,6 +105,13 @@ Content-Type: application/json
 {"url": "/api/datasets/3388a9c5-4ebb-45ba-93fc-7b54813f0cf2"}
 ```
 
+The creation of a medium or big dataset can be a time consuming process, so it is asynchronous.
+The POST operation returns the code 201 after some checks over the input and the creation of the dataset in database.
+The rest of work (file system setup and hash calculation) is done by a kubernetes job 
+and the progress can be retrieved with GET /datasets/{id}/creationStatus.
+While the dataset is being created the flag "draft" is true and can not be changed to false (it does not appear in the "dataset.editablePropertiesByTheUser").
+When the flag "draft" is true, there is another flag "creating" which is true until the end of the creation process (i.e. while the retrieving of creationStatus makes sense).
+
 ### List of all datasets
 
 GET /datasets
@@ -302,7 +309,7 @@ $ curl -i -H "devToken: SECRET-TOKEN" -d "http://158.42.154.23:19000/build.zip" 
 
 ```
 set IMAGE_NAME=harbor.chaimeleon-eu.i3m.upv.es/chaimeleon-services/dataset-service-backend
-set IMAGE_TAG=1.87
+set IMAGE_TAG=1.88
 ```
 
 ### Build the image

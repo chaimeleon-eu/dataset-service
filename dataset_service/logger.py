@@ -14,31 +14,22 @@ class ExtraInfoFilter(logging.Filter):
         setattr(record, 'hostname', socket.gethostname())
         return True
 
-def config_logger(CONFIG):
-#   try:
-#       logging.config.fileConfig(CONFIG.self.log.config_file)
-#   except Exception as ex:
-#       print(ex)
-    log_dir = os.path.dirname(CONFIG.self.log.file)
+def config_logger(level: str, file_path: str, max_size: int):
+    log_dir = os.path.dirname(file_path)
     if not os.path.isdir(log_dir):
         os.makedirs(log_dir)
 
-    file_handler = logging.handlers.RotatingFileHandler(filename=CONFIG.self.log.file, maxBytes=CONFIG.self.log.file_max_size, backupCount=3)
+    file_handler = logging.handlers.RotatingFileHandler(filename=file_path, maxBytes=max_size, backupCount=3)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     file_handler.setFormatter(formatter)
 
-    if CONFIG.self.log.level == "DEBUG":
-        log_level = logging.DEBUG
-    elif CONFIG.self.log.level == "INFO":
-        log_level = logging.INFO
-    elif CONFIG.self.log.level in ["WARN", "WARNING"]:
-        log_level = logging.WARN
-    elif CONFIG.self.log.level == "ERROR":
-        log_level = logging.ERROR
-    elif CONFIG.self.log.level in ["FATAL", "CRITICAL"]:
-        log_level = logging.FATAL
-    else:
-        log_level = logging.WARN
+    level = level.strip().upper()
+    if level == "DEBUG":   log_level = logging.DEBUG
+    elif level == "INFO":  log_level = logging.INFO
+    elif level == "WARN":  log_level = logging.WARN
+    elif level == "ERROR": log_level = logging.ERROR
+    elif level == "FATAL": log_level = logging.FATAL
+    else: raise Exception("Unkown level '%s' for log configuration." % level)
 
     logging.RootLogger.propagate = False
     logging.root.setLevel(logging.ERROR)
@@ -58,7 +49,7 @@ def config_logger(CONFIG):
     except Exception as ex:
         print(ex)
 
-    print("Log file is being written in: " + CONFIG.self.log.file)
+    print("Log file is being written in: " + file_path)
 
     stdout_handler = logging.StreamHandler(sys.stdout)
     stdout_handler.setFormatter(formatter)

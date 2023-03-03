@@ -66,7 +66,7 @@ def _getHashOfStudy(series, studyDirPath):
         sha.update(serieHash)
     return sha.digest()
 
-def _getHashOfDatasetImages(datasetDirPath, studies, hashes = None ):
+def _getHashOfDatasetImages(datasetDirPath, studies, studiesHashes = None ):
     sha = _createNewSHA()
     total = len(studies)
     count = 0
@@ -75,7 +75,8 @@ def _getHashOfDatasetImages(datasetDirPath, studies, hashes = None ):
         studyDirPath = os.path.join(datasetDirPath, study['path'])
         logging.root.debug('Calculating SHA of study (%d/%d) [%s] ...' % (count, total, studyDirPath))
         studyHash = _getHashOfStudy(study["series"], studyDirPath)
-        if hashes != None: hashes.append(_bytesToBase64String(studyHash))
+        if studiesHashes != None: studiesHashes.append(dict(studyId = study["studyId"], 
+                                                            hash = _bytesToBase64String(studyHash)))
         sha.update(studyHash)
     return sha.digest()
 
@@ -88,13 +89,13 @@ def getHashOfFile(filePath):
 def getHashOfSerie(serieDirPath):
     return _bytesToBase64String(_getHashOfSerie(serieDirPath))
 
-def getHashOfDatasetImages(datasetDirPath, studies, hashes = None):
-    return _bytesToBase64String(_getHashOfDatasetImages(datasetDirPath, studies, hashes))
+def getHashOfDatasetImages(datasetDirPath, studies, studiesHashes = None):
+    return _bytesToBase64String(_getHashOfDatasetImages(datasetDirPath, studies, studiesHashes))
 
-def getHashesOfDataset(datasetDirPath, indexFileName, eformsFileName, studies = None, hashes = None):
+def getHashesOfDataset(datasetDirPath, indexFileName, eformsFileName, studies = None, studiesHashes = None):
     '''
     "studies" is an optional array (just for optimization), if it is None, the studies will be read from the index file.
-    "hashes" is an optional (empty) array that will be filled with the hashes of studies.
+    "studiesHashes" is an optional (empty) array that will be filled with the ids and hashes of studies.
     '''
     indexFilePath = os.path.join(datasetDirPath, indexFileName)
     eformsFilePath = os.path.join(datasetDirPath, eformsFileName)
@@ -107,7 +108,7 @@ def getHashesOfDataset(datasetDirPath, indexFileName, eformsFileName, studies = 
     else: 
         indexHash = getHashOfFile(indexFilePath)
 
-    imagesHash = getHashOfDatasetImages(datasetDirPath, studies, hashes)
+    imagesHash = getHashOfDatasetImages(datasetDirPath, studies, studiesHashes)
     clinicalDataHash = getHashOfFile(eformsFilePath)
     return indexHash, imagesHash, clinicalDataHash
 

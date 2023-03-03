@@ -3,12 +3,10 @@
 from datetime import datetime
 from pathlib import Path
 import bottle
-import threading
 import logging
 import json
 #from kubernetes.client import exceptions
 import yaml
-import base64
 import time
 from dataset_service.storage import DB
 #from kubernetes import client, config
@@ -24,8 +22,9 @@ import dataset_service.pid as pid
 from dataset_service.dataset import *
 from dataset_service import dicom
 from dataset_service import authorization
+from dataset_service import k8s
 
-#LOG = logging.getLogger('kube-authorizer')
+#LOG = logging.getLogger('module1')
 LOG = logging.root
 
 # The code below is just to translate the body of error responses to JSON format
@@ -53,10 +52,7 @@ def exception_catch(func):
 app = MyBottle()
 app.install(exception_catch)
 thisRESTServer = None
-KUBERNETES_CONFIG = None
-KUBERNETES_API_CLIENT = None
 CONFIG = None
-DB_CONNECTION_STR = ""
 AUTH_PUBLIC_KEY = None
 
 
@@ -82,7 +78,7 @@ class RESTServer (bottle.ServerAdapter):
             self.srv.stop()
 
 def run(host, port, config):
-    global thisRESTServer, LOG, KUBERNETES_CONFIG, KUBERNETES_API_CLIENT, CONFIG, AUTH_PUBLIC_KEY
+    global thisRESTServer, LOG, CONFIG, AUTH_PUBLIC_KEY
     CONFIG = config
     authorization.User.roles = CONFIG.auth.roles
 
@@ -95,7 +91,7 @@ def run(host, port, config):
                 jwks_client = PyJWKClient(CONFIG.auth.token_issuer_public_keys_url)
                 AUTH_PUBLIC_KEY = jwks_client.get_signing_key(CONFIG.auth.kid)
                 LOG.info("key: %s" % str(AUTH_PUBLIC_KEY.key))
-                break;
+                break
             except urllib.error.HTTPError as e1:
                 LOG.error("HTTPError: " + str(e1.code) + " - " + str(e1.reason))
             except urllib.error.URLError as e2:
@@ -121,52 +117,13 @@ def run(host, port, config):
 
     if CONFIG.self.datasets_mount_path == '':
         LOG.warn("datasets_mount_path is empty: datasets will not be created on disk, they will be only stored in database.")
-    else:
-        LOG.info("Checking mount paths...")
-        if os.path.isdir(CONFIG.self.datalake_mount_path):
-            LOG.info("OK - datalake_mount_path: " + CONFIG.self.datalake_mount_path)
-        else: 
-            e = Exception("datalake_mount_path is not an existing directory: " + CONFIG.self.datalake_mount_path)
-            LOG.exception(e)
-            raise e
-        if os.path.isdir(CONFIG.self.datasets_mount_path):
-            LOG.info("OK - datasets_mount_path: " + CONFIG.self.datasets_mount_path)
-        else: 
-            e = Exception("datasets_mount_path is not an existing directory: " + CONFIG.self.datasets_mount_path)
-            LOG.exception(e)
-            raise e
-
+    else: 
+        check_file_system(CONFIG.self.datalake_mount_path, CONFIG.self.datasets_mount_path)
+    
     if CONFIG.tracer.url == '':
         LOG.warn("tracer.url is empty: actions will not be notified to the tracer-service.")
-    else:
-        LOG.info("Checking connection to tracer-service on %s..." % CONFIG.tracer.url)
-        try:
-            retries = 0
-            while retries < 5:
-                try:
-                    hash_codes = tracer.getSupportedHashAlgorithms(
-                        CONFIG.tracer.auth_url, CONFIG.tracer.client_id, CONFIG.tracer.client_secret, CONFIG.tracer.url)
-                    LOG.info("Accepted hash codes: %s" % json.dumps(hash_codes))
-                    break;
-                except urllib.error.HTTPError as e1:
-                    LOG.error("HTTPError: " + str(e1.code) + " - " + str(e1.reason))
-                except urllib.error.URLError as e2:
-                    LOG.error("URLError: "+ str(e2.reason))
-                retries += 1
-                LOG.info("Retrying in 5 seconds...")
-                time.sleep(5)
-            if retries >= 5: raise Exception("Unable to connect to tracer-service.")
-        except Exception as e:
-            LOG.exception(e)
-            raise e
-
-#   LOG.info("Loading Kubernetes configuration...")
-#   KUBERNETES_CONFIG = client.Configuration()
-#   KUBERNETES_CONFIG.verify_ssl = False
-#   KUBERNETES_CONFIG.host = CONFIG.kubernetes.endpoint
-#   KUBERNETES_CONFIG.api_key = {"authorization": "Bearer " + CONFIG.kubernetes.auth_token}
-
-#   KUBERNETES_API_CLIENT = client.ApiClient(KUBERNETES_CONFIG)
+    else: 
+        tracer.check_connection(CONFIG.tracer.auth_url, CONFIG.tracer.client_id, CONFIG.tracer.client_secret, CONFIG.tracer.url)
         
     thisRESTServer = RESTServer(host=host, port=port)
     LOG.info("Running the service in %s:%s..." % (host, port))
@@ -180,12 +137,6 @@ def stop():
         LOG.info("Shutting down the service...")
         thisRESTServer.shutdown()
 
-def run_in_thread(host, port, config):
-    bottle_thr = threading.Thread(target=run, args=(host, port, config))
-    bottle_thr.daemon = True
-    bottle_thr.start()
-    return bottle_thr
-    
 
 def validate_token(token):
     if AUTH_PUBLIC_KEY is None or CONFIG is None: raise Exception()
@@ -513,38 +464,32 @@ def postDataset():
             for study in dataset["studies"]:
                 db.createOrUpdateStudy(study, datasetId)
 
-            if CONFIG.self.datasets_mount_path != '':
-                LOG.debug('Creating directory and symbolic links...')
-                datasetDirName = datasetId
-                create_dataset(CONFIG.self.datasets_mount_path, datasetDirName, CONFIG.self.datalake_mount_path, dataset["studies"])
-                
-                datasetDirPath = os.path.join(CONFIG.self.datasets_mount_path, datasetDirName)
-                LOG.debug('Writing E-FORM: ' + CONFIG.self.eforms_file_name)
-                with open(os.path.join(datasetDirPath, CONFIG.self.eforms_file_name) , 'w') as outputStream:
-                    json.dump(dataset["subjects"], outputStream)
+            LOG.debug('Creating dataset directory...')
+            create_dataset_dir(CONFIG.self.datasets_mount_path, datasetDirName)
+            datasetDirPath = os.path.join(CONFIG.self.datasets_mount_path, datasetDirName)
 
-                LOG.debug('Writing INDEX: ' + CONFIG.self.index_file_name)
-                # dataset["studies"] contains just the information we want to save in the index.json file,
-                # but we have to set paths relative to the dataset directory
-                for study in dataset["studies"]:
-                    subjectDirName = study['subjectName']
-                    studyDirName = os.path.basename(study['pathInDatalake'])
-                    # example of study['path']: 17B76FEW/TCPEDITRICOABDOMINOPLVICO20150129
-                    study['path'] = os.path.join(subjectDirName, studyDirName)
-                    del study['pathInDatalake']
-                # and dump to the index file in the dataset directory
-                with open(os.path.join(datasetDirPath, CONFIG.self.index_file_name) , 'w') as outputStream:
-                    json.dump(dataset["studies"], outputStream)
+            LOG.debug('Writing E-FORM: ' + CONFIG.self.eforms_file_name)
+            with open(os.path.join(datasetDirPath, CONFIG.self.eforms_file_name) , 'w') as outputStream:
+                json.dump(dataset["subjects"], outputStream)
 
-                if CONFIG.tracer.url != '':
-                    studiesHashes = []
-                    # Note this tracer call is inside of "with db" because if tracer fails the database changes will be reverted (transaction rollback).
-                    tracer.traceDatasetCreation(CONFIG.tracer.auth_url, CONFIG.tracer.client_id, CONFIG.tracer.client_secret, CONFIG.tracer.url, 
-                                                datasetDirPath, CONFIG.self.index_file_name, CONFIG.self.eforms_file_name, 
-                                                dataset, userId, studiesHashes)
-                    for study, hash in zip(dataset["studies"], studiesHashes):
-                        db.setDatasetStudyHash(datasetId, study["studyId"], hash)
-                
+            LOG.debug('Writing INDEX: ' + CONFIG.self.index_file_name)
+            # dataset["studies"] contains just the information we want to save in the index.json file,
+            # but we have to set paths relative to the dataset directory
+            for study in dataset["studies"]:
+                subjectDirName = study['subjectName']
+                studyDirName = os.path.basename(study['pathInDatalake'])
+                # example of study['path']: 17B76FEW/TCPEDITRICOABDOMINOPLVICO20150129
+                study['path'] = os.path.join(subjectDirName, studyDirName)
+                del study['pathInDatalake']
+            # and dump to the index file in the dataset directory
+            with open(os.path.join(datasetDirPath, CONFIG.self.index_file_name) , 'w') as outputStream:
+                json.dump(dataset["studies"], outputStream)
+
+            LOG.debug('Creating status in DB...')
+            db.createDatasetCreationStatus(datasetId, "pending", "Launching dataset creation job")
+            LOG.debug('Launching dataset creation job...')
+            k8s.create_job("creating-dataset-" + datasetId, datasetId)
+
         LOG.debug('Dataset successfully created.')
         bottle.response.status = 201
         bottle.response.content_type = "application/json"
@@ -554,15 +499,39 @@ def postDataset():
     except (WrongInputException) as e:
         if datasetDirName != '': remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
         return setErrorResponse(400, str(e))
-    except (tracer.TraceException, DatasetException) as e:
-        if datasetDirName != '': remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
-        return setErrorResponse(500, str(e))
     except Exception as e:
         LOG.exception(e)
         if not "external" in bottle.request.query or bottle.request.query["external"].lower() != "true":
             LOG.error("May be the body of the request is wrong: %s" % read_data)
         if datasetDirName != '': remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
         return setErrorResponse(500, "Unexpected error, may be the input is wrong")
+
+
+@app.route('/api/datasets/<id>/creationStatus', method='GET')
+def getDatasetCreationStatus(id):
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received GET /dataset/%s/creationStatus" % id)
+    ok, details = checkAuthorizationHeader()
+    if not ok and details != None: return details  # return error
+    user = authorization.User(details)
+
+    datasetId = id
+    with DB(CONFIG.db) as db:
+        dataset = db.getDataset(datasetId)
+        if dataset is None:
+            return setErrorResponse(404,"not found")
+
+        # check access permission
+        if not user.canAccessDataset(dataset):
+            return setErrorResponse(401,"unauthorized user")
+
+        status = db.getDatasetCreationStatus(datasetId)
+        if status is None:
+            # The job removes the status in DB at the end of successful creation
+            status = dict(datasetId = datasetId, status = "finished", lastMessage = "Successfully created")
+
+    bottle.response.content_type = "application/json"
+    return json.dumps(status)
 
 @app.route('/api/datasets/<id>/checkIntegrity', method='GET')
 def checkDatasetIntegrity(id):
@@ -614,9 +583,13 @@ def getDataset(id):
         if not user.canAccessDataset(dataset):
             return setErrorResponse(401,"unauthorized user")
 
+        if dataset["draft"]:
+            dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
         dataset["editablePropertiesByTheUser"] = user.getEditablePropertiesByTheUser(dataset)
 
         studies, total = db.getStudiesFromDataset(datasetId, limit, skip)
+        for study in studies: 
+            del study['pathInDatalake']
         if not 'v2' in bottle.request.params:  
             # transitional param while clients change to the new reponse type
             dataset["studies"] = studies
@@ -674,6 +647,8 @@ def patchDataset(id):
         dataset = db.getDataset(datasetId)
         if dataset is None:
             return setErrorResponse(404,"not found")
+        if dataset["draft"]:
+            dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
         if property not in user.getEditablePropertiesByTheUser(dataset):
             return setErrorResponse(400,"the property is not in the editablePropertiesByTheUser list")
 
@@ -937,9 +912,12 @@ def checkDatasetListAccess(datasetIDs: list, userName: str):
             dataset = db.getDataset(id)
             if dataset is None:
                 # invalidated or not exists
-                badIDs.append(id)
-            elif not authorization.User.tmpUserCanAccessDataset(userId, userGroups, dataset):
-                badIDs.append(id)
+                badIDs.append(id); continue
+            if not authorization.User.tmpUserCanAccessDataset(userId, userGroups, dataset):
+                badIDs.append(id); continue
+            if dataset["draft"]:
+                if (db.getDatasetCreationStatus(id) != None):  # dataset still being created
+                    badIDs.append(id); continue
     return badIDs
 
 @app.route('/api/datasetAccessCheck', method='POST')
@@ -1080,7 +1058,7 @@ def getUnknown(any_path):
 
 # static files (any route that ends with '.' + known extension, including subpaths)
 # To avoid conflicts, static files prefixed with /web/
-@app.route('/web/<file_path:re:.*\.(html|js|json|txt|map|css|jpg|png|gif|ico|svg)>', method='GET')
+@app.route('/web/<file_path:re:.*\.(html|js|json|txt|map|css|jpg|png|gif|ico|svg|pdf)>', method='GET')
 def getStaticFileWeb(file_path):
     LOG.debug("Received GET %s" % bottle.request.path)
     LOG.debug("Static file (web): "+file_path)

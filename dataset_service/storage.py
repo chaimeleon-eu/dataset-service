@@ -31,7 +31,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 15
+    CURRENT_SCHEMA_VERSION = 16
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -57,6 +57,7 @@ class DB:
             if version < 13: self.updateDB_v12To13()
             if version < 14: self.updateDB_v13To14()
             if version < 15: self.updateDB_v14To15()
+            if version < 16: self.updateDB_v15To16()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -133,6 +134,15 @@ class DB:
                 series_tags text NOT NULL DEFAULT '[]',
                 constraint pk_dataset primary key (id),
                 constraint fk_author foreign key (author_id) references author(id)
+            );
+            /* Every dataset has one of this during the creation; it is deleted when the creation successfully finish.
+               The creation job writes here the status of the process, so the UI can inform to the user. */
+            CREATE TABLE dataset_creation_status (
+                dataset_id varchar(40),
+                status varchar(10),
+                last_message varchar(256),
+                constraint pk_dataset_creation_status primary key (dataset_id),
+                constraint fk_dataset foreign key (dataset_id) references dataset(id)
             );
             /* A dataset can contain multiple studies and a study can be contained in multiple datasets. */
             CREATE TABLE dataset_study (
@@ -269,7 +279,17 @@ class DB:
         logging.root.info("Updating database from v14 to v15...")
         self.cursor.execute("ALTER TABLE dataset ALTER COLUMN previous_id TYPE varchar(40);")
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN next_id varchar(40) DEFAULT NULL;")
-
+    
+    def updateDB_v15To16(self):
+        logging.root.info("Updating database from v15 to v16...")
+        self.cursor.execute("""CREATE TABLE dataset_creation_status (
+                                  dataset_id varchar(40),
+                                  status varchar(10),
+                                  last_message varchar(256),
+                                  constraint pk_dataset_creation_status primary key (dataset_id),
+                                  constraint fk_dataset foreign key (dataset_id) references dataset(id)
+                               );""")
+        
 
     def createOrUpdateAuthor(self, userId, username, name, email):
         self.cursor.execute("""
@@ -330,6 +350,32 @@ class DB:
              dataset["ageLow"], dataset["ageHigh"], 
              json.dumps(dataset["sex"]), json.dumps(dataset["bodyPart"]), 
              json.dumps(dataset["modality"]), json.dumps(dataset["seriesTags"])))
+
+    def createDatasetCreationStatus(self, datasetId, status, firstMessage):
+        self.cursor.execute("""
+            INSERT INTO dataset_creation_status (dataset_id, status, last_message)
+            VALUES (%s,%s,%s);""",
+            (datasetId, status, firstMessage))
+    def setDatasetCreationStatus(self, datasetId, status, lastMessage):
+        self.cursor.execute("""
+            UPDATE dataset_creation_status 
+            SET status = %s, last_message = %s
+            WHERE dataset_id = %s;""",
+            (status, lastMessage, datasetId))
+    def getDatasetCreationStatus(self, datasetId):
+        """Returns None if the dataset creation status not exists.
+        """
+        self.cursor.execute("""
+            SELECT dataset_id, status, last_message
+            FROM dataset_creation_status 
+            WHERE dataset_id=%s 
+            LIMIT 1;""",
+            (datasetId,))
+        row = self.cursor.fetchone()
+        if row is None: return None
+        return dict(datasetId = row[0], status = row[1], lastMessage = row[2])
+    def deleteDatasetCreationStatus(self, datasetId):
+        self.cursor.execute("DELETE FROM dataset_creation_status WHERE dataset_id=%s;", (datasetId,))
 
     def createOrUpdateStudy(self, study, datasetId):
         self.cursor.execute("""
@@ -430,7 +476,7 @@ class DB:
         total = row[0] if row != None else 0
 
         self.cursor.execute(sql.SQL("""
-            SELECT study.id, study.name, study.subject_name, study.url, dataset_study.series
+            SELECT study.id, study.name, study.subject_name, study.url, study.path_in_datalake, dataset_study.series
             FROM study, dataset_study 
             WHERE dataset_study.dataset_id = %s AND dataset_study.study_id = study.id 
             ORDER BY study.name 
@@ -439,8 +485,8 @@ class DB:
         )
         res = []
         for row in self.cursor:
-            res.append(dict(studyId = row[0], studyName = row[1], subjectName = row[2], 
-                            series = json.loads(row[4]), url = row[3]))
+            res.append(dict(studyId = row[0], studyName = row[1], subjectName = row[2], pathInDatalake = row[4],
+                            series = json.loads(row[5]), url = row[3]))
         return res, total
 
     def getPathsOfStudiesFromDataset(self, datasetId):

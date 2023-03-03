@@ -109,6 +109,7 @@ spec:
       labels:
         app: dataset-service-backend
     spec:
+      serviceAccountName: dataset-service-backend
       volumes:
         - name: dataset-service-data-volume
           persistentVolumeClaim:
@@ -226,3 +227,40 @@ spec:
                 port:
                   number: 11000
 
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dataset-service-backend
+  namespace: dataset-service
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: dataset-service-backend
+  namespace: dataset-service
+rules:
+  # create jobs is required for dataset creation
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create"]
+  # get deployments is required to copy some parts of the main service deployment to the jobs
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get"]
+    
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dataset-service-backend
+  namespace: dataset-service
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: dataset-service-backend
+subjects:
+  - kind: ServiceAccount
+    name: dataset-service-backend
+    namespace: dataset-service
