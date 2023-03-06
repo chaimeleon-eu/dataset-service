@@ -66,7 +66,7 @@ def _getHashOfStudy(series, studyDirPath):
         sha.update(serieHash)
     return sha.digest()
 
-def _getHashOfDatasetImages(datasetDirPath, studies, studiesHashes = None ):
+def _getHashOfDatasetImages(datasetDirPath, studies, studiesHashes = None, notifyProgress = None):
     sha = _createNewSHA()
     total = len(studies)
     count = 0
@@ -74,6 +74,8 @@ def _getHashOfDatasetImages(datasetDirPath, studies, studiesHashes = None ):
         count += 1
         studyDirPath = os.path.join(datasetDirPath, study['path'])
         logging.root.debug('Calculating SHA of study (%d/%d) [%s] ...' % (count, total, studyDirPath))
+        if notifyProgress != None and (count == 1 or count % 2 == 0):
+            notifyProgress('Calculating SHA of study %d of %d) ...' % (count, total))
         studyHash = _getHashOfStudy(study["series"], studyDirPath)
         if studiesHashes != None: studiesHashes.append(dict(studyId = study["studyId"], 
                                                             hash = _bytesToBase64String(studyHash)))
@@ -89,13 +91,14 @@ def getHashOfFile(filePath):
 def getHashOfSerie(serieDirPath):
     return _bytesToBase64String(_getHashOfSerie(serieDirPath))
 
-def getHashOfDatasetImages(datasetDirPath, studies, studiesHashes = None):
-    return _bytesToBase64String(_getHashOfDatasetImages(datasetDirPath, studies, studiesHashes))
+def getHashOfDatasetImages(datasetDirPath, studies, studiesHashes = None, notifyProgress = None):
+    return _bytesToBase64String(_getHashOfDatasetImages(datasetDirPath, studies, studiesHashes, notifyProgress))
 
-def getHashesOfDataset(datasetDirPath, indexFileName, eformsFileName, studies = None, studiesHashes = None):
+def getHashesOfDataset(datasetDirPath, indexFileName, eformsFileName, studies = None, studiesHashes = None, notifyProgress = None):
     '''
     "studies" is an optional array (just for optimization), if it is None, the studies will be read from the index file.
     "studiesHashes" is an optional (empty) array that will be filled with the ids and hashes of studies.
+    "notifyProgress" is an optional function which accepts one arg of type str.
     '''
     indexFilePath = os.path.join(datasetDirPath, indexFileName)
     eformsFilePath = os.path.join(datasetDirPath, eformsFileName)
@@ -108,7 +111,7 @@ def getHashesOfDataset(datasetDirPath, indexFileName, eformsFileName, studies = 
     else: 
         indexHash = getHashOfFile(indexFilePath)
 
-    imagesHash = getHashOfDatasetImages(datasetDirPath, studies, studiesHashes)
+    imagesHash = getHashOfDatasetImages(datasetDirPath, studies, studiesHashes, notifyProgress)
     clinicalDataHash = getHashOfFile(eformsFilePath)
     return indexHash, imagesHash, clinicalDataHash
 

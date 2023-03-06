@@ -88,10 +88,11 @@ def getSupportedHashAlgorithms(authUrl, clientId, clientSecret, tracerUrl):
 #         if os.path.isdir(filePath): addFilesFromDirectoryAsResources(body, datasetDirPath, fileRelativePath)
 #         else:                       addFileAsResource(body, filePath, hash.getHashOfString(fileRelativePath))
 
-def getResources(datasetDirPath, indexFileName, eformsFileName, studies = None, studiesHashes = None):
+def getResources(datasetDirPath, indexFileName, eformsFileName, studies = None, studiesHashes = None, notifyProgress = None):
     resources = []
     logging.root.debug('Calculating SHAs...')
-    indexHash, imagesHash, clinicalDataHash = hash.getHashesOfDataset(datasetDirPath, indexFileName, eformsFileName, studies, studiesHashes)
+    indexHash, imagesHash, clinicalDataHash = hash.getHashesOfDataset(datasetDirPath, indexFileName, eformsFileName, 
+                                                                      studies, studiesHashes, notifyProgress)
     resources.append(
         dict(id = 'index',
              contentType = 'HASH',       # contentTypes: FILE_DATA, HTTP_FTP, HASH
@@ -123,9 +124,10 @@ def getResources(datasetDirPath, indexFileName, eformsFileName, studies = None, 
 
 
 def traceDatasetCreation(authUrl, clientId, clientSecret, tracerUrl, datasetDirPath, indexFileName, eformsFileName, 
-                         datasetId, userId, datasetStudies = None, studiesHashes = None):
+                         datasetId, userId, datasetStudies = None, studiesHashes = None, notifyProgress = None):
     '''
-    "studiesHashes" is an optional array that will be filled with the hashes of studies
+    "studiesHashes" is an optional array that will be filled with the hashes of studies.
+    "notifyProgress" is an optional function which accepts one arg of type str.
     '''
     tracer = urllib.parse.urlparse(tracerUrl)
     if tracer.hostname is None: raise Exception('Wrong tracerUrl.')
@@ -137,7 +139,7 @@ def traceDatasetCreation(authUrl, clientId, clientSecret, tracerUrl, datasetDirP
         userId = userId, 
         userAction = 'CREATE_DATASET', 
         datasetId = datasetId,
-        resources = getResources(datasetDirPath, indexFileName, eformsFileName, datasetStudies, studiesHashes)
+        resources = getResources(datasetDirPath, indexFileName, eformsFileName, datasetStudies, studiesHashes, notifyProgress)
     )
 
     # if dataset["previousId"] != None:

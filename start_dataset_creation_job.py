@@ -6,25 +6,29 @@ import signal
 import threading
 import time
 
-import dataset_service.RESTServer as RESTServer
+from dataset_service.dataset_creation_worker import dataset_creation_worker
 from dataset_service.config import load_config
 from dataset_service.logger import config_logger
-from dataset_service import __version__, __appname__, dataset_creation_worker
+from dataset_service import __version__, __appname__
 
 THREAD = None
+worker = None
 
 def start_job(CONFIG, datasetId):
-    global THREAD
+    global THREAD, worker
     logging.root.info( '------------- Starting %s job v%s -------------' % (__appname__, __version__))
-    THREAD = threading.Thread(target=dataset_creation_worker.run, args=(CONFIG, datasetId))
+    worker = dataset_creation_worker(CONFIG, datasetId)
+    THREAD = threading.Thread(target=dataset_creation_worker.run, args=[worker])
     THREAD.daemon = True
     THREAD.start()
     while THREAD.is_alive():
         time.sleep(0.1)
+    logging.root.info( '------------- Finished %s job -------------' % __appname__)
 
 def stop_job( ):
-    global THREAD
-    dataset_creation_worker.stop()
+    global THREAD, worker
+    if worker is None: return
+    worker.stop()
     while THREAD != None and THREAD.is_alive():
         time.sleep(0.1)
     logging.root.info( '------------- %s-job stopped -------------' % __appname__ )
