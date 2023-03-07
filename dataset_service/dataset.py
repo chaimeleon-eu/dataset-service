@@ -51,6 +51,8 @@ def create_dataset(datasets_dir_path, dataset_dir_name, datalake_dir_path, studi
     create_dir(dataset_dir_path, uid=owner_uid, gid=owner_gid, permissions=0o700)
     # Now only root have access. The access to normal users will be granted later with ACLs.
     
+    subjectsSeen = set()
+    usersSeen = set()
     for study in studies:
         subjectDirName = study['subjectName']
         subjectDirPath = os.path.join(dataset_dir_path, subjectDirName)
@@ -74,6 +76,18 @@ def create_dataset(datasets_dir_path, dataset_dir_name, datalake_dir_path, studi
             if os.path.isdir(f): chmod_recursive(f, dirs_permissions=0o705, files_permissions=0o604)
             else: chmod(f, 0o604)
             # At this level all the people have read access, the control with ACLs is done in the upper level.
+
+        # Ensure all people have access to the upper levels in datalake (subject directory and user directory)
+        subjectDirPathInDatalake = os.path.dirname(linkDestination)
+        # subjectDirPathInDatalake example: /mnt/cephfs/datalake/blancagomez/17B76FEW_Neuroblastoma
+        if not subjectDirPathInDatalake in subjectsSeen:
+            chmod(subjectDirPathInDatalake, 0o705)
+            subjectsSeen.add(subjectDirPathInDatalake)
+            userDirPathInDatalake = os.path.dirname(subjectDirPathInDatalake)
+            # userDirPathInDatalake example: /mnt/cephfs/datalake/blancagomez
+            if not userDirPathInDatalake in usersSeen:
+                chmod(userDirPathInDatalake, 0o705)
+                usersSeen.add(userDirPathInDatalake)
 
 
 def give_access_to_dataset(datasets_dir_path, dataset_dir_name, datalake_dir_path, pathsOfStudies, acl_gid):
