@@ -292,30 +292,46 @@ class DB:
         
 
     def createOrUpdateAuthor(self, userId, username, name, email):
-        self.cursor.execute("""
-            INSERT INTO author (id, username, name, email) 
-            VALUES (%s, %s, %s, %s)
-            ON CONFLICT (id) DO UPDATE
-                SET username = excluded.username,
-                    name = excluded.name,
-                    email = excluded.email;""", 
-            (userId, username, name, email)
-        )
+        self.cursor.execute("SELECT id FROM author WHERE id=%s LIMIT 1;", (userId,))
+        row = self.cursor.fetchone()
+        if row is None: 
+            self.cursor.execute("""
+                INSERT INTO author (id, username, name, email) 
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (id) DO NOTHING;""", 
+                (userId, username, name, email)
+            )
+        else: 
+            self.cursor.execute("""
+                UPDATE author
+                SET username = %s, name = %s, email = %s
+                WHERE id = %s;""", 
+                (username, name, email, userId)
+            )
     
-    def createOrUpdateUser(self, userId, userName, groups):
-        self.cursor.execute("""
-            INSERT INTO author (id, username) 
-            VALUES (%s, %s)
-            ON CONFLICT (id) DO UPDATE
-                SET username = excluded.username;""", 
-            (userId, userName)
-        )
-        # delete and reintroduce the groups because they can have been changed
-        self.cursor.execute("DELETE FROM user_group WHERE user_id=%s;", (userId,))
+    def createOrUpdateUser(self, userId, username, groups):
+        self.cursor.execute("SELECT id FROM author WHERE id=%s LIMIT 1;", (userId,))
+        row = self.cursor.fetchone()
+        if row is None: 
+            self.cursor.execute("""
+                INSERT INTO author (id, username) 
+                VALUES (%s, %s)
+                ON CONFLICT (id) DO NOTHING;""", 
+                (userId, username)
+            )
+        else: 
+            self.cursor.execute("""
+                UPDATE author SET username = %s
+                WHERE id = %s;""", 
+                (username, userId)
+            )
+            # delete and reintroduce the groups because they could be changed
+            self.cursor.execute("DELETE FROM user_group WHERE user_id=%s;", (userId,))
         for group in groups:
             self.cursor.execute("""
                 INSERT INTO user_group (user_id, group_name) 
-                VALUES (%s, %s);""", 
+                VALUES (%s, %s)
+                ON CONFLICT (user_id, group_name) DO NOTHING;""", 
                 (userId, group)
             )
 
