@@ -517,7 +517,7 @@ class DB:
             res.append(row[1])
         return res
 
-    def getDatasets(self, skip, limit, searchString, searchFilter: authorization.Search_filter):
+    def getDatasets(self, skip, limit, searchString, searchFilter: authorization.Search_filter, sortBy, sortDirection):
         whereClause = sql.Composed([])
 
         if searchFilter.public != None:
@@ -553,23 +553,46 @@ class DB:
             whereClause += sql.SQL(" AND dataset.author_id = ") + authorId
 
         if searchString != '': 
-            whereClause += sql.SQL(" AND dataset.name ILIKE {}").format(sql.Literal('%'+searchString+'%'))
+            s = sql.Literal('%'+searchString+'%')
+            whereClause += sql.SQL(
+                    " AND ( dataset.name ILIKE {} OR dataset.id LIKE {} OR author.name ILIKE {})"
+                ).format(s, s, s)
+        
+        default = 'dataset.creation_date DESC'
+        if sortBy == 'name':
+            dir = 'DESC' if sortDirection == 'descending' else 'ASC'
+            sortByClause = 'dataset.name %s, %s' % (dir, default)
+        elif sortBy == 'authorName':
+            dir = 'DESC' if sortDirection == 'descending' else 'ASC'
+            sortByClause = 'author.name %s, %s' % (dir, default)        
+        elif sortBy == 'studiesCount':
+            dir = 'ASC' if sortDirection == 'ascending' else 'DESC'
+            sortByClause = 'dataset.studies_count %s, %s' % (dir, default)
+        elif sortBy == 'subjectsCount':
+            dir = 'ASC' if sortDirection == 'ascending' else 'DESC'
+            sortByClause = 'dataset.subjects_count %s, %s' % (dir, default)
+        else:  # sortBy == 'creationDate' or ''
+            dir = 'ASC' if sortDirection == 'ascending' else 'DESC'
+            sortByClause = 'dataset.creation_date %s' % dir
 
         if limit == 0: limit = 'ALL'
 
         # First get total rows without LIMIT and OFFSET
-        self.cursor.execute(sql.SQL("SELECT count(*) FROM dataset WHERE true ") + whereClause)
+        self.cursor.execute(sql.SQL("""
+            SELECT count(*) FROM dataset, author 
+            WHERE dataset.author_id = author.id """) + whereClause)
         row = self.cursor.fetchone()
         total = row[0] if row != None else 0
 
         q = sql.SQL("""
-            SELECT dataset.id, dataset.name, author.name, dataset.creation_date, 
-                   dataset.draft, dataset.public, dataset.invalidated, 
-                   dataset.studies_count, dataset.subjects_count
-            FROM dataset, author 
-            WHERE dataset.author_id = author.id {}
-            ORDER BY dataset.name 
-            LIMIT {} OFFSET {};""").format(whereClause, sql.SQL(str(limit)), sql.SQL(str(skip)))
+                SELECT dataset.id, dataset.name, author.name, dataset.creation_date, 
+                    dataset.draft, dataset.public, dataset.invalidated, 
+                    dataset.studies_count, dataset.subjects_count
+                FROM dataset, author 
+                WHERE dataset.author_id = author.id {}
+                ORDER BY {} 
+                LIMIT {} OFFSET {};"""
+            ).format(whereClause, sql.SQL(str(sortByClause)), sql.SQL(str(limit)), sql.SQL(str(skip)))
         logging.root.debug("QUERY: " + q.as_string(self.conn))
         self.cursor.execute(q)
         res = []

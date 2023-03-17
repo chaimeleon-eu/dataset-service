@@ -757,9 +757,11 @@ def getDatasets():
     if skip < 0: skip = 0
     if limit < 0: limit = 0
     searchString = str(bottle.request.query['searchString']).strip() if 'searchString' in bottle.request.query else ""
+    sortBy = str(bottle.request.query['sortBy']).strip() if 'sortBy' in bottle.request.query else ""
+    sortDirection = str(bottle.request.query['sortDirection']).strip() if 'sortDirection' in bottle.request.query else ""
     
     with DB(CONFIG.db) as db:
-        datasets, total = db.getDatasets(skip, limit, searchString, searchFilter)
+        datasets, total = db.getDatasets(skip, limit, searchString, searchFilter, sortBy, sortDirection)
         response = {
             "total": total,
             "returned": len(datasets),

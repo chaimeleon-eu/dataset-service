@@ -309,7 +309,7 @@ $ curl -i -H "devToken: SECRET-TOKEN" -d "http://158.42.154.23:19000/build.zip" 
 
 ```
 set IMAGE_NAME=harbor.chaimeleon-eu.i3m.upv.es/chaimeleon-services/dataset-service-backend
-set IMAGE_TAG=1.90
+set IMAGE_TAG=1.91
 ```
 
 ### Build the image

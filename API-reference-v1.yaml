@@ -88,7 +88,7 @@ paths:
           schema:
             type: boolean
         - name: searchString
-          description: "(Optional, default is empty) Pass an optional search string (case-insensitive) for the name of dataset."
+          description: "(Optional, default is empty) Pass an optional search string (case-insensitive) for the name or id of dataset, or author of dataset."
           in: query
           required: false
           schema:
@@ -109,6 +109,27 @@ paths:
             type: integer
             format: int32
             minimum: 0
+        - name: sortBy
+          description: "(Optional, default=creationDate) The list will be sorted by this property."
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: 
+             - "name"
+             - "authorName"
+             - "creationDate"
+             - "studiesCount"
+             - "subjectsCount"
+        - name: sortDirection
+          description: "(Optional) The list will be sorted in this direction."
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: 
+             - "ascending"
+             - "descending"
       responses:
         '200':
           description: "Search results matching criteria"
