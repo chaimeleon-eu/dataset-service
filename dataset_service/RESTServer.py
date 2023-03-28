@@ -589,7 +589,10 @@ def getDataset(id):
 
         studies, total = db.getStudiesFromDataset(datasetId, limit, skip)
         for study in studies: 
+            # pathInDatalake is an internal info not interesting for the normal user nor unregistered user
             del study['pathInDatalake']
+            # QuibimPrecision requires to set the username in the url
+            study['url'] = str(study['url']).replace("<USER>", user.getUserName(), 1)
         if not 'v2' in bottle.request.params:  
             # transitional param while clients change to the new reponse type
             dataset["studies"] = studies
@@ -1074,12 +1077,12 @@ def getUnknownWeb(any_path):
     LOG.debug("Received unknown %s" % bottle.request.path)
     return setErrorResponse(404, "Not found '%s'" % bottle.request.path)
 
-# temporal for backward compatibility
-@app.route('/<file_path:re:.*\.(html|js|json|txt|map|css|jpg|png|gif|ico|svg)>', method='GET')
-def getStaticFile(file_path):
-    LOG.debug("Received GET %s" % bottle.request.path)
-    LOG.debug("Static file: "+file_path)
-    return bottle.static_file(file_path, CONFIG.self.static_files_dir_path)
+# # temporal for backward compatibility
+# @app.route('/<file_path:re:.*\.(html|js|json|txt|map|css|jpg|png|gif|ico|svg)>', method='GET')
+# def getStaticFile(file_path):
+#     LOG.debug("Received GET %s" % bottle.request.path)
+#     LOG.debug("Static file: "+file_path)
+#     return bottle.static_file(file_path, CONFIG.self.static_files_dir_path)
 
 # Any other path (without prefix /api/ or /web/) will be responded with the index.html content,
 # index.html loads a javascript interface that manage those other paths.
