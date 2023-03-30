@@ -465,6 +465,7 @@ def postDataset():
                 db.createOrUpdateStudy(study, datasetId)
 
             LOG.debug('Creating dataset directory...')
+            datasetDirName = datasetId
             create_dataset_dir(CONFIG.self.datasets_mount_path, datasetDirName)
             datasetDirPath = os.path.join(CONFIG.self.datasets_mount_path, datasetDirName)
 

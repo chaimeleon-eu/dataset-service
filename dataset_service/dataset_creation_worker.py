@@ -73,8 +73,8 @@ class dataset_creation_worker:
 
         except (tracer.TraceException, dataset_file_system.DatasetException) as e:
             self.endProgress(errorMessage=str(e))
-            #if datasetDirName != '': dataset_file_system.remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
+            #if datasetDirName != '': dataset_file_system.remove_dataset(self.config.self.datasets_mount_path, datasetDirName)
         except Exception as e:
             self.endProgress(errorMessage="unexpected error")
             self.log.exception(e)
-            #if datasetDirName != '': dataset_file_system.remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
+            #if datasetDirName != '': dataset_file_system.remove_dataset(self.config.self.datasets_mount_path, datasetDirName)
