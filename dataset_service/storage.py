@@ -618,6 +618,7 @@ class DB:
         return res
 
     def deleteDataset(self, datasetId):
+        self.cursor.execute("DELETE FROM dataset_creation_status WHERE dataset_id=%s;", (datasetId,))
         self.cursor.execute("DELETE FROM dataset_study WHERE dataset_id=%s;", (datasetId,))
         self.cursor.execute("DELETE FROM dataset WHERE id=%s;", (datasetId,))
 

@@ -309,7 +309,7 @@ $ curl -i -H "devToken: SECRET-TOKEN" -d "http://158.42.154.23:19000/build.zip" 
 
 ```
 set IMAGE_NAME=harbor.chaimeleon-eu.i3m.upv.es/chaimeleon-services/dataset-service-backend
-set IMAGE_TAG=1.91
+set IMAGE_TAG=1.92
 ```
 
 ### Build the image
@@ -344,7 +344,11 @@ Deploy database with docker:
 ```
 docker run -d -e POSTGRES_DB=db -e POSTGRES_USER=dssuser -e POSTGRES_PASSWORD=XXXXXX -p 5432:5432 --name my-postgres postgres:12
 ```
-Now you can explore database with psql:
+Once database is ready, you can run the main service with a local configuration file:
+```
+python .\start_dataset_service.py .\etc\dataset-service-local.yaml
+```
+You can explore database with psql:
 ```
 docker exec -it my-postgres bash
     psql db dssuser
@@ -352,10 +356,6 @@ docker exec -it my-postgres bash
         select * from metadata;
         \q
     exit
-```
-Once database is ready, you can run the main service with a local configuration file:
-```
-python .\start_dataset_service.py .\etc\dataset-service-local.yaml
 ```
 
 ## Configuration
