@@ -21,7 +21,8 @@ class User:
         try:
             token["appRoles"] = token["resource_access"]["dataset-service"]["roles"]
         except:
-            return False, "resource_access.dataset-service.roles"
+            #return False, "resource_access.dataset-service.roles"
+            token["appRoles"] = []
 
         # ensure roles included in other roles
         if User.roles.admin_datasets in token["appRoles"]:

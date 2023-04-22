@@ -67,7 +67,7 @@ def create_dataset(datasets_dir_path, dataset_dir_name, datalake_dir_path, studi
         # linkLocation example: /mnt/cephfs/datasets/myDataset/17B76FEW/TCPEDITRICOABDOMINOPLVICO20150129
         ok = symlink(linkDestination, linkLocation, target_is_directory=True, uid=owner_uid, gid=owner_gid)
         if not ok: 
-            logging.root.error("Error creating symlink: " + linkLocation + " -> " + linkDestination)
+            logging.root.error("Error creating symlink (probably already exists): " + linkLocation + " -> " + linkDestination)
             raise DatasetException("Error creating symlink (probably already exists)")
         chmod(linkDestination, 0o700)
         # Ensure only root have access. The access to normal users will be granted later with ACLs.

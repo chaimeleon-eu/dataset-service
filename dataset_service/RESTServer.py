@@ -40,9 +40,9 @@ def exception_catch(func):
             return func(*args,**kwargs)
         except jwt.exceptions.PyJWTError as e1:
             bottle.response.status = 401
-            LOG.error("invalid access token: " + str(type(e1)))
+            LOG.error("invalid access token: " + str(type(e1)) + str(e1))
             bottle.response.content_type = 'application/json'
-            return json.dumps(dict(error = "invalid access token, " + str(type(e1))))
+            return json.dumps(dict(error = "invalid access token, " + str(e1)))
         except Exception as e:
             LOG.exception(e)
             raise e
@@ -362,7 +362,7 @@ def postDataset():
        or not isinstance(bottle.request.forms, bottle.FormsDict) \
        or not isinstance(bottle.request.files, bottle.FormsDict): 
         raise Exception()
-    LOG.debug("Received POST /dataset")
+    LOG.debug("Received POST /datasets")
     ok, details = checkAuthorizationHeader()
     if not ok and details != None: return details  # return error
     user = authorization.User(details)

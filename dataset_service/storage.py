@@ -724,7 +724,7 @@ class DB:
             (userGID,))
         datasetIDs = []
         for row in self.cursor:
-            datasetIDs.append(row[1])
+            datasetIDs.append(row[0])
         return datasetIDs
 
     def getDatasetAccesses(self, datasetId):

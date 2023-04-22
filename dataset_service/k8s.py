@@ -58,7 +58,7 @@ def create_job(job_name, datasetId):
 
     try:
         api_response = API.create_namespaced_job(current_namespace, body) # field_manager=CONFIG.self.name)
-        logging.root.debug(api_response)
+        #logging.root.debug(api_response)
     except ApiException as e:
         logging.root.error("Exception when calling BatchV1Api->create_namespaced_job: %s\n" % e)
         return False
