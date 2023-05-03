@@ -660,10 +660,19 @@ def patchDataset(id):
 
         if property == "draft":
             if bool(newValue) == False and dataset["previousId"] != None:
-                # Set in the previous dataset the reference to this one
-                # This way, the UI can show a notice in the previous dataset that there is a new version, with a link to this one
+                # Let's set in the previous dataset the reference to this one.
+                # This way, the UI can show a notice in the previous dataset that there is a new version, with a link to this one.
                 previousDataset = db.getDataset(dataset["previousId"])
                 if previousDataset is None: raise Exception()
+                #  Check the previousId is not in other datasets.
+                #  It has to be checked here because when released this dataset, the previous will disappear from the upgradable datasets list,
+                #  so the other datasets sharing the previousId will be in a wrong state, they will have a previousId not selectable.
+                newVersionsOfTheSameDataset = db.getDatasetsSharingPreviousId(dataset["previousId"])
+                if len(newVersionsOfTheSameDataset) > 1:
+                    return setErrorResponse(400,"There are more than one draft datasets selected as the next version for the same dataset: "
+                                               +str(newVersionsOfTheSameDataset) + ". "
+                                               +"Please delete or change the previousId in some of them (only one can be the next version) .")
+                # The next check can not happen because of the previous check, but it is kept just in case the previous is removed in the future.
                 if previousDataset["nextId"] != None:
                     return setErrorResponse(400,"The previousId (%s) is not valid, " % dataset["previousId"]
                                                +"it references to an old dataset which already has a new version (%s). " % previousDataset["nextId"]

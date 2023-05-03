@@ -618,6 +618,17 @@ class DB:
             res.append(dict(id = row[0], name = row[1]))
         return res
     
+    def getDatasetsSharingPreviousId(self, previousId):
+        self.cursor.execute(sql.SQL("""
+            SELECT id
+            FROM dataset
+            WHERE previous_id = {};"""
+            ).format(sql.Literal(previousId)))
+        res = []
+        for row in self.cursor:
+            res.append(row[0])
+        return res
+
     def deleteDataset(self, datasetId):
         self.cursor.execute("DELETE FROM dataset_creation_status WHERE dataset_id=%s;", (datasetId,))
         self.cursor.execute("DELETE FROM dataset_study WHERE dataset_id=%s;", (datasetId,))
@@ -737,7 +748,7 @@ class DB:
                   AND dataset_access.user_gid = author.gid;""", (datasetId,))
         res = []
         for row in self.cursor:
-            res.append(dict(title = row[0], url = row[1]))
+            res.append(dict(username = row[0], toolName = row[1], toolVersion = row[2]))
         return res
 
     def deleteDatasetAccess(self, datasetAccessId):
