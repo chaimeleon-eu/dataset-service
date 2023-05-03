@@ -5,18 +5,18 @@ import urllib.error
 import http.client
 import json
 import time
-from dataset_service import hash
+from dataset_service import auth, hash
 
 class TraceException(Exception):
     pass
     
-def check_connection(authUrl, clientId, clientSecret, tracerUrl):
+def check_connection(authClient: auth.AuthClient, tracerUrl):
     logging.root.info("Checking connection to tracer-service on %s..." % tracerUrl)
     try:
         retries = 0
         while retries < 5:
             try:
-                hash_codes = getSupportedHashAlgorithms(authUrl, clientId, clientSecret, tracerUrl)
+                hash_codes = getSupportedHashAlgorithms(authClient, tracerUrl)
                 logging.root.info("Accepted hash codes: %s" % json.dumps(hash_codes))
                 break
             except urllib.error.HTTPError as e1:
@@ -31,34 +31,12 @@ def check_connection(authUrl, clientId, clientSecret, tracerUrl):
         logging.root.exception(e)
         raise e
 
-def login(oidc_url, client_id, client_secret):
-    logging.root.debug("Logging into the tracer...")
-    auth = urllib.parse.urlparse(oidc_url)
-    if auth.hostname is None: raise Exception('Wrong oidc_url.')
-    connection = http.client.HTTPSConnection(auth.hostname, auth.port)
-
-    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-    payload = urllib.parse.urlencode({'client_id' : client_id, 'client_secret' : client_secret, 'grant_type': 'client_credentials'})
-    connection.request("POST", auth.path, payload, headers)
-    res = connection.getresponse()
-    httpStatusCode = res.status
-    msg = res.read()  # whole response must be readed in order to do more requests using the same connection
-    if httpStatusCode != 200:
-        logging.root.error('Tracer login error. Code: %d %s' % (httpStatusCode, res.reason))
-        raise TraceException('Internal server error: tracer login failed.')
-    else:
-        logging.root.debug('Tracer login success.')
-        response = json.loads(msg)
-        #print(response)
-        return response['access_token']
-
-def getSupportedHashAlgorithms(authUrl, clientId, clientSecret, tracerUrl):
-    token = login(authUrl, clientId, clientSecret)
+def getSupportedHashAlgorithms(authClient: auth.AuthClient, tracerUrl):
     tracer = urllib.parse.urlparse(tracerUrl)
     if tracer.hostname is None: raise Exception('Wrong tracerUrl.')
     connection = http.client.HTTPSConnection(tracer.hostname, tracer.port)
     headers = {}
-    headers['Authorization'] = 'bearer ' + token
+    headers['Authorization'] = 'bearer ' + authClient.get_token()
     # headers['Authorization'] = 'Basic XXXXXXXXXXXX'
     # logging.root.debug("GET: " + tracer.path + "api/v1/traces/hashes")
     connection.request("GET", tracer.path + "api/v1/traces/hashes", "", headers)
@@ -88,7 +66,7 @@ def getSupportedHashAlgorithms(authUrl, clientId, clientSecret, tracerUrl):
 #         if os.path.isdir(filePath): addFilesFromDirectoryAsResources(body, datasetDirPath, fileRelativePath)
 #         else:                       addFileAsResource(body, filePath, hash.getHashOfString(fileRelativePath))
 
-def getResources(datasetDirPath, indexFileName, eformsFileName, studies = None, studiesHashes = None, notifyProgress = None):
+def _getResources(datasetDirPath, indexFileName, eformsFileName, studies = None, studiesHashes = None, notifyProgress = None):
     resources = []
     logging.root.debug('Calculating SHAs...')
     indexHash, imagesHash, clinicalDataHash = hash.getHashesOfDataset(datasetDirPath, indexFileName, eformsFileName, 
@@ -123,7 +101,7 @@ def getResources(datasetDirPath, indexFileName, eformsFileName, studies = None, 
     return resources
 
 
-def traceDatasetCreation(authUrl, clientId, clientSecret, tracerUrl, datasetDirPath, indexFileName, eformsFileName, 
+def traceDatasetCreation(authClient: auth.AuthClient, tracerUrl, datasetDirPath, indexFileName, eformsFileName, 
                          datasetId, userId, datasetStudies = None, studiesHashes = None, notifyProgress = None):
     '''
     "studiesHashes" is an optional array that will be filled with the hashes of studies.
@@ -139,7 +117,7 @@ def traceDatasetCreation(authUrl, clientId, clientSecret, tracerUrl, datasetDirP
         userId = userId, 
         userAction = 'CREATE_DATASET', 
         datasetId = datasetId,
-        resources = getResources(datasetDirPath, indexFileName, eformsFileName, datasetStudies, studiesHashes, notifyProgress)
+        resources = _getResources(datasetDirPath, indexFileName, eformsFileName, datasetStudies, studiesHashes, notifyProgress)
     )
 
     # if dataset["previousId"] != None:
@@ -148,8 +126,7 @@ def traceDatasetCreation(authUrl, clientId, clientSecret, tracerUrl, datasetDirP
     
     payload = json.dumps(body)
 
-    token = login(authUrl, clientId, clientSecret)
-    headers['Authorization'] = 'bearer ' + token
+    headers['Authorization'] = 'bearer ' + authClient.get_token()
     # headers['Authorization'] = 'Basic XXXXXXXXXXXX'
 
     logging.root.debug("Calling tracer...")
@@ -167,13 +144,12 @@ def traceDatasetCreation(authUrl, clientId, clientSecret, tracerUrl, datasetDirP
         #response = json.loads(msg)
         #print(response)
 
-def getOriginalResourcesFromTracer(authUrl, clientId, clientSecret, tracerUrl, datasetId):
+def getOriginalResourcesFromTracer(authClient: auth.AuthClient, tracerUrl, datasetId):
     tracer = urllib.parse.urlparse(tracerUrl)
     if tracer.hostname is None: raise Exception('Wrong tracerUrl.')
     connection = http.client.HTTPSConnection(tracer.hostname, tracer.port)
     headers = {}
-    token = login(authUrl, clientId, clientSecret)
-    headers['Authorization'] = 'bearer ' + token
+    headers['Authorization'] = 'bearer ' + authClient.get_token()
     payload = ""
     # get original resources from Tracer
     logging.root.debug('Getting trace from Tracer...')
@@ -225,8 +201,8 @@ def checkHash(originalHash, currentHash, name):
         return False
     return True
 
-def checkDatasetIntegrity(authUrl, clientId, clientSecret, tracerUrl, datasetId, datasetDirPath, indexFileName, eformsFileName) -> str | None:
-    indexHash0, imagesHash0, clinicalDataHash0 = getOriginalResourcesFromTracer(authUrl, clientId, clientSecret, tracerUrl, datasetId)
+def checkDatasetIntegrity(authClient: auth.AuthClient, tracerUrl, datasetId, datasetDirPath, indexFileName, eformsFileName) -> str | None:
+    indexHash0, imagesHash0, clinicalDataHash0 = getOriginalResourcesFromTracer(authClient, tracerUrl, datasetId)
     indexHash, imagesHash, clinicalDataHash = hash.getHashesOfDataset(datasetDirPath, indexFileName, eformsFileName)
     if not checkHash(indexHash0,        indexHash,        'index'):        return 'index'
     if not checkHash(imagesHash0,       imagesHash,       'images'):       return 'images'
@@ -235,15 +211,13 @@ def checkDatasetIntegrity(authUrl, clientId, clientSecret, tracerUrl, datasetId,
     return None
 
 
-def traceDatasetsAccess(authUrl, clientId, clientSecret, tracerUrl, datasetsIds, userId, toolName, toolVersion):
-    token = login(authUrl, clientId, clientSecret)
-
+def traceDatasetsAccess(authClient: auth.AuthClient, tracerUrl, datasetsIds, userId, toolName, toolVersion):
     tracer = urllib.parse.urlparse(tracerUrl)
     if tracer.hostname is None: raise Exception('Wrong tracerUrl.')
     connection = http.client.HTTPSConnection(tracer.hostname, tracer.port)
 
     headers = {}
-    headers['Authorization'] = 'bearer ' + token
+    headers['Authorization'] = 'bearer ' + authClient.get_token()
     headers['Content-Type'] = 'application/json;charset=UTF-8'
     body = dict(
         userId = userId,
@@ -266,15 +240,13 @@ def traceDatasetsAccess(authUrl, clientId, clientSecret, tracerUrl, datasetsIds,
         #response = json.loads(msg)
         #print(response)
     
-def traceDatasetUpdate(authUrl, clientId, clientSecret, tracerUrl, datasetId, userId, updateDetails):
-    token = login(authUrl, clientId, clientSecret)
-
+def traceDatasetUpdate(authClient: auth.AuthClient, tracerUrl, datasetId, userId, updateDetails):
     tracer = urllib.parse.urlparse(tracerUrl)
     if tracer.hostname is None: raise Exception('Wrong tracerUrl.')
     connection = http.client.HTTPSConnection(tracer.hostname, tracer.port)
 
     headers = {}
-    headers['Authorization'] = 'bearer ' + token
+    headers['Authorization'] = 'bearer ' + authClient.get_token()
     headers['Content-Type'] = 'application/json;charset=UTF-8'
     body = dict(
         userId = userId,

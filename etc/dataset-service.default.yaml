@@ -6,39 +6,49 @@ db:    # The parameters needed to access to a Postgres database service that mus
   user: "dssuser"
   password: "XXXXXX"
 
-auth:   # These are the parameters for the validation of auth tokens received.
-  # The URL to the public keys of the authentication service that issue the tokens.
-  token_issuer_public_keys_url: "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/certs"
-  # The key ID (kid) is just for selecting which key have to be downloaded from the token_issuer_public_keys_url in the initialization in order to validate later the coming tokens. 
-  # Usually there is only one key, so just go to the URL and copy the kid.
-  kid: "U2yU60He9Irc8iNJ7zCBVUQEkXe9yq0XrHLu4f3i1gT"
-  # The accepted values for the "audience" claim.
-  # You should write here the client ID configured in the authentication service for that application (the dataset-service).
-  audience: ["dataset-service"]
-  # The accepted value for the "issuer" claim.
-  issuer: "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON"
-  roles:   # Here you can customize the string that defines every role that can be included in the token to allow the user to do things.
-    access_all_datasets: "access_all_datasets"
-    admin_datasets: "admin_datasets"
-    superadmin_datasets: "superadmin_datasets"
-    admin_users: "admin_users"
-    admin_datasetAccess: "admin_datasetAccess"
+auth:
+  token_validation:   # These are the parameters for the validation of auth tokens received from user requests.
+    token_issuer_public_keys_url: "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/certs"
+      # The URL to the public keys of the authentication service that issue the tokens.
+    kid: "U2yU60He9Irc8iNJ7zCBVUQEkXe9yq0XrHLu4f3i1gT"
+      # The key ID (kid) is just for selecting which key have to be downloaded from the token_issuer_public_keys_url in the 
+      # initialization in order to validate later the coming tokens. 
+      # Usually there is only one key, so just go to the URL and copy the kid.
+    audience: ["dataset-service"] 
+      # The accepted values for the "audience" claim.
+      # You should write here the client ID configured in the authentication service for this application (the dataset-service).
+    issuer: "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON"
+      # The accepted value for the "issuer" claim.
+    roles:   # Here you can customize the string that defines every role appearing in the token to allow the user to do things.
+      access_all_datasets: "access_all_datasets"
+      admin_datasets: "admin_datasets"
+      superadmin_datasets: "superadmin_datasets"
+      admin_users: "admin_users"
+      admin_datasetAccess: "admin_datasetAccess"
+  client:   # These are the parameters for login (get an auth token) as a service account in the auth service, 
+            # in order to access other services like tracer or the keycloak admin API.
+    auth_url: "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token"
+      # The url of authentication service.
+    client_id: "dataset-service"
+      # The client id of the dataset-service in the authentication service (it is like the "username" of a service account).
+    client_secret: "XXXXXXXXXXXXXXXXXXXXXXX"
+      # The client secret of the dataset-service client (it is like the "password" when login as a service account).
+  admin_api_url: "https://chaimeleon-eu.i3m.upv.es/auth/admin/realms/CHAIMELEON/"
+    # The URL to the authentication admin api, for querying user groups, etc.
+    # Please note the auth.client params will be used for getting the token to access to this service.
+    # Also note that the following roles must be added to the service account roles: 
+    #   "realm-management/query-groups", "realm-management/query-users", "realm-management/view-users".
 
 tracer:
-  # The url of the tracer service for notifying dataset events. 
-  # You can set it to empty to disable the notification to tracer.
   url: "https://chaimeleon-eu.i3m.upv.es/tracer-service/tracer/"
-  # The url of authentication service for accessing to tracer service.
-  auth_url: "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token"
-  # The client id of the dataset-service to login in the authentication service to access to the tracer (it is like the "username" of a service account).
-  client_id: "dataset-service"
-  # The client secret of the dataset-service to login inauthenticate as a "service account".
-  client_secret: "XXXXXXXXXXXXXXXXXXXXXXX"
+    # The url of the tracer service for notifying dataset events. 
+    # You can set it to empty to disable the notification to tracer.
+    # Please note the auth.client params will be used for getting the token to access to this service.
 
 zenodo:
-  # The url of Zenodo service to submit depositions.
-  # Usually "https://sandbox.zenodo.org/" for testing, and "https://zenodo.org/" for production.
   url: "https://sandbox.zenodo.org/"
+    # The url of Zenodo service to submit depositions.
+    # Usually "https://sandbox.zenodo.org/" for testing, and "https://zenodo.org/" for production.
   access_token: "XXXXXXXXXXXXXXXXXXXXXXX"
   community: ""
   grant: ""
@@ -49,28 +59,27 @@ self:
   port: 11000
   log: 
     main_service:
-        # Possible levels from the most to the minimum verbose: DEBUG, INFO, WARN, ERROR, FATAL
         level: "DEBUG"
+          # Possible levels from the most to the minimum verbose: DEBUG, INFO, WARN, ERROR, FATAL
         file_path: "./log/dataset-service.log"
-        # Max size of file in bytes. When it get the max size it is closed and renamed appending ".1".
-        # If the file ending with ".1" already exists, it is renamed to ".2", and so on until the max backup of 3.
         max_size: 10485760
+          # Max size of file in bytes. When it get the max size it is closed and renamed appending ".1".
+          # If the file ending with ".1" already exists, it is renamed to ".2", and so on until the max backup of 3.
     dataset_creation_job:
         level: "DEBUG"
         file_path_format: "./log/dataset-creation-job-%s.log"
         max_size: 10485760
-  # Absolute directory path where the web UI static files are.
-  # They will be served when a request of root path ("/") is received.
   static_files_dir_path: "/var/www/dataset-service-ui"
-  # Secret token for the "/api/set-ui" operation (for developers, to set the web UI static files).
-  # If empty token, that operation is not allowed (404 returned), this way you can disable it in production.
+    # Absolute directory path where the web UI static files are.
+    # They will be served when a request of root path ("/") is received.
   dev_token: ""
-  #
+    # Secret token for the "/api/set-ui" operation (for developers, to set the web UI static files).
+    # If empty token, that operation is not allowed (404 returned), this way you can disable it in production.
   datalake_mount_path: "/mnt/datalake"
   datasets_mount_path: "/mnt/datasets"
   eforms_file_name: "eforms.json"
   index_file_name: "index.json"
-  # Url format of public available details of a dataset (using the endpoint of the WebUI, the Dataset-explorer)
-  # It is used for the url returned in the dataset creation POST, 
-  # and also for the links incluided in the publication submited to Zenodo.
   dataset_link_format: "https://chaimeleon-eu.i3m.upv.es/dataset-service/datasets/%s/details"
+    # Url format of public available details of a dataset (using the endpoint of the WebUI, the Dataset-explorer)
+    # It is used for the url returned in the dataset creation POST, 
+    # and also for the links incluided in the publication submited to Zenodo.

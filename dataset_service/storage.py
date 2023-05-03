@@ -299,32 +299,34 @@ class DB:
                 INSERT INTO author (id, username, name, email) 
                 VALUES (%s, %s, %s, %s)
                 ON CONFLICT (id) DO NOTHING;""", 
-                (userId, username, name, email)
-            )
+                (userId, username, name, email))
         else: 
             self.cursor.execute("""
                 UPDATE author
                 SET username = %s, name = %s, email = %s
                 WHERE id = %s;""", 
-                (username, name, email, userId)
-            )
+                (username, name, email, userId))
     
-    def createOrUpdateUser(self, userId, username, groups):
+    def createOrUpdateUser(self, userId, username, groups, gid = None):
         self.cursor.execute("SELECT id FROM author WHERE id=%s LIMIT 1;", (userId,))
         row = self.cursor.fetchone()
         if row is None: 
-            self.cursor.execute("""
-                INSERT INTO author (id, username) 
-                VALUES (%s, %s)
-                ON CONFLICT (id) DO NOTHING;""", 
-                (userId, username)
-            )
+            if gid is None: gidstr0 = sql.SQL(""); gidstr1 = sql.SQL("")
+            else: gidstr0 = sql.SQL(", gid"); gidstr1 = sql.SQL(", ")+sql.Literal(gid)
+            self.cursor.execute(sql.SQL("""
+                INSERT INTO author (id, username{}) 
+                VALUES ({}, {}{})
+                ON CONFLICT (id) DO NOTHING;"""
+            ).format(gidstr0, 
+                     sql.Literal(str(userId)), sql.Literal(str(username)), gidstr1))
         else: 
-            self.cursor.execute("""
-                UPDATE author SET username = %s
-                WHERE id = %s;""", 
-                (username, userId)
-            )
+            if gid is None: gidstr = sql.SQL("")
+            else: gidstr = sql.SQL(", gid=")+sql.Literal(gid)
+            self.cursor.execute(sql.SQL("""
+                UPDATE author SET username = {}{}
+                WHERE id = {};"""
+            ).format(sql.Literal(str(username)), gidstr, 
+                     sql.Literal(str(userId))))
             # delete and reintroduce the groups because they could be changed
             self.cursor.execute("DELETE FROM user_group WHERE user_id=%s;", (userId,))
         for group in groups:
@@ -332,8 +334,7 @@ class DB:
                 INSERT INTO user_group (user_id, group_name) 
                 VALUES (%s, %s)
                 ON CONFLICT (user_id, group_name) DO NOTHING;""", 
-                (userId, group)
-            )
+                (userId, group))
 
     def getUserIDs(self, userName):
         self.cursor.execute("SELECT id, gid FROM author WHERE username=%s LIMIT 1;", (userName,))
@@ -616,7 +617,7 @@ class DB:
         for row in self.cursor:
             res.append(dict(id = row[0], name = row[1]))
         return res
-
+    
     def deleteDataset(self, datasetId):
         self.cursor.execute("DELETE FROM dataset_creation_status WHERE dataset_id=%s;", (datasetId,))
         self.cursor.execute("DELETE FROM dataset_study WHERE dataset_id=%s;", (datasetId,))

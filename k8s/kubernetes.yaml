@@ -154,16 +154,21 @@ spec:
               value: |
                 { "db": { "host": "db", "port": 5432, "dbname": "dataset-service", "user": "dataset-service-user", "password": "XXXXXX" },
                   "auth": {
-                      "token_issuer_public_keys_url": "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/certs",
-                      "kid": "T7yU60He9Irc8iNJ7zCBVUQEkXe9yq0XrHLu4fBi1gU",
-                      "audience": ["dataset-service"],
-                      "issuer": "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON"
+                      "token_validation": {
+                          "token_issuer_public_keys_url": "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/certs",
+                          "kid": "T7yU60He9Irc8iNJ7zCBVUQEkXe9yq0XrHLu4fBi1gU",
+                          "audience": ["dataset-service"],
+                          "issuer": "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON"
+                      },
+                      "client": {
+                          "auth_url": "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token",
+                          "client_id": "dataset-service",
+                          "client_secret": "XXXXXXXX"
+                      },
+                      "admin_api_url": "https://chaimeleon-eu.i3m.upv.es/auth/admin/realms/CHAIMELEON/"
                   },
                   "tracer": {
-                      "url": "https://chaimeleon-eu.i3m.upv.es/tracer-service/tracer/",
-                      "auth_url": "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token",
-                      "client_id": "dataset-service",
-                      "client_secret": "XXXXXXXX"
+                      "url": "https://chaimeleon-eu.i3m.upv.es/tracer-service/tracer/"
                   },
                   "zenodo": {
                       "url": "https://zenodo.org/",

@@ -1,13 +1,18 @@
 from enum import Enum
 from dataset_service.POSIX import *
-    
+
+class Access_type(Enum):
+    VIEW_DETAILS = 1
+    USE = 2
+
 class User:
     roles = None
 
     def __init__(self, token):
         self.token = token    # it is None if unregistered user
-            
-    def _appendIfNotExists(array, item):
+
+    @classmethod        
+    def _appendIfNotExists(cls, array, item):
         if item not in array: array.append(item)
 
     @classmethod
@@ -48,14 +53,10 @@ class User:
     def canDeleteDatasets(self):
         return self.token != None and User.roles.superadmin_datasets in self.token["appRoles"]
 
-    class Access_type(Enum):
-        VIEW_DETAILS = 1
-        USE = 2
-
     def canAccessDataset(self, dataset, access_type = Access_type.VIEW_DETAILS):
         if self.token != None and User.roles.superadmin_datasets in self.token["appRoles"]: return True
 
-        if dataset["invalidated"] and access_type is User.Access_type.USE: return False
+        if dataset["invalidated"] and access_type is Access_type.USE: return False
 
         if dataset["draft"] and (self.token is None or self.token["sub"] != dataset["authorId"]):
             return False
@@ -94,17 +95,17 @@ class User:
         return self.token != None and self.roles.admin_datasetAccess in self.token["appRoles"]
 
 
-    def tmpUserCanAccessDataset(userId, userGroups, dataset, access_type = Access_type.USE):
-        if "cloud-services-and-security-management" in userGroups: return True
+def tmpUserCanAccessDataset(userId, userGroups, dataset, access_type = Access_type.USE):
+    if "cloud-services-and-security-management" in userGroups: return True
 
-        if dataset["invalidated"] and access_type is User.Access_type.USE: return False
+    if dataset["invalidated"] and access_type is Access_type.USE: return False
 
-        if dataset["draft"] and userId != dataset["authorId"]:
-            return False
+    if dataset["draft"] and userId != dataset["authorId"]:
+        return False
 
-        if dataset["public"]: return True
-        
-        return "data-scientists" in userGroups
+    if dataset["public"]: return True
+    
+    return "data-scientists" in userGroups
 
 
 class Search_filter():

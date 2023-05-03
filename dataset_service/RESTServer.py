@@ -1,5 +1,6 @@
 #! /usr/bin/env python3
 
+import os
 from datetime import datetime
 from pathlib import Path
 import bottle
@@ -8,7 +9,6 @@ import json
 #from kubernetes.client import exceptions
 import yaml
 import time
-from dataset_service.storage import DB
 #from kubernetes import client, config
 #from kubernetes.client.rest import ApiException
 import jwt
@@ -17,12 +17,10 @@ import urllib
 import urllib.error
 import uuid
 import pydicom
-import dataset_service.tracer as tracer
-import dataset_service.pid as pid
-from dataset_service.dataset import *
-from dataset_service import dicom
-from dataset_service import authorization
-from dataset_service import k8s
+from dataset_service import dicom, authorization, k8s, pid, tracer, keycloak
+from dataset_service.auth import AuthClient, LoginException
+from dataset_service.storage import DB
+import dataset_service.dataset as dataset_file_system
 
 #LOG = logging.getLogger('module1')
 LOG = logging.root
@@ -54,10 +52,10 @@ app.install(exception_catch)
 thisRESTServer = None
 CONFIG = None
 AUTH_PUBLIC_KEY = None
-
+AUTH_CLIENT = None
+AUTH_ADMIN_CLIENT = None
 
 class RESTServer (bottle.ServerAdapter):
-
     def run(self, handler):
         try:
             # First try to use the new version
@@ -78,18 +76,20 @@ class RESTServer (bottle.ServerAdapter):
             self.srv.stop()
 
 def run(host, port, config):
-    global thisRESTServer, LOG, CONFIG, AUTH_PUBLIC_KEY
+    global thisRESTServer, LOG, CONFIG, AUTH_PUBLIC_KEY, AUTH_CLIENT, AUTH_ADMIN_CLIENT
     CONFIG = config
-    authorization.User.roles = CONFIG.auth.roles
+    authorization.User.roles = CONFIG.auth.token_validation.roles
+    AUTH_CLIENT = AuthClient(CONFIG.auth.client.auth_url, CONFIG.auth.client.client_id, CONFIG.auth.client.client_secret)
+    AUTH_ADMIN_CLIENT = keycloak.KeycloakAdminAPIClient(AUTH_CLIENT, CONFIG.auth.admin_api_url)
 
-    LOG.info("Obtaining the public key from %s..." % CONFIG.auth.token_issuer_public_keys_url)
-    LOG.info("kid: %s" % CONFIG.auth.kid)
+    LOG.info("Obtaining the public key from %s..." % CONFIG.auth.token_validation.token_issuer_public_keys_url)
+    LOG.info("kid: %s" % CONFIG.auth.token_validation.kid)
     try:
         retries = 0
         while retries < 5:
             try:
-                jwks_client = PyJWKClient(CONFIG.auth.token_issuer_public_keys_url)
-                AUTH_PUBLIC_KEY = jwks_client.get_signing_key(CONFIG.auth.kid)
+                jwks_client = PyJWKClient(CONFIG.auth.token_validation.token_issuer_public_keys_url)
+                AUTH_PUBLIC_KEY = jwks_client.get_signing_key(CONFIG.auth.token_validation.kid)
                 LOG.info("key: %s" % str(AUTH_PUBLIC_KEY.key))
                 break
             except urllib.error.HTTPError as e1:
@@ -118,12 +118,14 @@ def run(host, port, config):
     if CONFIG.self.datasets_mount_path == '':
         LOG.warn("datasets_mount_path is empty: datasets will not be created on disk, they will be only stored in database.")
     else: 
-        check_file_system(CONFIG.self.datalake_mount_path, CONFIG.self.datasets_mount_path)
+        dataset_file_system.check_file_system(CONFIG.self.datalake_mount_path, CONFIG.self.datasets_mount_path)
     
+    AUTH_ADMIN_CLIENT.check_connection()
+
     if CONFIG.tracer.url == '':
         LOG.warn("tracer.url is empty: actions will not be notified to the tracer-service.")
     else: 
-        tracer.check_connection(CONFIG.tracer.auth_url, CONFIG.tracer.client_id, CONFIG.tracer.client_secret, CONFIG.tracer.url)
+        tracer.check_connection(AUTH_CLIENT, CONFIG.tracer.url)
         
     thisRESTServer = RESTServer(host=host, port=port)
     LOG.info("Running the service in %s:%s..." % (host, port))
@@ -145,7 +147,7 @@ def validate_token(token):
 
     #AUTH_PUBLIC_KEY = "-----BEGIN PUBLIC KEY-----\n" + CONFIG.auth.token_issuer_public_key + "\n-----END PUBLIC KEY-----"
     decodedToken = jwt.decode(token, AUTH_PUBLIC_KEY.key, algorithms=['RS256'],  
-                              issuer=CONFIG.auth.issuer, audience=CONFIG.auth.audience, 
+                              issuer=CONFIG.auth.token_validation.issuer, audience=CONFIG.auth.token_validation.audience, 
                               options={'verify_signature': True, 'require': ["exp", "iat", "iss", "aud"]})
     LOG.debug(json.dumps(decodedToken))
     return decodedToken
@@ -425,7 +427,7 @@ def postDataset():
             # Integrity checks
             subjects = set()
             for subject in dataset["subjects"]:
-                if subject["subjectName"] in subjects: 
+                if subject["subjectName"] in subjects:
                     raise WrongInputException("The subjectName '%s' is duplicated in 'subjects' array of " % subject["subjectName"]
                                              +"the dataset." )
                 subjects.add(subject["subjectName"])
@@ -433,7 +435,7 @@ def postDataset():
                 if not study["subjectName"] in subjects:
                     raise WrongInputException("The study with id '%s' has a 'subjectName' which is not in the " % study["studyId"]
                                              +"'subjects' array of the dataset." )
-
+            
         with DB(CONFIG.db) as db:
             LOG.debug("Updating author: %s, %s, %s, %s" % (userId, userUsername, userName, userEmail))
             db.createOrUpdateAuthor(userId, userUsername, userName, userEmail)
@@ -466,7 +468,7 @@ def postDataset():
 
             LOG.debug('Creating dataset directory...')
             datasetDirName = datasetId
-            create_dataset_dir(CONFIG.self.datasets_mount_path, datasetDirName)
+            dataset_file_system.create_dataset_dir(CONFIG.self.datasets_mount_path, datasetDirName)
             datasetDirPath = os.path.join(CONFIG.self.datasets_mount_path, datasetDirName)
 
             LOG.debug('Writing E-FORM: ' + CONFIG.self.eforms_file_name)
@@ -498,13 +500,13 @@ def postDataset():
                                url = CONFIG.self.dataset_link_format % datasetId))
 
     except (WrongInputException) as e:
-        if datasetDirName != '': remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
+        if datasetDirName != '': dataset_file_system.remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
         return setErrorResponse(400, str(e))
     except Exception as e:
         LOG.exception(e)
         if not "external" in bottle.request.query or bottle.request.query["external"].lower() != "true":
             LOG.error("May be the body of the request is wrong: %s" % read_data)
-        if datasetDirName != '': remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
+        if datasetDirName != '': dataset_file_system.remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
         return setErrorResponse(500, "Unexpected error, may be the input is wrong")
 
 
@@ -536,7 +538,7 @@ def getDatasetCreationStatus(id):
 
 @app.route('/api/datasets/<id>/checkIntegrity', method='GET')
 def checkDatasetIntegrity(id):
-    if CONFIG is None: raise Exception()
+    if CONFIG is None or AUTH_CLIENT is None: raise Exception()
     LOG.debug("Received GET /dataset/%s" % id)
     ok, details = checkAuthorizationHeader()
     if not ok and details != None: return details  # return error
@@ -551,8 +553,8 @@ def checkDatasetIntegrity(id):
         datasetDirName = datasetId
         datasetDirPath = os.path.join(CONFIG.self.datasets_mount_path, datasetDirName)
         if CONFIG.tracer.url != '':
-            wrongHash = tracer.checkDatasetIntegrity(CONFIG.tracer.auth_url, CONFIG.tracer.client_id, CONFIG.tracer.client_secret, CONFIG.tracer.url, 
-                                                     datasetId, datasetDirPath, CONFIG.self.index_file_name, CONFIG.self.eforms_file_name)
+            wrongHash = tracer.checkDatasetIntegrity(AUTH_CLIENT, CONFIG.tracer.url, datasetId, datasetDirPath,
+                                                     CONFIG.self.index_file_name, CONFIG.self.eforms_file_name)
             if wrongHash is None: 
                 result = dict(success=True, msg="Integrity OK.")
             else: result = dict(success=False, msg="Resource hash mismatch: %s" % wrongHash) 
@@ -630,7 +632,7 @@ def updateZenodoDeposition(db, dataset):
 
 @app.route('/api/datasets/<id>', method='PATCH')
 def patchDataset(id):
-    if CONFIG is None: raise Exception()
+    if CONFIG is None or AUTH_CLIENT is None: raise Exception()
     LOG.debug("Received PATCH /dataset/%s" % id)
     ok, details = checkAuthorizationHeader()
     if not ok and details != None: return details  # return error
@@ -686,7 +688,7 @@ def patchDataset(id):
             if bool(newValue):
                 LOG.debug('Removing ACL entries in dataset %s ...' % (datasetId))
                 datasetDirName = datasetId
-                invalidate_dataset(CONFIG.self.datasets_mount_path, datasetDirName)              
+                dataset_file_system.invalidate_dataset(CONFIG.self.datasets_mount_path, datasetDirName)              
             trace_details = "INVALIDATE" if bool(newValue) else "REACTIVATE"
         elif property == "name":
             db.setDatasetName(datasetId, str(newValue))
@@ -701,7 +703,7 @@ def patchDataset(id):
                     return setErrorResponse(400,"invalid value, the dataset id does not exist")
                 if not user.canModifyDataset(previousDataset):
                     return setErrorResponse(401,"the dataset selected as previous (%s) "
-                                                +"must be editable by the user (%s)" % (previousDataset["id"], user.getUserName()))
+                                               +"must be editable by the user (%s)" % (previousDataset["id"], user.getUserName()))
             db.setDatasetPreviousId(datasetId, newValue)  # newValue can be None or str
             # Don't notify the tracer, this property can be changed only in draft state
         elif property == "license":
@@ -734,8 +736,7 @@ def patchDataset(id):
         if CONFIG.tracer.url != '' and trace_details != None:
             LOG.debug('Notifying to tracer-service...')
             # Note this tracer call is inside of "with db" because if tracer fails the database changes will be reverted (transaction rollback).
-            tracer.traceDatasetUpdate(CONFIG.tracer.auth_url, CONFIG.tracer.client_id, CONFIG.tracer.client_secret, CONFIG.tracer.url, 
-                                      datasetId, userId, trace_details)
+            tracer.traceDatasetUpdate(AUTH_CLIENT, CONFIG.tracer.url, datasetId, userId, trace_details)
     bottle.response.status = 200
 
 @app.route('/api/datasets', method='GET')
@@ -830,7 +831,7 @@ def deleteDataset(id):
         if CONFIG.self.datasets_mount_path != '':
             LOG.debug("Removing dataset directory...")
             datasetDirName = datasetId
-            remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
+            dataset_file_system.remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
 
     LOG.debug('Dataset successfully removed.')
     bottle.response.status = 204
@@ -859,7 +860,7 @@ def postUser(userName):
 
 @app.route('/api/users/<userName>', method='PUT')
 def putUser(userName):
-    if CONFIG is None: raise Exception()
+    if CONFIG is None or AUTH_ADMIN_CLIENT is None: raise Exception()
     LOG.debug("Received PUT %s" % bottle.request.path)
     ok, details = checkAuthorizationHeader(serviceAccount=True)
     if not ok and details != None: return details  # return error
@@ -875,12 +876,16 @@ def putUser(userName):
         read_data = bottle.request.body.read().decode('UTF-8')
         LOG.debug("BODY: " + read_data)
         userData = json.loads(read_data)
-        userId = userData["uid"]
+        userId = userData["uid"] if "uid" in userData.keys() else None
         userGroups = userData["groups"]
+        userGid = int(userData["gid"]) if "gid" in userData.keys() else None
+        if userId is None:
+            userId = AUTH_ADMIN_CLIENT.getUserId(userName)
+            if userId is None: raise Exception("username '%s' not found in auth service" % userName)
 
         with DB(CONFIG.db) as db:
-            LOG.debug("Creating or updating user: %s, %s, %s" % (userId, userName, userGroups))
-            db.createOrUpdateUser(userId, userName, userGroups)
+            LOG.debug("Creating or updating user: %s, %s, %s, %s" % (userId, userName, userGid, userGroups))
+            db.createOrUpdateUser(userId, userName, userGroups, userGid)
                         
         LOG.debug('User successfully created or updated.')
         bottle.response.status = 201
@@ -909,17 +914,19 @@ def getUser(userName):
 
 
 def checkDatasetListAccess(datasetIDs: list, userName: str):
+    if CONFIG is None or AUTH_ADMIN_CLIENT is None: raise Exception()
     badIDs = []
     with DB(CONFIG.db) as db:
         userId, userGID = db.getUserIDs(userName)
         if userId is None: return datasetIDs.copy()  # all datasetIDs are bad
-        userGroups = db.getUserGroups(userName)
+        #userGroups = db.getUserGroups(userName)
+        userGroups = AUTH_ADMIN_CLIENT.getUserGroups(userId)
         for id in datasetIDs:
             dataset = db.getDataset(id)
             if dataset is None:
                 # invalidated or not exists
                 badIDs.append(id); continue
-            if not authorization.User.tmpUserCanAccessDataset(userId, userGroups, dataset):
+            if not authorization.tmpUserCanAccessDataset(userId, userGroups, dataset):
                 badIDs.append(id); continue
             if dataset["draft"]:
                 if (db.getDatasetCreationStatus(id) != None):  # dataset still being created
@@ -944,7 +951,7 @@ def postDatasetAccessCheck():
         LOG.debug("BODY: " + read_data)
         datasetAccess = json.loads(read_data)
         userName = datasetAccess["userName"]
-        datasetIDs = datasetAccess["datasets"]    
+        datasetIDs = datasetAccess["datasets"]
 
         badIds = checkDatasetListAccess(datasetIDs, userName)
         if len(badIds) > 0:
@@ -962,7 +969,7 @@ def postDatasetAccessCheck():
 
 @app.route('/api/datasetAccess/<id>', method='POST')
 def postDatasetAccess(id):
-    if CONFIG is None: raise Exception()
+    if CONFIG is None or AUTH_CLIENT is None: raise Exception()
     LOG.debug("Received POST %s" % bottle.request.path)
     ok, details = checkAuthorizationHeader(serviceAccount=True)
     if not ok and details != None: return details  # return error
@@ -995,17 +1002,18 @@ def postDatasetAccess(id):
                     pathsOfStudies = db.getPathsOfStudiesFromDataset(id)
                     LOG.debug('Setting ACLs in dataset %s for GID %s ...' % (id, userGID))
                     datasetDirName = id
-                    give_access_to_dataset(CONFIG.self.datasets_mount_path, datasetDirName, CONFIG.self.datalake_mount_path, pathsOfStudies, userGID)
+                    dataset_file_system.give_access_to_dataset(CONFIG.self.datasets_mount_path, datasetDirName, CONFIG.self.datalake_mount_path, pathsOfStudies, userGID)
 
             db.createDatasetAccess(datasetAccessId, datasetIDs, userGID, toolName, toolVersion)
             if CONFIG.tracer.url != '':
                 # Note this tracer call is inside of "with db" because if tracer fails the database changes will be reverted (transaction rollback).
-                tracer.traceDatasetsAccess(CONFIG.tracer.auth_url, CONFIG.tracer.client_id, CONFIG.tracer.client_secret, CONFIG.tracer.url, 
-                                          datasetIDs, userId, toolName, toolVersion)
+                tracer.traceDatasetsAccess(AUTH_CLIENT, CONFIG.tracer.url, datasetIDs, userId, toolName, toolVersion)
         
         LOG.debug('Dataset access granted.')
         bottle.response.status = 201
 
+    except LoginException as e:
+        return setErrorResponse(500, "Unexpected, error: "+ str(e))
     except Exception as e:
         LOG.exception(e)
         LOG.error("May be the body of the request is wrong: %s" % read_data)
@@ -1040,11 +1048,11 @@ def deleteDatasetAccess(id):
                 if id in datasetIDsAccessedAfterRemoval: continue  # this dataset is still accessed, skip without remove permissions
                 datasetDirName = id
                 LOG.debug('Removing ACLs for GID %s in dataset directory %s not accessed anymore by this user...' % (userGID, datasetDirName))
-                remove_access_to_dataset(CONFIG.self.datasets_mount_path, datasetDirName, userGID)
+                dataset_file_system.remove_access_to_dataset(CONFIG.self.datasets_mount_path, datasetDirName, userGID)
                 pathsOfStudies = set(db.getPathsOfStudiesFromDataset(id))
                 pathsOfStudies.difference_update(pathsOfstudiesAfterRemoval)  # take out the studies still accessed to avoid remove permissions on them
                 LOG.debug('Removing ACLs for GID %s in %d studies no accessed anymore by this user...' % (userGID, len(pathsOfStudies)))
-                remove_access_to_studies(CONFIG.self.datalake_mount_path, pathsOfStudies, userGID)
+                dataset_file_system.remove_access_to_studies(CONFIG.self.datalake_mount_path, pathsOfStudies, userGID)
 
     LOG.debug('Dataset access successfully removed.')
     bottle.response.status = 204
