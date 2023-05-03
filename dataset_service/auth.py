@@ -1,18 +1,23 @@
+from datetime import datetime, timezone
 import logging
 import urllib.parse
 import urllib.error
 import http.client
 import json
+import jwt
 
 class LoginException(Exception):
     pass
     
 class AuthClient:
+    TOKEN_EXPIRATION_LEEWAY = 60  # seconds
 
     def __init__(self, oidc_url, client_id, client_secret):
         self._oidc_url = oidc_url
         self._client_id = client_id
         self._client_secret = client_secret
+        self._token = None
+        self._exp = None
 
     def _login(self):
         logging.root.debug("Logging into the auth service...")
@@ -36,4 +41,14 @@ class AuthClient:
             return response['access_token']
 
     def get_token(self):
-        return self._login()
+        if self._token != None:
+            if self._exp is None:
+                decodedToken = jwt.decode(self._token, options={'verify_signature': False})
+                self._exp = int(decodedToken["exp"])
+            now = datetime.now(tz=timezone.utc).timestamp()
+            if now > (self._exp - self.TOKEN_EXPIRATION_LEEWAY):    # token expired or few time left
+                self._token = None
+                self._exp = None
+        if self._token is None:
+            self._token = self._login()
+        return self._token
