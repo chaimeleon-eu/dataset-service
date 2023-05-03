@@ -430,12 +430,24 @@ def postDataset():
                 if subject["subjectName"] in subjects:
                     raise WrongInputException("The subjectName '%s' is duplicated in 'subjects' array of " % subject["subjectName"]
                                              +"the dataset." )
-                subjects.add(subject["subjectName"])
+                    subjects.add(subject["subjectName"])
             for study in dataset["studies"]:
                 if not study["subjectName"] in subjects:
                     raise WrongInputException("The study with id '%s' has a 'subjectName' which is not in the " % study["studyId"]
                                              +"'subjects' array of the dataset." )
             
+            # File system checks
+            if CONFIG.self.datalake_mount_path != '':
+                for study in dataset["studies"]:
+                    seriesToDelete = []
+                    for serie in study["series"]:
+                        seriePathInDatalake = os.path.join(CONFIG.self.datalake_mount_path, study['pathInDatalake'], serie['folderName'])
+                        if not os.path.exists(seriePathInDatalake):
+                            LOG.warn("The directory '%s' does not exist. The serie will not be included in the dataset." % seriePathInDatalake)
+                            seriesToDelete.append(serie)
+                    for serie in seriesToDelete: 
+                        study["series"].remove(serie)
+
         with DB(CONFIG.db) as db:
             LOG.debug("Updating author: %s, %s, %s, %s" % (userId, userUsername, userName, userEmail))
             db.createOrUpdateAuthor(userId, userUsername, userName, userEmail)
