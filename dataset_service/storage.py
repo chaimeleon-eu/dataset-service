@@ -1,4 +1,3 @@
-from array import array
 import logging
 from os import truncate
 import psycopg2
@@ -444,6 +443,8 @@ class DB:
             (id,))
         row = self.cursor.fetchone()
         if row is None: return None
+        creationDate = str(row[6].astimezone())   # row[6] is a datetime without time zone, just add the local tz.
+                                                  # If local tz is UTC, the string "+00:00" is added at the end.
         if row[18] is None:
             ageLow = None
             ageHigh = None
@@ -468,7 +469,7 @@ class DB:
         return dict(id = row[0], name = row[1], 
                     previousId = row[2], nextId = row[24], 
                     authorId = row[3], authorName = row[4], authorEmail = row[5], 
-                    creationDate = str(row[6]), description = row[7], 
+                    creationDate = creationDate, description = row[7], 
                     license = dict(
                         title = row[8], 
                         url = row[9]), 
@@ -598,7 +599,9 @@ class DB:
         self.cursor.execute(q)
         res = []
         for row in self.cursor:
-            res.append(dict(id = row[0], name = row[1], authorName = row[2], creationDate = str(row[3]), 
+            creationDate = str(row[3].astimezone())   # row[3] is a datetime without time zone, just add the local tz.
+                                                      # If local tz is UTC, the string "+00:00" is added at the end.
+            res.append(dict(id = row[0], name = row[1], authorName = row[2], creationDate = creationDate, 
                             draft = row[4], public = row[5], invalidated = row[6],
                             studiesCount = row[7], subjectsCount = row[8]))
         return res, total
