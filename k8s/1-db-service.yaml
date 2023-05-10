@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: db
+  template:
+    metadata:
+      labels:
+        app: db
+    spec:
+      volumes:
+        - name: postgres-data-pv
+          persistentVolumeClaim:
+            claimName: postgres-data
+      containers:
+      - name: db
+#       image: "postgres:12"
+        image: "harbor.chaimeleon-eu.i3m.upv.es/dockerhub/library/postgres:12"
+        env:
+          - name: POSTGRES_DB
+            value: dataset-service
+          - name: POSTGRES_USER
+            value: dataset-service-user
+          - name: POSTGRES_PASSWORD
+            value: "XXXXXX"
+        ports:
+          - containerPort: 5432
+            # standard postgres DB port
+            name: "dbport"
+        volumeMounts:
+          - mountPath: "/var/lib/postgresql/data"
+            name: postgres-data-pv
+        resources:
+          requests:
+            memory: "250Mi"
+            cpu: "250m"
+      restartPolicy: Always
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+spec:
+  selector:
+    app: db
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432

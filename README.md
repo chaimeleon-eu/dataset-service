@@ -327,16 +327,23 @@ docker logout harbor.chaimeleon-eu.i3m.upv.es
 
 `cd k8s`
 
-Copy the template: `cp kubernetes.yaml kubernetes.private.yaml`
+You can make a private copy of the templates you want to adjust: 
+```
+cp 0-ceph-sercret.yaml 0-ceph-sercret.private.yaml
+cp 1-db-service.yaml 1-db-service.private.yaml
+cp 2-dataset-service.yaml 2-dataset-service.private.yaml
+cp 3-ingress.yaml 3-ingress.private.yaml
+```
 
-Configure: edit `kubernetes.private.yaml` (set passwords, urls, etc.)
+Configure: edit your private copies (set passwords, urls, etc.)
 
-Create a namespace: `kubectl create namespace dataset-service`
-
-Create the persistent volumes: `kubectl apply -f pvcs.yaml`
-
-And finally: `kubectl apply -f kubernetes.private.yaml`
-
+Create a namespace: `kubectl create namespace dataset-service`  
+Create the persistent volumes: `kubectl apply -n dataset-service -f 0-pvcs.yaml`  
+Create the ceph secret: `kubectl apply -n dataset-service -f 0-ceph-secret.private.yaml`  
+Create the service account, role and roleBinding: `kubectl apply -n dataset-service -f 0-service-account.yaml`  
+Create the database deployment and service: `kubectl apply -n dataset-service -f 1-db-service.private.yaml`  
+Create the main deployment and service: `kubectl apply -n dataset-service -f 2-dataset-service.private.yaml`  
+And finally the ingress: `kubectl apply -n dataset-service -f 3-ingress.private.yaml`
 
 ### Run locally for testing purposes:
 
