@@ -23,6 +23,7 @@ def create_job(job_name, datasetId):
         if env_var.name == CONFIG_ENV_VAR_NAME:
             main_service_config = json.loads(env_var.value)
             job_config["db"] = main_service_config["db"]
+            job_config["auth"] = dict()
             job_config["auth"]["client"] = main_service_config["auth"]["client"]
             job_config["tracer"] = main_service_config["tracer"]
             job_config["self"] = main_service_config["self"]
