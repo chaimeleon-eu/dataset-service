@@ -22,7 +22,7 @@ def getAgeInDays(dicomAge):
     if unit == "M": return age*30
     if unit == "W": return age*7
     if unit == "D": return age
-    return None
+    raise Exception("Dicom age cannot be parsed.")
 
 def getAgeInMiabisFormat(dicomAge):
     age = int(dicomAge[:3])

@@ -129,9 +129,9 @@ def run(host, port, config):
         
     thisRESTServer = RESTServer(host=host, port=port)
     LOG.info("Running the service in %s:%s..." % (host, port))
-    bottle.BaseRequest.MEMFILE_MAX = 1024 * 1024   # In bytes, default 102400
-                                                   # We have to increase to avoid error "413: request entity too large" 
-                                                   # when creating dataset.
+    bottle.BaseRequest.MEMFILE_MAX = 15 * 1024 * 1024   # In bytes, default 102400
+                                                        # We have to increase to avoid error "413: request entity too large" 
+                                                        # when creating dataset.
     bottle.run(app, server=thisRESTServer, quiet=True)
 
 def stop():
@@ -273,7 +273,7 @@ def completeDatasetFromCSV(dataset, csvdata):
                 'eForm': eform 
             })
 
-    
+
 def getMetadataFromFirstDicomFile(serieDirPath):
     for name in os.listdir(serieDirPath):
         if name.lower().endswith(".dcm"):
@@ -301,6 +301,7 @@ def collectMetadata(dataset):
         studiesCount += 1
         if not study["subjectName"] in differentSubjects: 
             differentSubjects.add(study["subjectName"])
+        if len(study['series']) == 0: continue
         if CONFIG.self.datalake_mount_path != '':
             seriePathInDatalake = os.path.join(CONFIG.self.datalake_mount_path, study['pathInDatalake'], study['series'][0]['folderName'])
             age, sex, bodyPart, modality = getMetadataFromFirstDicomFile(seriePathInDatalake)
@@ -428,8 +429,8 @@ def postDataset():
             subjects = set()
             for subject in dataset["subjects"]:
                 if subject["subjectName"] in subjects:
-                    raise WrongInputException("The subjectName '%s' is duplicated in 'subjects' array of " % subject["subjectName"]
-                                             +"the dataset." )
+                    raise WrongInputException("The subjectName '%s' is duplicated in 'subjects' array of the dataset." % subject["subjectName"])
+                else:
                     subjects.add(subject["subjectName"])
             for study in dataset["studies"]:
                 if not study["subjectName"] in subjects:
@@ -447,6 +448,8 @@ def postDataset():
                             seriesToDelete.append(serie)
                     for serie in seriesToDelete: 
                         study["series"].remove(serie)
+                    if len(study["series"]) == 0:
+                        LOG.warn("The study with id '%s' does not have any series. " % study["studyId"])
 
         with DB(CONFIG.db) as db:
             LOG.debug("Updating author: %s, %s, %s, %s" % (userId, userUsername, userName, userEmail))
@@ -470,7 +473,7 @@ def postDataset():
 
             LOG.debug("Scanning dataset for collecting metadata... ")
             collectMetadata(dataset)
-                        
+
             LOG.debug('Creating dataset in DB...')
             db.createDataset(dataset, userId)
 
