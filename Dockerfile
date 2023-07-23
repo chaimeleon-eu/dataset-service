@@ -3,11 +3,11 @@ LABEL name="dataset-service-backend"
 LABEL description="https://github.com/chaimeleon-eu/dataset-service"
 LABEL maintainer="palollo@i3m.upv.es"
 
-RUN apt-get update && \
-    apt-get install --no-install-recommends -y python3 python3-pip acl wget unzip less && \
-    apt autoclean -y && \
-    apt autoremove -y && \
-    rm -rf /var/lib/apt/lists/*
+RUN apt-get update \
+ && apt-get install --no-install-recommends -y python3 python3-pip acl wget unzip less \
+ && apt autoclean -y \
+ && apt autoremove -y \
+ && rm -rf /var/lib/apt/lists/*
 # acl package provides the commands getfacl and setfacl to manage ACL on datalake files
 
 ARG MAIN_DIR="/dataset-service"
@@ -23,7 +23,8 @@ COPY ./etc/dataset-service.default.yaml ${MAIN_DIR}/etc/
 # CMD start_dataset_service.py 
 
 WORKDIR ${MAIN_DIR}
-RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir -r requirements.txt 
+RUN pip install --no-cache-dir --upgrade pip \
+ && pip install --no-cache-dir -r requirements.txt 
 
 #CMD python3 start_dataset_service.py && tail -f /dataset-service/log/dataset-service.log
 #CMD python3 start_dataset_service.py

@@ -367,6 +367,17 @@ class DB:
              json.dumps(dataset["sex"]), json.dumps(dataset["bodyPart"]), 
              json.dumps(dataset["modality"]), json.dumps(dataset["seriesTags"])))
 
+    def updateDatasetMetadata(self, dataset):
+        self.cursor.execute("""UPDATE dataset 
+                               SET studies_count = %s, subjects_count = %s, age_low = %s, age_high = %s, 
+                                   sex = %s, body_part = %s, modality = %s, series_tags = %s
+                               WHERE id = %s;""", 
+                            (dataset["studiesCount"], dataset["subjectsCount"], 
+                             dataset["ageLow"], dataset["ageHigh"], 
+                             json.dumps(dataset["sex"]), json.dumps(dataset["bodyPart"]), 
+                             json.dumps(dataset["modality"]), json.dumps(dataset["seriesTags"]), 
+                             dataset["id"]))
+
     def createDatasetCreationStatus(self, datasetId, status, firstMessage):
         self.cursor.execute("""
             INSERT INTO dataset_creation_status (dataset_id, status, last_message)
