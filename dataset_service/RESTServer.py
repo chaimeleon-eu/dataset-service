@@ -354,6 +354,7 @@ def postDataset():
             
             # File system checks
             if CONFIG.self.datalake_mount_path != '':
+                studiesToDelete = []
                 for study in dataset["studies"]:
                     seriesToDelete = []
                     for serie in study["series"]:
@@ -364,7 +365,10 @@ def postDataset():
                     for serie in seriesToDelete: 
                         study["series"].remove(serie)
                     if len(study["series"]) == 0:
-                        LOG.warn("The study with id '%s' does not have any series. " % study["studyId"])
+                        LOG.warn("The study with id '%s' does not have any series. It will not be included in the dataset." % study["studyId"])
+                        studiesToDelete.append(study)
+                for study in studiesToDelete:
+                    dataset["studies"].remove(study)
 
         with DB(CONFIG.db) as db:
             LOG.debug("Updating author: %s, %s, %s, %s" % (userId, userUsername, userName, userEmail))
