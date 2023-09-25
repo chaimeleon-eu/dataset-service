@@ -303,6 +303,7 @@ def postDataset():
 
     datasetDirName = ''
     datasetId = str(uuid.uuid4())
+    read_data = None
     try:
         if "external" in bottle.request.query and bottle.request.query["external"].lower() == "true":
             # This is for manually create datasets out of the standard ingestion procedure 
@@ -445,10 +446,11 @@ def postDataset():
         return setErrorResponse(400, str(e))
     except Exception as e:
         LOG.exception(e)
-        if not "external" in bottle.request.query or bottle.request.query["external"].lower() != "true":
+        if read_data != None:
             LOG.error("May be the body of the request is wrong: %s" % read_data)
         if datasetDirName != '': dataset_file_system.remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
         return setErrorResponse(500, "Unexpected error, may be the input is wrong")
+        #return setErrorResponse(500, "Unexpected error, may be the input is wrong\n%s" % str(e))
 
 
 @app.route('/api/datasets/<id>/creationStatus', method='GET')

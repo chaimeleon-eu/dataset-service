@@ -24,13 +24,15 @@ class AuthClient:
         auth = urllib.parse.urlparse(self._oidc_url)
         if auth.hostname is None: raise Exception('Wrong oidc_url.')
         connection = http.client.HTTPSConnection(auth.hostname, auth.port)
-
         headers = {'Content-Type': 'application/x-www-form-urlencoded'}
         payload = urllib.parse.urlencode({'client_id' : self._client_id, 'client_secret' : self._client_secret, 'grant_type': 'client_credentials'})
-        connection.request("POST", auth.path, payload, headers)
-        res = connection.getresponse()
-        httpStatusCode = res.status
-        msg = res.read()  # whole response must be readed in order to do more requests using the same connection
+        try:
+            connection.request("POST", auth.path, payload, headers)
+            res = connection.getresponse()
+            httpStatusCode = res.status
+            msg = res.read()  # whole response must be readed in order to do more requests using the same connection
+        finally:
+            connection.close()
         if httpStatusCode != 200:
             logging.root.error('Auth login error. Code: %d %s' % (httpStatusCode, res.reason))
             raise LoginException('Internal server error: Auth login failed.')

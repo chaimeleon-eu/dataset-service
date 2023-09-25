@@ -14,7 +14,6 @@ class dataset_creation_worker:
         self.config = config
         self.datasetId = datasetId
 
-    def updateProgress(self, message: str):
     @staticmethod
     def getMetadataFromFirstDicomFile(serieDirPath):
         for name in os.listdir(serieDirPath):
@@ -97,8 +96,10 @@ class dataset_creation_worker:
     #     dataset["bodyPart"] = values[0x0018, 0x0015]
     #     dataset["modality"] = values[0x0008, 0x0060]
 
+    def updateProgress(self, message: str) -> bool:
         with DB(self.config.db) as db:
             db.setDatasetCreationStatus(self.datasetId, "running", message)
+        return self.stopping
 
     def endProgress(self, errorMessage: str | None = None):
         with DB(self.config.db) as db:
@@ -107,11 +108,9 @@ class dataset_creation_worker:
             else:                       # end with error
                 db.setDatasetCreationStatus(self.datasetId, "error", errorMessage)
 
-    #STOP = False
+    stopping = False
     def stop(self):
-        #To do
-        #STOP = True
-        pass
+        self.stopping = True
 
     def run(self):
         datasetDirName = ''

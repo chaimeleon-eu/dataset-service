@@ -14,15 +14,7 @@ class ExtraInfoFilter(logging.Filter):
         setattr(record, 'hostname', socket.gethostname())
         return True
 
-def config_logger(level: str, file_path: str, max_size: int):
-    log_dir = os.path.dirname(file_path)
-    if not os.path.isdir(log_dir):
-        os.makedirs(log_dir)
-
-    file_handler = logging.handlers.RotatingFileHandler(filename=file_path, maxBytes=max_size, backupCount=3)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    file_handler.setFormatter(formatter)
-
+def config_logger(level: str, file_path: str, max_size: int, backup_files: int):
     level = level.strip().upper()
     if level == "DEBUG":   log_level = logging.DEBUG
     elif level == "INFO":  log_level = logging.INFO
@@ -31,14 +23,17 @@ def config_logger(level: str, file_path: str, max_size: int):
     elif level == "FATAL": log_level = logging.FATAL
     else: raise Exception("Unkown level '%s' for log configuration." % level)
 
-    logging.RootLogger.propagate = False
-    logging.root.setLevel(logging.ERROR)
+    log_dir = os.path.dirname(file_path)
+    if not os.path.isdir(log_dir):
+        os.makedirs(log_dir)
 
+    logging.RootLogger.propagate = False
+    #logging.root.setLevel(logging.ERROR)
     #log = logging.getLogger('module1')
     log = logging.root
     log.setLevel(log_level)
     log.propagate = False
-    log.addHandler(file_handler)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
     # Add the filter to add extra fields
     try:
@@ -49,6 +44,9 @@ def config_logger(level: str, file_path: str, max_size: int):
     except Exception as ex:
         print(ex)
 
+    file_handler = logging.handlers.RotatingFileHandler(filename=file_path, maxBytes=max_size, backupCount=backup_files)
+    file_handler.setFormatter(formatter)
+    log.addHandler(file_handler)
     print("Log file is being written in: " + file_path)
 
     stdout_handler = logging.StreamHandler(sys.stdout)

@@ -179,46 +179,51 @@ def generateIndexJson(studies):
 
 def getZenodoDOI(url, accessToken, dataset, studies, dataset_link_format, community, grant):
     zenodo = urllib.parse.urlparse(url)
+    if zenodo.hostname is None: raise PidException('Wrong url.')
     connection = http.client.HTTPSConnection(zenodo.hostname, zenodo.port)
+    try:
+        logging.root.debug('Creating deposition in Zenodo...')
+        bucket_url, deposition_id = createDeposition(connection, zenodo.path, accessToken, dataset, 
+                                                    dataset_link_format, community, grant)
+        # bucket_url example: "https://zenodo.org/api/files/568377dd-daf8-4235-85e1-a56011ad454b"
+        logging.root.debug('Zenodo creation of deposition success.')
+        bucket = urllib.parse.urlparse(bucket_url)
 
-    logging.root.debug('Creating deposition in Zenodo...')
-    bucket_url, deposition_id = createDeposition(connection, zenodo.path, accessToken, dataset, 
-                                                 dataset_link_format, community, grant)
-    # bucket_url example: "https://zenodo.org/api/files/568377dd-daf8-4235-85e1-a56011ad454b"
-    logging.root.debug('Zenodo creation of deposition success.')
-    bucket = urllib.parse.urlparse(bucket_url)
+        logging.root.debug('Uploading description file...')
+        descriptionFileBytes = generateDescriptionPdf(dataset, dataset_link_format)
+        # previous connection can be used: host and port in bucket_url should be the same 
+        uploadFile(connection, bucket.path, accessToken, "description.pdf", descriptionFileBytes)
+        logging.root.debug('Zenodo uploading success.')
 
-    logging.root.debug('Uploading description file...')
-    descriptionFileBytes = generateDescriptionPdf(dataset, dataset_link_format)
-    # previous connection can be used: host and port in bucket_url should be the same 
-    uploadFile(connection, bucket.path, accessToken, "description.pdf", descriptionFileBytes)
-    logging.root.debug('Zenodo uploading success.')
+        logging.root.debug('Uploading index.json...')
+        indexFileJsonContentStr = generateIndexJson(studies)
+        # previous connection can be used: host and port in bucket_url should be the same 
+        uploadFile(connection, bucket.path, accessToken, "index.json", indexFileJsonContentStr)
+        logging.root.debug('Zenodo uploading success.')
 
-    logging.root.debug('Uploading index.json...')
-    indexFileJsonContentStr = generateIndexJson(studies)
-    # previous connection can be used: host and port in bucket_url should be the same 
-    uploadFile(connection, bucket.path, accessToken, "index.json", indexFileJsonContentStr)
-    logging.root.debug('Zenodo uploading success.')
-
-    logging.root.debug('Publishing deposition in Zenodo...')
-    doi_url = publishDeposition(connection, zenodo.path, accessToken, deposition_id)
-    logging.root.debug('Zenodo deposition published successfully.')
-
+        logging.root.debug('Publishing deposition in Zenodo...')
+        doi_url = publishDeposition(connection, zenodo.path, accessToken, deposition_id)
+        logging.root.debug('Zenodo deposition published successfully.')
+    finally:
+        connection.close()
     return doi_url
 
 def updateZenodoDeposition(url, accessToken, dataset, dataset_link_format, community, grant, deposition_id):
     zenodo = urllib.parse.urlparse(url)
+    if zenodo.hostname is None: raise PidException('Wrong url.')
     connection = http.client.HTTPSConnection(zenodo.hostname, zenodo.port)
+    try:
+        logging.root.debug('Unlocking deposition in Zenodo (changing to editable mode)...')
+        setEditableDeposition(connection, zenodo.path, accessToken, deposition_id)
+        logging.root.debug('Zenodo unlock of deposition success.')
 
-    logging.root.debug('Unlocking deposition in Zenodo (changing to editable mode)...')
-    setEditableDeposition(connection, zenodo.path, accessToken, deposition_id)
-    logging.root.debug('Zenodo unlock of deposition success.')
-
-    logging.root.debug('Updating deposition in Zenodo...')
-    updateDeposition(connection, zenodo.path, accessToken, dataset, 
-                     dataset_link_format, community, grant, deposition_id)
-    logging.root.debug('Zenodo updating of deposition success.')
-    
-    logging.root.debug('Publishing deposition in Zenodo...')
-    doi_url = publishDeposition(connection, zenodo.path, accessToken, deposition_id)
-    logging.root.debug('Zenodo deposition published successfully.')
+        logging.root.debug('Updating deposition in Zenodo...')
+        updateDeposition(connection, zenodo.path, accessToken, dataset, 
+                        dataset_link_format, community, grant, deposition_id)
+        logging.root.debug('Zenodo updating of deposition success.')
+        
+        logging.root.debug('Publishing deposition in Zenodo...')
+        doi_url = publishDeposition(connection, zenodo.path, accessToken, deposition_id)
+        logging.root.debug('Zenodo deposition published successfully.')
+    finally:
+        connection.close()

@@ -51,10 +51,13 @@ class KeycloakAdminAPIClient:
         headers = {}
         headers['Authorization'] = 'bearer ' + self.authClient.get_token()
         payload = ""
-        connection.request("GET", self.apiURL.path + path, payload, headers)
-        res = connection.getresponse()
-        httpStatusCode = res.status
-        msg = res.read()  # whole response must be readed in order to do more requests using the same connection
+        try:
+            connection.request("GET", self.apiURL.path + path, payload, headers)
+            res = connection.getresponse()
+            httpStatusCode = res.status
+            msg = res.read()  # whole response must be readed in order to do more requests using the same connection
+        finally:
+            connection.close()
         if httpStatusCode != 200:
             logging.root.error('KeycloakAdminAPI error. Code: %d %s' % (httpStatusCode, res.reason))
             raise KeycloakAdminAPIException('Internal server error: KeycloakAdminAPI call failed.', httpStatusCode)

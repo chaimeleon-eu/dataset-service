@@ -39,10 +39,13 @@ def getSupportedHashAlgorithms(authClient: auth.AuthClient, tracerUrl):
     headers['Authorization'] = 'bearer ' + authClient.get_token()
     # headers['Authorization'] = 'Basic XXXXXXXXXXXX'
     # logging.root.debug("GET: " + tracer.path + "api/v1/traces/hashes")
-    connection.request("GET", tracer.path + "api/v1/traces/hashes", "", headers)
-    res = connection.getresponse()
-    httpStatusCode = res.status
-    msg = res.read()  # whole response must be readed in order to do more requests using the same connection
+    try:
+        connection.request("GET", tracer.path + "api/v1/traces/hashes", "", headers)
+        res = connection.getresponse()
+        httpStatusCode = res.status
+        msg = res.read()
+    finally: 
+        connection.close()
     if httpStatusCode != 200:
         logging.root.error('Tracer error. Code: %d %s' % (httpStatusCode, res.reason))
         raise TraceException('Internal server error: tracer request failed.')
@@ -132,10 +135,13 @@ def traceDatasetCreation(authClient: auth.AuthClient, tracerUrl, datasetDirPath,
     logging.root.debug("Calling tracer...")
     logging.root.debug("BODY: " + payload)
     logging.root.debug("============================")
-    connection.request("POST", tracer.path + "api/v1/traces", payload, headers)
-    res = connection.getresponse()
-    httpStatusCode = res.status
-    msg = res.read()  # whole response must be readed in order to do more requests using the same connection
+    try:
+        connection.request("POST", tracer.path + "api/v1/traces", payload, headers)
+        res = connection.getresponse()
+        httpStatusCode = res.status
+        msg = res.read()
+    finally:
+        connection.close()
     if httpStatusCode != 204 and httpStatusCode != 200:
         logging.root.error('Tracer error. Code: %d %s' % (httpStatusCode, res.reason))
         raise TraceException('Internal server error: tracer call failed.')
@@ -153,10 +159,14 @@ def getOriginalResourcesFromTracer(authClient: auth.AuthClient, tracerUrl, datas
     payload = ""
     # get original resources from Tracer
     logging.root.debug('Getting trace from Tracer...')
-    connection.request("GET", tracer.path + "api/v1/traces?datasetId=" + datasetId + "&userAction=CREATE_DATASET", payload, headers)
-    res = connection.getresponse()
-    httpStatusCode = res.status
-    msg = res.read()  # whole response must be readed in order to do more requests using the same connection
+    try:
+        connection.request("GET", tracer.path + "api/v1/traces?datasetId=" + datasetId + "&userAction=CREATE_DATASET", payload, headers)
+        res = connection.getresponse()
+        httpStatusCode = res.status
+        msg = res.read()  # whole response must be readed in order to do more requests using the same connection
+    except Exception as ex:
+        connection.close()
+        raise ex
     if httpStatusCode != 200:
         logging.root.error('Tracer error. Code: %d %s' % (httpStatusCode, res.reason))
         raise TraceException('Internal server error: tracer call failed.')
@@ -171,9 +181,12 @@ def getOriginalResourcesFromTracer(authClient: auth.AuthClient, tracerUrl, datas
 
     logging.root.debug('Getting details of trace %s from Tracer...' % traceId)
     connection.request("GET", tracer.path + "api/v1/traces/" + traceId, payload, headers)
-    res = connection.getresponse()
-    httpStatusCode = res.status
-    msg = res.read()  # whole response must be readed in order to do more requests using the same connection
+    try:
+        res = connection.getresponse()
+        httpStatusCode = res.status
+        msg = res.read()  # whole response must be readed in order to do more requests using the same connection
+    finally:
+        connection.close()
     if httpStatusCode != 200:
         logging.root.error('Tracer error. Code: %d %s' % (httpStatusCode, res.reason))
         raise TraceException('Internal server error: tracer call failed.')
@@ -228,10 +241,13 @@ def traceDatasetsAccess(authClient: auth.AuthClient, tracerUrl, datasetsIds, use
 
     payload = json.dumps(body)
     logging.root.debug("BODY: " + payload)
-    connection.request("POST", tracer.path + "api/v1/traces", payload, headers)
-    res = connection.getresponse()
-    httpStatusCode = res.status
-    msg = res.read()  # whole response must be readed in order to do more requests using the same connection
+    try:
+        connection.request("POST", tracer.path + "api/v1/traces", payload, headers)
+        res = connection.getresponse()
+        httpStatusCode = res.status
+        msg = res.read()
+    finally:
+        connection.close()
     if httpStatusCode != 204 and httpStatusCode != 200:
         logging.root.error('Tracer error. Code: %d %s' % (httpStatusCode, res.reason))
         raise TraceException('Internal server error: tracer call failed.')
@@ -256,10 +272,13 @@ def traceDatasetUpdate(authClient: auth.AuthClient, tracerUrl, datasetId, userId
 
     payload = json.dumps(body)
     logging.root.debug("BODY: " + payload)
-    connection.request("POST", tracer.path + "api/v1/traces", payload, headers)
-    res = connection.getresponse()
-    httpStatusCode = res.status
-    msg = res.read()  # whole response must be readed in order to do more requests using the same connection
+    try:
+        connection.request("POST", tracer.path + "api/v1/traces", payload, headers)
+        res = connection.getresponse()
+        httpStatusCode = res.status
+        msg = res.read()
+    finally:
+        connection.close()
     if httpStatusCode != 204 and httpStatusCode != 200:
         logging.root.error('Tracer error. Code: %d %s' % (httpStatusCode, res.reason))
         raise TraceException('Internal server error: tracer call failed.')
