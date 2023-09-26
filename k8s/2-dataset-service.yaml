@@ -19,9 +19,11 @@ spec:
             claimName: dataset-service-data
         - name: datalake-volume
           cephfs:
-            path: "/data"
+            path: "/datalake"
             monitors: 
-              - "192.168.3.8:6789"
+              - "192.168.3.22:6789"
+              - "192.168.3.49:6789"
+              - "192.168.3.37:6789"
             user: dataset-service
             secretRef:
               name: dataset-service-ceph-user-secret
@@ -30,7 +32,9 @@ spec:
           cephfs:
             path: "/datasets"
             monitors: 
-              - "192.168.3.8:6789"
+              - "192.168.3.22:6789"
+              - "192.168.3.49:6789"
+              - "192.168.3.37:6789"
             user: dataset-service
             secretRef:
               name: dataset-service-ceph-user-secret
@@ -91,6 +95,9 @@ spec:
             requests:
               memory: "250Mi"
               cpu: "300m"
+      priorityClassName: core-services
+      nodeSelector: 
+        chaimeleon.eu/target: core-services
       restartPolicy: Always
       
 ---

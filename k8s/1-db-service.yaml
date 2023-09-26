@@ -38,6 +38,9 @@ spec:
           requests:
             memory: "250Mi"
             cpu: "250m"
+      priorityClassName: core-services
+      nodeSelector: 
+        chaimeleon.eu/target: core-services
       restartPolicy: Always
 
 ---
