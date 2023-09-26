@@ -41,7 +41,7 @@ spec:
             readOnly: false
       containers:
         - name: dataset-service-backend
-          image:  harbor.chaimeleon-eu.i3m.upv.es/chaimeleon-services/dataset-service-backend:2.1
+          image:  harbor.chaimeleon-eu.i3m.upv.es/chaimeleon-services/dataset-service-backend:2.5
           ports:
             - containerPort: 11000
               name: dssport
@@ -51,6 +51,9 @@ spec:
               name: dataset-service-data-volume
             - mountPath: "/var/www/dataset-service-ui"
               subPath: "ui"
+              name: dataset-service-data-volume
+            - mountPath: "/var/www/datalakeinfo"
+              subPath: "datalakeinfo"
               name: dataset-service-data-volume
             - mountPath: "/mnt/datalake"
               name: datalake-volume
@@ -87,6 +90,8 @@ spec:
                       "port": 11000, 
                       "log": { "level": "DEBUG", "file": "./log/dataset-service.log" },
                       "static_files_dir_path": "/var/www/dataset-service-ui",
+                      "datalakeinfo_dir_path": "/var/www/datalakeinfo",
+                      "datalakeinfo_token": "XXXXXXXX",
                       "datalake_mount_path": "/mnt/datalake",
                       "datasets_mount_path": "/mnt/datasets"
                   }

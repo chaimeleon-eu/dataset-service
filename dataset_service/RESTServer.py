@@ -218,6 +218,18 @@ def postSetUI():
     output, status = execute_cmd("unzip -uo \"" + CONFIG.self.static_files_dir_path + "/build.zip\" -d \"" + CONFIG.self.static_files_dir_path + "/\"")
     return output
 
+@app.route('/datalakeinfo/<file_path:re:.*\.(json)>', method='GET')
+def getDatalakeInfo(file_path):
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received GET %s" % bottle.request.path)
+    LOG.debug("Static file: "+file_path)
+    if CONFIG.self.datalakeinfo_token == "":
+        return setErrorResponse(404, "Not found: '%s'" % bottle.request.path)
+    if bottle.request.get_header("secret") != CONFIG.self.datalakeinfo_token:
+        return setErrorResponse(401,"unauthorized user")
+    return bottle.static_file(file_path, CONFIG.self.datalakeinfo_dir_path)
+
+
 class WrongInputException(Exception):
     pass
 

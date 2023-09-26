@@ -73,8 +73,12 @@ self:
     # Absolute directory path where the web UI static files are.
     # They will be served when a request of root path ("/") is received.
   dev_token: ""
-    # Secret token for the "/api/set-ui" operation (for developers, to set the web UI static files).
-    # If empty token, that operation is not allowed (404 returned), this way you can disable it in production.
+    # Secret token for the POST "/api/set-ui" operation (for developers, to set the web UI static files).
+    # If empty token, that operation is not allowed (404 returned), this way you can disable it.
+  datalakeinfo_dir_path: "/var/www/datalakeinfo"
+  datalakeinfo_token: ""
+    # Secret token for the GET "/datalakeinfo" operation (for auditors, to get some statistics of datalake).
+    # If empty token, that operation is not allowed (404 returned), this way you can disable it.
   datalake_mount_path: "/mnt/datalake"
   datasets_mount_path: "/mnt/datasets"
   eforms_file_name: "eforms.json"
