@@ -18,6 +18,8 @@ def create_job(job_name, datasetId):
     volumes = deployment.spec.template.spec.volumes
     container_image = deployment.spec.template.spec.containers[0].image
     container_volume_mounts = deployment.spec.template.spec.containers[0].volume_mounts
+    node_selector = deployment.spec.template.spec.node_selector
+    priority_class_name = deployment.spec.template.spec.priority_class_name
     job_config = dict()
     for env_var in deployment.spec.template.spec.containers[0].env:
         if env_var.name == CONFIG_ENV_VAR_NAME:
@@ -52,7 +54,9 @@ def create_job(job_name, datasetId):
                             ]
                         )
                     ],
-                    restart_policy = "Never"
+                    restart_policy = "Never",
+                    node_selector = node_selector,
+                    priority_class_name = priority_class_name
                 )
             )
         ) 

@@ -55,5 +55,5 @@ if __name__ == "__main__":
     CONFIG = load_config(config_file_path)
     if CONFIG is None: sys.exit(1)
     log_conf = CONFIG.self.log.dataset_creation_job
-    config_logger(log_conf.level, log_conf.file_path_format % datasetId, log_conf.max_size)
+    config_logger(log_conf.level, log_conf.file_path_format % datasetId, log_conf.max_size, 4)
     start_job(CONFIG, datasetId)
