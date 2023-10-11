@@ -34,6 +34,35 @@ def create_dataset_dir(datasets_dir_path, dataset_dir_name):
     create_dir(dataset_dir_path, uid=owner_uid, gid=owner_gid, permissions=0o700)
     # Now only root have access. The access to normal users will be granted later with ACLs.
 
+def adjust_file_permissions_in_datalake(datalake_dir_path, studies):
+    subjectsSeen = set()
+    usersSeen = set()
+    for study in studies:
+        study_dir_path = os.path.join(datalake_dir_path, study['pathInDatalake'])
+        # Ensure only root have access at level of study. 
+        # The access to normal users will be granted later with ACLs.
+        chmod(study_dir_path, 0o700)
+
+        # Ensure all the people have read access at the lower levels (series dirs and dicom files).
+        # The access control with ACLs is done at the study level, not required also in lower levels.
+        for name in os.listdir(study_dir_path):
+            f = os.path.join(study_dir_path, name)
+            if os.path.isdir(f): chmod_recursive(f, dirs_permissions=0o705, files_permissions=0o604)
+            else: chmod(f, 0o604)
+
+        # Ensure all people have access to the upper levels in datalake (subject dir and user dir)
+        subject_dir_path = os.path.dirname(study_dir_path)
+        #   subjectDirPathInDatalake example: /mnt/cephfs/datalake/blancagomez/17B76FEW_Neuroblastoma
+        if not subject_dir_path in subjectsSeen:
+            chmod(subject_dir_path, 0o705)
+            subjectsSeen.add(subject_dir_path)
+            qp_user_dir_path = os.path.dirname(subject_dir_path)
+            #   userDirPathInDatalake example: /mnt/cephfs/datalake/blancagomez
+            if not qp_user_dir_path in usersSeen:
+                chmod(qp_user_dir_path, 0o705)
+                usersSeen.add(qp_user_dir_path)
+
+
 def create_dataset(datasets_dir_path, dataset_dir_name, datalake_dir_path, studies):
     '''
     Creates the dataset directory, the subject directories and the symbolic links to the study directories (in the datalake).
@@ -51,8 +80,6 @@ def create_dataset(datasets_dir_path, dataset_dir_name, datalake_dir_path, studi
     create_dir(dataset_dir_path, uid=owner_uid, gid=owner_gid, permissions=0o700)
     # Now only root have access. The access to normal users will be granted later with ACLs.
     
-    subjectsSeen = set()
-    usersSeen = set()
     for study in studies:
         subjectDirName = study['subjectName']
         subjectDirPath = os.path.join(dataset_dir_path, subjectDirName)
@@ -64,31 +91,13 @@ def create_dataset(datasets_dir_path, dataset_dir_name, datalake_dir_path, studi
         studyDirName = os.path.basename(study['pathInDatalake'])
         linkLocation = os.path.join(subjectDirPath, studyDirName)
         linkDestination = os.path.join(datalake_dir_path, study['pathInDatalake'])
-        # linkLocation example: /mnt/cephfs/datasets/myDataset/17B76FEW/TCPEDITRICOABDOMINOPLVICO20150129
+        #   linkLocation example: /mnt/cephfs/datasets/myDataset/17B76FEW/TCPEDITRICOABDOMINOPLVICO20150129
         ok = symlink(linkDestination, linkLocation, target_is_directory=True, uid=owner_uid, gid=owner_gid)
         if not ok: 
             logging.root.error("Error creating symlink (probably already exists): " + linkLocation + " -> " + linkDestination)
             raise DatasetException("Error creating symlink (probably already exists)")
-        chmod(linkDestination, 0o700)
-        # Ensure only root have access. The access to normal users will be granted later with ACLs.
-        for name in os.listdir(linkDestination):
-            f = os.path.join(linkDestination, name)
-            if os.path.isdir(f): chmod_recursive(f, dirs_permissions=0o705, files_permissions=0o604)
-            else: chmod(f, 0o604)
-            # At this level all the people have read access, the control with ACLs is done in the upper level.
-
-        # Ensure all people have access to the upper levels in datalake (subject directory and user directory)
-        subjectDirPathInDatalake = os.path.dirname(linkDestination)
-        # subjectDirPathInDatalake example: /mnt/cephfs/datalake/blancagomez/17B76FEW_Neuroblastoma
-        if not subjectDirPathInDatalake in subjectsSeen:
-            chmod(subjectDirPathInDatalake, 0o705)
-            subjectsSeen.add(subjectDirPathInDatalake)
-            userDirPathInDatalake = os.path.dirname(subjectDirPathInDatalake)
-            # userDirPathInDatalake example: /mnt/cephfs/datalake/blancagomez
-            if not userDirPathInDatalake in usersSeen:
-                chmod(userDirPathInDatalake, 0o705)
-                usersSeen.add(userDirPathInDatalake)
-
+            
+    adjust_file_permissions_in_datalake(datalake_dir_path, studies)
 
 def give_access_to_dataset(datasets_dir_path, dataset_dir_name, datalake_dir_path, pathsOfStudies, acl_gid):
     '''

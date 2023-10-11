@@ -465,6 +465,27 @@ def postDataset():
         #return setErrorResponse(500, "Unexpected error, may be the input is wrong\n%s" % str(e))
 
 
+@app.route('/api/datasets/<id>/adjustFilePermissionsInDatalake', method='POST')
+def postDataset_adjustFilePermissionsInDatalake(id):
+    '''
+    Note: this method is only for admins, to readjust permissions in case they have been changed for any reason.
+    '''
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received POST %s" % bottle.request.path)
+    ok, details = checkAuthorizationHeader()
+    if not ok and details != None: return details  # return error
+    user = authorization.User(details)
+    if not user.isSuperAdminDatasets():
+        return setErrorResponse(401,"unauthorized user")
+
+    datasetId = id
+    with DB(CONFIG.db) as db:
+        if not db.existDataset(datasetId):
+            return setErrorResponse(404, "not found")
+        datasetStudies, total = db.getStudiesFromDataset(datasetId)
+        dataset_file_system.adjust_file_permissions_in_datalake(CONFIG.self.datalake_mount_path, datasetStudies)
+
+
 @app.route('/api/datasets/<id>/creationStatus', method='GET')
 def getDatasetCreationStatus(id):
     if CONFIG is None: raise Exception()
