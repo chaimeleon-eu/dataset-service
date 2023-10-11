@@ -14,8 +14,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
+version_file_path = os.path.realpath(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'VERSION'))
+with open(version_file_path, 'r') as file: version = file.readline()
+
 __all__ = ['config', 'RESTServer']
 __appname__ = 'Dataset Service'
-__version__ = '2.7'
+__version__ = version
 __author__ = 'GRYCAP-UPV'
 __email__ = 'palollo@i3m.upv.es'

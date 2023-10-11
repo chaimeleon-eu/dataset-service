@@ -13,7 +13,7 @@ RUN apt-get update \
 ARG MAIN_DIR="/dataset-service"
 
 RUN mkdir ${MAIN_DIR} ${MAIN_DIR}/etc ${MAIN_DIR}/log
-COPY start_dataset_service.py start_dataset_creation_job.py requirements.txt API-reference-v1.yaml README.md LICENSE ${MAIN_DIR}/
+COPY start_dataset_service.py start_dataset_creation_job.py requirements.txt API-reference-v1.yaml VERSION README.md LICENSE ${MAIN_DIR}/
 COPY ./dataset_service/ ${MAIN_DIR}/dataset_service
 COPY ./etc/dataset-service.default.yaml ${MAIN_DIR}/etc/
 #COPY setup.py ${MAIN_DIR}/setup.py
