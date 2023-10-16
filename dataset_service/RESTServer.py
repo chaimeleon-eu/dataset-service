@@ -193,20 +193,20 @@ def get_header_media_types(header):
 
 @app.route('/api/', method='GET')
 def getHello():
-    LOG.debug("Received GET /api/")
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     bottle.response.content_type = "text/plain"
     return "Hello from Dataset Service"
 
 @app.route('/health', method='GET')
 def getAlive():
-    #LOG.debug("Received GET /health")   not fill the log with that
+    #LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))   not fill the log with that
     bottle.response.content_type = "text/plain"
     return "ok"
 
 @app.route('/api/set-ui', method='POST')
 def postSetUI():
     if CONFIG is None: raise Exception()
-    LOG.debug("Received POST /api/set-ui")
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     if CONFIG.self.dev_token == "":
         return setErrorResponse(404, "Not found: '%s'" % bottle.request.path)
     if bottle.request.get_header("devToken") != CONFIG.self.dev_token:
@@ -221,7 +221,7 @@ def postSetUI():
 @app.route('/datalakeinfo/<file_path:re:.*\.(json)>', method='GET')
 def getDatalakeInfo(file_path):
     if CONFIG is None: raise Exception()
-    LOG.debug("Received GET %s" % bottle.request.path)
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     LOG.debug("Static file: "+file_path)
     if CONFIG.self.datalakeinfo_token == "":
         return setErrorResponse(404, "Not found: '%s'" % bottle.request.path)
@@ -292,7 +292,7 @@ def postDataset():
        or not isinstance(bottle.request.forms, bottle.FormsDict) \
        or not isinstance(bottle.request.files, bottle.FormsDict): 
         raise Exception()
-    LOG.debug("Received POST /datasets")
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ok, details = checkAuthorizationHeader()
     if not ok and details != None: return details  # return error
     user = authorization.User(details)
@@ -471,7 +471,7 @@ def postDataset_adjustFilePermissionsInDatalake(id):
     Note: this method is only for admins, to readjust permissions in case they have been changed for any reason.
     '''
     if CONFIG is None: raise Exception()
-    LOG.debug("Received POST %s" % bottle.request.path)
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ok, details = checkAuthorizationHeader()
     if not ok and details != None: return details  # return error
     user = authorization.User(details)
@@ -484,12 +484,15 @@ def postDataset_adjustFilePermissionsInDatalake(id):
             return setErrorResponse(404, "not found")
         datasetStudies, total = db.getStudiesFromDataset(datasetId)
         dataset_file_system.adjust_file_permissions_in_datalake(CONFIG.self.datalake_mount_path, datasetStudies)
+    
+    LOG.debug('Dataset files permissions successfully adjusted.')
+    bottle.response.status = 204
 
 
 @app.route('/api/datasets/<id>/creationStatus', method='GET')
 def getDatasetCreationStatus(id):
     if CONFIG is None: raise Exception()
-    LOG.debug("Received GET /dataset/%s/creationStatus" % id)
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ok, details = checkAuthorizationHeader()
     if not ok and details != None: return details  # return error
     user = authorization.User(details)
@@ -515,7 +518,7 @@ def getDatasetCreationStatus(id):
 @app.route('/api/datasets/<id>/checkIntegrity', method='GET')
 def checkDatasetIntegrity(id):
     if CONFIG is None or AUTH_CLIENT is None: raise Exception()
-    LOG.debug("Received GET /dataset/%s" % id)
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ok, details = checkAuthorizationHeader()
     if not ok and details != None: return details  # return error
     user = authorization.User(details)
@@ -542,7 +545,7 @@ def checkDatasetIntegrity(id):
 @app.route('/api/datasets/<id>', method='GET')
 def getDataset(id):
     if CONFIG is None or not isinstance(bottle.request.query, bottle.FormsDict): raise Exception()
-    LOG.debug("Received GET /dataset/%s" % id)
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ok, details = checkAuthorizationHeader()
     if not ok and details != None: return details  # return error
     user = authorization.User(details)
@@ -609,7 +612,7 @@ def updateZenodoDeposition(db, dataset):
 @app.route('/api/datasets/<id>', method='PATCH')
 def patchDataset(id):
     if CONFIG is None or AUTH_CLIENT is None: raise Exception()
-    LOG.debug("Received PATCH /dataset/%s" % id)
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ok, details = checkAuthorizationHeader()
     if not ok and details != None: return details  # return error
     user = authorization.User(details)
@@ -724,21 +727,27 @@ def patchDataset(id):
             tracer.traceDatasetUpdate(AUTH_CLIENT, CONFIG.tracer.url, datasetId, userId, trace_details)
     bottle.response.status = 200
 
+def parse_flag_value(s: str) -> bool | None:
+    s = s.lower()
+    if s == 'true': return True
+    if s == 'false': return False
+    return None
+
 @app.route('/api/datasets', method='GET')
 def getDatasets():
     if CONFIG is None or not isinstance(bottle.request.query, bottle.FormsDict): raise Exception()
-    LOG.debug("Received GET /datasets")
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ok, details = checkAuthorizationHeader()
     if not ok and details != None: return details  # return error
     user = authorization.User(details)
 
     searchFilter = authorization.Search_filter(draft = None, public = None, invalidated = None)
     if 'draft' in bottle.request.query:
-        searchFilter.draft = bool(bottle.request.query['draft'])
+        searchFilter.draft = parse_flag_value(bottle.request.query['draft'])
     if 'public' in bottle.request.query:
-        searchFilter.public = bool(bottle.request.query['public'])
+        searchFilter.public = parse_flag_value(bottle.request.query['public'])
     if 'invalidated' in bottle.request.query:
-        searchFilter.invalidated = bool(bottle.request.query['invalidated'])
+        searchFilter.invalidated = parse_flag_value(bottle.request.query['invalidated'])
     #authorId
     searchFilter.adjustByUser(user)
 
@@ -769,7 +778,7 @@ def getDatasets():
 @app.route('/api/upgradableDatasets', method='GET')
 def getUpgradableDatasets():
     if CONFIG is None: raise Exception()
-    LOG.debug("Received GET /upgradableDatasets")
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ok, details = checkAuthorizationHeader()
     if not ok and details != None: return details  # return error
     user = authorization.User(details)
@@ -794,7 +803,7 @@ def deleteDataset(id):
              or is going to be cleaned when changing to the production state.
     '''
     if CONFIG is None: raise Exception()
-    LOG.debug("Received DELETE /dataset/%s" % id)
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ok, details = checkAuthorizationHeader()
     if not ok and details != None: return details  # return error
     user = authorization.User(details)
@@ -825,7 +834,7 @@ def deleteDataset(id):
 @app.route('/api/licenses', method='GET')
 def getLicenses():
     if CONFIG is None: raise Exception()
-    LOG.debug("Received GET /licenses")
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ok, details = checkAuthorizationHeader()
     if not ok and details != None: return details  # return error
     # user = authorization.User(details)
@@ -846,7 +855,7 @@ def postUser(userName):
 @app.route('/api/users/<userName>', method='PUT')
 def putUser(userName):
     if CONFIG is None or AUTH_ADMIN_CLIENT is None: raise Exception()
-    LOG.debug("Received PUT %s" % bottle.request.path)
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ok, details = checkAuthorizationHeader(serviceAccount=True)
     if not ok and details != None: return details  # return error
     user = authorization.User(details)
@@ -882,7 +891,7 @@ def putUser(userName):
 
 @app.route('/api/users/<userName>', method='GET')
 def getUser(userName):
-    LOG.debug("Received GET %s" % bottle.request.path)
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ok, details = checkAuthorizationHeader(serviceAccount=True)
     if not ok and details != None: return details  # return error
     user = authorization.User(details)
@@ -920,7 +929,7 @@ def checkDatasetListAccess(datasetIDs: list, userName: str):
 
 @app.route('/api/datasetAccessCheck', method='POST')
 def postDatasetAccessCheck():
-    LOG.debug("Received POST %s" % bottle.request.path)
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ok, details = checkAuthorizationHeader(serviceAccount=True)
     if not ok and details != None: return details  # return error
     user = authorization.User(details)
@@ -955,7 +964,7 @@ def postDatasetAccessCheck():
 @app.route('/api/datasetAccess/<id>', method='POST')
 def postDatasetAccess(id):
     if CONFIG is None or AUTH_CLIENT is None: raise Exception()
-    LOG.debug("Received POST %s" % bottle.request.path)
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ok, details = checkAuthorizationHeader(serviceAccount=True)
     if not ok and details != None: return details  # return error
     user = authorization.User(details)
@@ -1007,7 +1016,7 @@ def postDatasetAccess(id):
 @app.route('/api/datasetAccess/<id>', method='DELETE')
 def deleteDatasetAccess(id):
     if CONFIG is None: raise Exception()
-    LOG.debug("Received DELETE /datasetAccess/%s" % id)
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ok, details = checkAuthorizationHeader(serviceAccount=True)
     if not ok and details != None: return details  # return error
     user = authorization.User(details)
@@ -1047,7 +1056,7 @@ def deleteDatasetAccess(id):
 # Just to not continue evaluating the rest of routes of front-end.
 @app.route('/api/<any_path:re:.+>', method='GET')
 def getUnknown(any_path):
-    LOG.debug("Received unknown %s" % bottle.request.path)
+    LOG.debug("Received GET unknown path: %s" % bottle.request.path)
     return setErrorResponse(404, "Not found '%s'" % bottle.request.path)
 
 
@@ -1059,7 +1068,7 @@ def getUnknown(any_path):
 # To avoid conflicts, static files prefixed with /web/
 @app.route('/web/<file_path:re:.*\.(html|js|json|txt|map|css|jpg|png|gif|ico|svg|pdf)>', method='GET')
 def getStaticFileWeb(file_path):
-    LOG.debug("Received GET %s" % bottle.request.path)
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     LOG.debug("Static file (web): "+file_path)
     return bottle.static_file(file_path, CONFIG.self.static_files_dir_path)
 
@@ -1068,7 +1077,7 @@ def getStaticFileWeb(file_path):
 # Just to not continue evaluating the rest of routes.
 @app.route('/web/<any_path:re:.+>', method='GET')
 def getUnknownWeb(any_path):
-    LOG.debug("Received unknown %s" % bottle.request.path)
+    LOG.debug("Received GET unknown path: %s" % bottle.request.path)
     return setErrorResponse(404, "Not found '%s'" % bottle.request.path)
 
 # # temporal for backward compatibility
