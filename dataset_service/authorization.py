@@ -8,7 +8,7 @@ class Access_type(Enum):
 class User:
     roles = None
 
-    def __init__(self, token):
+    def __init__(self, token: dict | None):
         self.token = token    # it is None if unregistered user
 
     @classmethod        
@@ -142,5 +142,6 @@ class Upgradables_filter():
         return self._userId
 
     def adjustByUser(self, user: User):
+        if user.token is None: raise Exception()
         if not User.roles.superadmin_datasets in user.token["appRoles"]:
             self._userId = user.token["sub"]

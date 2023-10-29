@@ -139,7 +139,13 @@ def stop():
         thisRESTServer.shutdown()
 
 
-def validate_token(token):
+def setErrorResponse(code, message):
+    LOG.debug("Sending error code %d, with message: %s" % (code, message))
+    bottle.response.status = code
+    bottle.response.content_type = "application/json"
+    return json.dumps(dict(error = message, status_code = code))
+
+def validate_token(token) -> dict:
     if AUTH_PUBLIC_KEY is None or CONFIG is None: raise Exception()
     headers = jwt.get_unverified_header(token)
     LOG.debug("Token key id (kid header):" + headers['kid'])
@@ -151,24 +157,24 @@ def validate_token(token):
     LOG.debug(json.dumps(decodedToken))
     return decodedToken
 
-def setErrorResponse(code, message):
-    LOG.debug("Sending error code %d, with message: %s" % (code, message))
-    bottle.response.status = code
-    bottle.response.content_type = "application/json"
-    return json.dumps(dict(error = message, status_code = code))
-
-def checkAuthorizationHeader(serviceAccount=False):
-    if bottle.request.get_header("authorization") is None: 
+def getTokenFromAuthorizationHeader(serviceAccount=False) -> str | None | dict:
+    ''' Returns: 
+        - str with the error message in case of fail
+        - None if unregistered user
+        - dict with the token if success
+    '''
+    encodedToken = bottle.request.get_header("authorization")
+    if encodedToken is None: 
         LOG.debug("Not registered user.")
-        return False, None
+        return None
     try:
-        encodedToken = bottle.request.get_header("authorization")[7:]
+        encodedToken = encodedToken[7:]
     except Exception as e:
-        return False, setErrorResponse(401, "invalid authorization header")
+        return setErrorResponse(401, "invalid authorization header")
     token = validate_token(encodedToken)
     ok, missingProperty = authorization.User.validateToken(token, serviceAccount)
-    if not ok: return False, setErrorResponse(401,"invalid access token: missing '%s'" % missingProperty)
-    return True, token
+    if not ok: return setErrorResponse(401,"invalid access token: missing '%s'" % missingProperty)
+    return token
 
 def get_header_media_types(header):
     """
@@ -293,11 +299,10 @@ def postDataset():
        or not isinstance(bottle.request.files, bottle.FormsDict): 
         raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
-    ok, details = checkAuthorizationHeader()
-    if not ok and details != None: return details  # return error
-    user = authorization.User(details)
-
-    if not user.canCreateDatasets():
+    ret = getTokenFromAuthorizationHeader()
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
+    if user.token is None or not user.canCreateDatasets():
         return setErrorResponse(401,"unauthorized user")
 
     userId = user.token["sub"]
@@ -472,9 +477,9 @@ def postDataset_adjustFilePermissionsInDatalake(id):
     '''
     if CONFIG is None: raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
-    ok, details = checkAuthorizationHeader()
-    if not ok and details != None: return details  # return error
-    user = authorization.User(details)
+    ret = getTokenFromAuthorizationHeader()
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
     if not user.isSuperAdminDatasets():
         return setErrorResponse(401,"unauthorized user")
 
@@ -493,9 +498,9 @@ def postDataset_adjustFilePermissionsInDatalake(id):
 def getDatasetCreationStatus(id):
     if CONFIG is None: raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
-    ok, details = checkAuthorizationHeader()
-    if not ok and details != None: return details  # return error
-    user = authorization.User(details)
+    ret = getTokenFromAuthorizationHeader()
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
 
     datasetId = id
     with DB(CONFIG.db) as db:
@@ -519,9 +524,9 @@ def getDatasetCreationStatus(id):
 def checkDatasetIntegrity(id):
     if CONFIG is None or AUTH_CLIENT is None: raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
-    ok, details = checkAuthorizationHeader()
-    if not ok and details != None: return details  # return error
-    user = authorization.User(details)
+    ret = getTokenFromAuthorizationHeader()
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
 
     if not user.isSuperAdminDatasets():
         return setErrorResponse(401,"unauthorized user")
@@ -546,9 +551,9 @@ def checkDatasetIntegrity(id):
 def getDataset(id):
     if CONFIG is None or not isinstance(bottle.request.query, bottle.FormsDict): raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
-    ok, details = checkAuthorizationHeader()
-    if not ok and details != None: return details  # return error
-    user = authorization.User(details)
+    ret = getTokenFromAuthorizationHeader()
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
 
     datasetId = id
     skip = int(bottle.request.query['studiesSkip']) if 'studiesSkip' in bottle.request.query else 0
@@ -613,10 +618,10 @@ def updateZenodoDeposition(db, dataset):
 def patchDataset(id):
     if CONFIG is None or AUTH_CLIENT is None: raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
-    ok, details = checkAuthorizationHeader()
-    if not ok and details != None: return details  # return error
-    user = authorization.User(details)
-    if user.isUnregistered():
+    ret = getTokenFromAuthorizationHeader()
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
+    if user.token is None:   # unregistered user
         return setErrorResponse(401,"unauthorized user")
 
     userId = user.token["sub"]
@@ -737,9 +742,9 @@ def parse_flag_value(s: str) -> bool | None:
 def getDatasets():
     if CONFIG is None or not isinstance(bottle.request.query, bottle.FormsDict): raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
-    ok, details = checkAuthorizationHeader()
-    if not ok and details != None: return details  # return error
-    user = authorization.User(details)
+    ret = getTokenFromAuthorizationHeader()
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
 
     searchFilter = authorization.Search_filter(draft = None, public = None, invalidated = None)
     if 'draft' in bottle.request.query:
@@ -779,9 +784,9 @@ def getDatasets():
 def getUpgradableDatasets():
     if CONFIG is None: raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
-    ok, details = checkAuthorizationHeader()
-    if not ok and details != None: return details  # return error
-    user = authorization.User(details)
+    ret = getTokenFromAuthorizationHeader()
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
     if not user.canCreateDatasets():
         return setErrorResponse(401,"unauthorized user")
 
@@ -799,14 +804,14 @@ def getUpgradableDatasets():
 def deleteDataset(id):
     '''
     Warning: The normal procedure is to invalidate the datasets, because they can not be deleted from the tracer-service, but it will be hidden;
-             this method is only intended for development state, to delete test datasets when the tracer-service is also cleaned
-             or is going to be cleaned when changing to the production state.
+        this method is only intended for development state, to delete test datasets when the tracer-service is also cleaned
+        or is going to be cleaned when changing to the production state.
     '''
     if CONFIG is None: raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
-    ok, details = checkAuthorizationHeader()
-    if not ok and details != None: return details  # return error
-    user = authorization.User(details)
+    ret = getTokenFromAuthorizationHeader()
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
     if not user.canDeleteDatasets():
         return setErrorResponse(401, "unauthorized user")
 
@@ -835,9 +840,9 @@ def deleteDataset(id):
 def getLicenses():
     if CONFIG is None: raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
-    ok, details = checkAuthorizationHeader()
-    if not ok and details != None: return details  # return error
-    # user = authorization.User(details)
+    ret = getTokenFromAuthorizationHeader()
+    if isinstance(ret, str): return ret  # return error message
+    # user = authorization.User(ret)
 
     with DB(CONFIG.db) as db:
         licenses = db.getLicenses()
@@ -856,9 +861,9 @@ def postUser(userName):
 def putUser(userName):
     if CONFIG is None or AUTH_ADMIN_CLIENT is None: raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
-    ok, details = checkAuthorizationHeader(serviceAccount=True)
-    if not ok and details != None: return details  # return error
-    user = authorization.User(details)
+    ret = getTokenFromAuthorizationHeader(serviceAccount=True)
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
     if not user.userCanAdminUsers():
         return setErrorResponse(401,"unauthorized user")
 
@@ -892,9 +897,9 @@ def putUser(userName):
 @app.route('/api/users/<userName>', method='GET')
 def getUser(userName):
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
-    ok, details = checkAuthorizationHeader(serviceAccount=True)
-    if not ok and details != None: return details  # return error
-    user = authorization.User(details)
+    ret = getTokenFromAuthorizationHeader(serviceAccount=True)
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
     if not user.userCanAdminUsers():
         return setErrorResponse(401,"unauthorized user")
     
@@ -930,9 +935,9 @@ def checkDatasetListAccess(datasetIDs: list, userName: str):
 @app.route('/api/datasetAccessCheck', method='POST')
 def postDatasetAccessCheck():
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
-    ok, details = checkAuthorizationHeader(serviceAccount=True)
-    if not ok and details != None: return details  # return error
-    user = authorization.User(details)
+    ret = getTokenFromAuthorizationHeader(serviceAccount=True)
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
     if not user.userCanAdminDatasetAccess():
         return setErrorResponse(401,"unauthorized user")
 
@@ -965,9 +970,9 @@ def postDatasetAccessCheck():
 def postDatasetAccess(id):
     if CONFIG is None or AUTH_CLIENT is None: raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
-    ok, details = checkAuthorizationHeader(serviceAccount=True)
-    if not ok and details != None: return details  # return error
-    user = authorization.User(details)
+    ret = getTokenFromAuthorizationHeader(serviceAccount=True)
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
     if not user.userCanAdminDatasetAccess():
         return setErrorResponse(401,"unauthorized user")
 
@@ -1017,9 +1022,9 @@ def postDatasetAccess(id):
 def deleteDatasetAccess(id):
     if CONFIG is None: raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
-    ok, details = checkAuthorizationHeader(serviceAccount=True)
-    if not ok and details != None: return details  # return error
-    user = authorization.User(details)
+    ret = getTokenFromAuthorizationHeader(serviceAccount=True)
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
     if not user.userCanAdminDatasetAccess():
         return setErrorResponse(401,"unauthorized user")
 
