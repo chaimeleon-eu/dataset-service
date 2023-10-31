@@ -79,7 +79,7 @@ def run(host, port, config):
     CONFIG = config
     authorization.User.roles = CONFIG.auth.token_validation.roles
     AUTH_CLIENT = AuthClient(CONFIG.auth.client.auth_url, CONFIG.auth.client.client_id, CONFIG.auth.client.client_secret)
-    AUTH_ADMIN_CLIENT = keycloak.KeycloakAdminAPIClient(AUTH_CLIENT, CONFIG.auth.admin_api_url)
+    AUTH_ADMIN_CLIENT = keycloak.KeycloakAdminAPIClient(AUTH_CLIENT, CONFIG.auth.admin_api_url, CONFIG.auth.client.client_id)
 
     LOG.info("Obtaining the public key from %s..." % CONFIG.auth.token_validation.token_issuer_public_keys_url)
     LOG.info("kid: %s" % CONFIG.auth.token_validation.kid)
@@ -119,8 +119,6 @@ def run(host, port, config):
     else: 
         dataset_file_system.check_file_system(CONFIG.self.datalake_mount_path, CONFIG.self.datasets_mount_path)
     
-    AUTH_ADMIN_CLIENT.check_connection()
-
     if CONFIG.tracer.url == '':
         LOG.warn("tracer.url is empty: actions will not be notified to the tracer-service.")
     else: 
@@ -173,6 +171,17 @@ def getTokenFromAuthorizationHeader(serviceAccount=False) -> str | None | dict:
         return setErrorResponse(401, "invalid authorization header")
     token = validate_token(encodedToken)
     ok, missingProperty = authorization.User.validateToken(token, serviceAccount)
+    if not ok: return setErrorResponse(401,"invalid access token: missing '%s'" % missingProperty)
+    return token
+
+def getTokenOfAUserFromAuthAdminClient(userId) -> str | dict:
+    ''' Returns: 
+        - str with the error message in case of fail
+        - dict with the token if success
+    '''
+    if AUTH_ADMIN_CLIENT is None: raise Exception()
+    token = AUTH_ADMIN_CLIENT.getUserToken(userId)
+    ok, missingProperty = authorization.User.validateToken(token, False)
     if not ok: return setErrorResponse(401,"invalid access token: missing '%s'" % missingProperty)
     return token
 
@@ -913,23 +922,26 @@ def getUser(userName):
 
 
 def checkDatasetListAccess(datasetIDs: list, userName: str):
-    if CONFIG is None or AUTH_ADMIN_CLIENT is None: raise Exception()
+    if CONFIG is None: raise Exception()
     badIDs = []
     with DB(CONFIG.db) as db:
         userId, userGID = db.getUserIDs(userName)
         if userId is None: return datasetIDs.copy()  # all datasetIDs are bad
+        ret = getTokenOfAUserFromAuthAdminClient(userId)
+        if isinstance(ret, str): return ret  # return error message
+        user = authorization.User(ret)
         #userGroups = db.getUserGroups(userName)
-        userGroups = AUTH_ADMIN_CLIENT.getUserGroups(userId)
+        #userGroups = AUTH_ADMIN_CLIENT.getUserGroups(userId)
         for id in datasetIDs:
             dataset = db.getDataset(id)
             if dataset is None:
                 # invalidated or not exists
                 badIDs.append(id); continue
-            if not authorization.tmpUserCanAccessDataset(userId, userGroups, dataset):
-                badIDs.append(id); continue
+            # if not authorization.tmpUserCanAccessDataset(userId, userGroups, dataset):
             if dataset["draft"]:
-                if (db.getDatasetCreationStatus(id) != None):  # dataset still being created
-                    badIDs.append(id); continue
+                dataset["creating"] = (db.getDatasetCreationStatus(id) != None)
+            if not user.canAccessDataset(dataset, authorization.Access_type.USE):
+                badIDs.append(id); continue
     return badIDs
 
 @app.route('/api/datasetAccessCheck', method='POST')

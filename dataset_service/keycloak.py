@@ -12,20 +12,24 @@ class KeycloakAdminAPIException(Exception):
         self.error_code = error_code
     
 class KeycloakAdminAPIClient:
-    def __init__(self, authClient: auth.AuthClient, apiURL: str):
+    def __init__(self, authClient: auth.AuthClient, apiURL: str, clientIdForGetUserTokens: str):
         self.apiURL = urllib.parse.urlparse(apiURL)
         if self.apiURL.hostname is None: raise Exception('Wrong apiUrl.')
         self.authClient = authClient
+        self.clientUIDForGetUserTokens = self.check_connection_getting_the_clientUIDForGetUserTokens(clientIdForGetUserTokens)
+        
 
-    def check_connection(self):
+    def check_connection_getting_the_clientUIDForGetUserTokens(self, clientIdForGetUserTokens: str) -> str:
         logging.root.info("Checking connection to KeycloakAdminAPI on %s..." % self.apiURL.geturl())
         try:
             retries = 0
             while retries < 5:
                 try:
-                    groups = self.getGroups()
-                    logging.root.info("Defined groups: %s" % json.dumps(groups))
-                    break
+                    clientUIDForGetUserTokens = self.getClientUID(clientIdForGetUserTokens)
+                    if clientUIDForGetUserTokens is None: raise KeycloakAdminAPIException("Wrong clientIdForGetUserToken", 404)
+                    else:
+                        logging.root.info("Client UID for getting user tokens: %s" % clientUIDForGetUserTokens)
+                        return clientUIDForGetUserTokens
                 except urllib.error.HTTPError as e1:
                     logging.root.error("HTTPError: " + str(e1.code) + " - " + str(e1.reason))
                 except urllib.error.URLError as e2:
@@ -33,17 +37,17 @@ class KeycloakAdminAPIClient:
                 retries += 1
                 logging.root.info("Retrying in 5 seconds...")
                 time.sleep(5)
-            if retries >= 5: raise Exception("Unable to connect to KeycloakAdminAPI.")
         except (KeycloakAdminAPIException) as e:
             if e.error_code == 403:
                 logging.root.error('''
                     Forbidden access to Keycloak Admin API. 
                     Please give the proper roles to the service account 
                     (see comments for the auth.admin_api_url in the default configuration file).''')
-            raise(e)
+            raise e
         except Exception as e:
             logging.root.exception(e)
             raise e
+        raise Exception("Unable to connect to KeycloakAdminAPI.")
 
     def _GET_JSON(self, path):
         if self.apiURL.hostname is None: raise Exception('Wrong apiUrl.')
@@ -63,6 +67,19 @@ class KeycloakAdminAPIClient:
             raise KeycloakAdminAPIException('Internal server error: KeycloakAdminAPI call failed.', httpStatusCode)
         logging.root.debug('KeycloakAdminAPI call success.')
         return json.loads(msg)
+
+    def getClientUID(self, clientId: str) -> str | None:
+        logging.root.debug('Getting client UID for clientId "%s" from KeycloakAdminAPI...' % clientId)
+        response = self._GET_JSON("clients?clientId="+urllib.parse.quote_plus(clientId))
+        try:
+            if len(response) == 0: return None
+            if len(response) != 1: raise Exception("Unexpected response, clientId not unique")
+            client = response[0]
+            if client["clientId"] != clientId: raise Exception("Unexpected response, clientId not match")
+            return client["id"]
+        except (Exception) as e:
+            logging.root.error('KeycloakAdminAPI response unexpected: %s' % (response))
+            raise KeycloakAdminAPIException('Internal server error: KeycloakAdminAPI response unexpected.')
 
     def getGroups(self):
         logging.root.debug('Getting groups from KeycloakAdminAPI...')
@@ -100,4 +117,10 @@ class KeycloakAdminAPIClient:
         except (Exception) as e:
             logging.root.error('KeycloakAdminAPI response unexpected: %s' % (response))
             raise KeycloakAdminAPIException('Internal server error: KeycloakAdminAPI response unexpected.')
+
+    def getUserToken(self, userUID) -> dict:
+        # Possible alternative method: impersonation
+        logging.root.debug('Getting user token from KeycloakAdminAPI...')
+        return self._GET_JSON(
+            "clients/"+self.clientUIDForGetUserTokens+"/evaluate-scopes/generate-example-access-token?scope=openid&userId="+userUID)
 

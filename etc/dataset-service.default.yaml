@@ -36,8 +36,10 @@ auth:
   admin_api_url: "https://chaimeleon-eu.i3m.upv.es/auth/admin/realms/CHAIMELEON/"
     # The URL to the authentication admin api, for querying user groups, etc.
     # Please note the auth.client params will be used for getting the token to access to this service.
-    # Also note that the following roles must be added to the service account roles: 
-    #   "realm-management/query-groups", "realm-management/query-users", "realm-management/view-users".
+    # Also note that the following roles must be added to the service account roles 
+    # (and also in the "dedicated scope" of the client if "full scope" is not enabled): 
+    #   "realm-management/query-groups", "realm-management/query-users", 
+    #   "realm-management/view-users", "realm-management/view-clients".
 
 tracer:
   url: "https://chaimeleon-eu.i3m.upv.es/tracer-service/tracer/"

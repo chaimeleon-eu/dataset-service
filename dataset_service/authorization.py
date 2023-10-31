@@ -22,13 +22,14 @@ class User:
             if not "preferred_username" in token.keys(): return False, "preferred_username"
             if not "name" in token.keys(): return False, "name"
             if not "email" in token.keys(): return False, "email"
-
+            if not "groups" in token.keys(): return False, "groups"
         try:
             token["appRoles"] = token["resource_access"]["dataset-service"]["roles"]
         except:
-            #return False, "resource_access.dataset-service.roles"
+            #Keycloak removes the roles array if the user don't have any role
+            #so let's set empty instead of return error
             token["appRoles"] = []
-
+        
         # ensure roles included in other roles
         if User.roles.admin_datasets in token["appRoles"]:
             cls._appendIfNotExists(token["appRoles"], User.roles.access_all_datasets)
@@ -54,16 +55,26 @@ class User:
         return self.token != None and User.roles.superadmin_datasets in self.token["appRoles"]
 
     def canAccessDataset(self, dataset, access_type = Access_type.VIEW_DETAILS):
+        if access_type == Access_type.VIEW_DETAILS:
+            return self.canViewDatasetDetails(dataset)
+        else:   # access_type == Access_type.USE
+            return self.canUseDataset(dataset)
+                
+    def canViewDatasetDetails(self, dataset):
         if self.token != None and User.roles.superadmin_datasets in self.token["appRoles"]: return True
-
-        if dataset["invalidated"] and access_type is Access_type.USE: return False
-
         if dataset["draft"] and (self.token is None or self.token["sub"] != dataset["authorId"]):
             return False
-
         if dataset["public"]: return True
-
         return (self.token != None and User.roles.access_all_datasets in self.token["appRoles"])
+    
+    def canUseDataset(self, dataset):
+        if not self.canViewDatasetDetails: return False
+
+        if dataset["draft"] and dataset["creating"]: return False
+        if self.token != None and User.roles.superadmin_datasets in self.token["appRoles"]: return True
+        if dataset["invalidated"]: return False
+        if dataset["public"]: return (self.token != None)
+        return (self.token != None and "data-scientists" in self.token["groups"])
 
     def getEditablePropertiesByTheUser(self, dataset):
         editableProperties = []
@@ -93,19 +104,6 @@ class User:
 
     def userCanAdminDatasetAccess(self):
         return self.token != None and self.roles.admin_datasetAccess in self.token["appRoles"]
-
-
-def tmpUserCanAccessDataset(userId, userGroups, dataset, access_type = Access_type.USE):
-    if "cloud-services-and-security-management" in userGroups: return True
-
-    if dataset["invalidated"] and access_type is Access_type.USE: return False
-
-    if dataset["draft"] and userId != dataset["authorId"]:
-        return False
-
-    if dataset["public"]: return True
-    
-    return "data-scientists" in userGroups
 
 
 class Search_filter():
