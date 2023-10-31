@@ -311,13 +311,8 @@ def postDataset():
     ret = getTokenFromAuthorizationHeader()
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
-    if user.token is None or not user.canCreateDatasets():
+    if user.isUnregistered() or not user.canCreateDatasets():
         return setErrorResponse(401,"unauthorized user")
-
-    userId = user.token["sub"]
-    userUsername = user.token["preferred_username"]
-    userName = user.token["name"]
-    userEmail = user.token["email"]
 
     content_types = get_header_media_types('Content-Type')
     if "external" in bottle.request.query and bottle.request.query["external"].lower() == "true":
@@ -398,8 +393,8 @@ def postDataset():
                     dataset["studies"].remove(study)
 
         with DB(CONFIG.db) as db:
-            LOG.debug("Updating author: %s, %s, %s, %s" % (userId, userUsername, userName, userEmail))
-            db.createOrUpdateAuthor(userId, userUsername, userName, userEmail)
+            LOG.debug("Updating author: %s, %s, %s, %s" % (user.uid, user.username, user.name, user.email))
+            db.createOrUpdateAuthor(user.uid, user.username, user.name, user.email)
 
             if 'previousId' in dataset.keys():
                 previousDataset = db.getDataset(dataset["previousId"])
@@ -407,7 +402,7 @@ def postDataset():
                     return setErrorResponse(400,"dataset.previousId does not exist")
                 if not user.canModifyDataset(previousDataset):
                     return setErrorResponse(401,"the dataset selected as previous (%s) "
-                                               +"must be editable by the user (%s)" % (previousDataset["id"], user.getUserName()))
+                                               +"must be editable by the user (%s)" % (previousDataset["id"], user.username))
             else:
                 dataset["previousId"] = None
 
@@ -428,7 +423,7 @@ def postDataset():
             dataset["seriesTags"] = []
 
             LOG.debug('Creating dataset in DB...')
-            db.createDataset(dataset, userId)
+            db.createDataset(dataset, user.uid)
 
             LOG.debug('Creating studies in DB...')
             for study in dataset["studies"]:
@@ -584,11 +579,12 @@ def getDataset(id):
         dataset["editablePropertiesByTheUser"] = user.getEditablePropertiesByTheUser(dataset)
 
         studies, total = db.getStudiesFromDataset(datasetId, limit, skip)
+        username = "unregistered" if user.isUnregistered() else user.username
         for study in studies: 
             # pathInDatalake is an internal info not interesting for the normal user nor unregistered user
             del study['pathInDatalake']
             # QuibimPrecision requires to set the username in the url
-            study['url'] = str(study['url']).replace("<USER>", user.getUserName(), 1)
+            study['url'] = str(study['url']).replace("<USER>", username, 1)
         if not 'v2' in bottle.request.params:  
             # transitional param while clients change to the new reponse type
             dataset["studies"] = studies
@@ -630,10 +626,9 @@ def patchDataset(id):
     ret = getTokenFromAuthorizationHeader()
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
-    if user.token is None:   # unregistered user
+    if user.isUnregistered():
         return setErrorResponse(401,"unauthorized user")
 
-    userId = user.token["sub"]
     datasetId = id
     read_data = bottle.request.body.read().decode('UTF-8')
     LOG.debug("BODY: " + read_data)
@@ -705,7 +700,7 @@ def patchDataset(id):
                     return setErrorResponse(400,"invalid value, the dataset id does not exist")
                 if not user.canModifyDataset(previousDataset):
                     return setErrorResponse(401,"the dataset selected as previous (%s) "
-                                               +"must be editable by the user (%s)" % (previousDataset["id"], user.getUserName()))
+                                               +"must be editable by the user (%s)" % (previousDataset["id"], user.username))
             db.setDatasetPreviousId(datasetId, newValue)  # newValue can be None or str
             # Don't notify the tracer, this property can be changed only in draft state
         elif property == "license":
@@ -738,7 +733,7 @@ def patchDataset(id):
         if CONFIG.tracer.url != '' and trace_details != None:
             LOG.debug('Notifying to tracer-service...')
             # Note this tracer call is inside of "with db" because if tracer fails the database changes will be reverted (transaction rollback).
-            tracer.traceDatasetUpdate(AUTH_CLIENT, CONFIG.tracer.url, datasetId, userId, trace_details)
+            tracer.traceDatasetUpdate(AUTH_CLIENT, CONFIG.tracer.url, datasetId, user.uid, trace_details)
     bottle.response.status = 200
 
 def parse_flag_value(s: str) -> bool | None:

@@ -9,9 +9,9 @@ class User:
     roles = None
 
     def __init__(self, token: dict | None):
-        self.token = token    # it is None if unregistered user
+        self._token = token    # it is None if unregistered user
 
-    @classmethod        
+    @classmethod
     def _appendIfNotExists(cls, array, item):
         if item not in array: array.append(item)
 
@@ -38,21 +38,34 @@ class User:
             cls._appendIfNotExists(token["appRoles"], User.roles.admin_datasets)
         return True, None
 
-    def getUserName(self): 
-        if self.token is None: return "Unregistered"
-        else: return self.token["preferred_username"]
+    @property
+    def uid(self):
+        if self._token is None: raise Exception("Unregistered user doesn't have uid")
+        else: return self._token["sub"]
+    @property
+    def username(self):
+        if self._token is None: raise Exception("Unregistered user doesn't have username")
+        else: return self._token["preferred_username"]
+    @property
+    def name(self):
+        if self._token is None: raise Exception("Unregistered user doesn't have name")
+        else: return self._token["name"]
+    @property
+    def email(self):
+        if self._token is None: raise Exception("Unregistered user doesn't have email")
+        else: return self._token["email"]
 
     def isUnregistered(self):
-        return self.token is None
+        return self._token is None
 
     def isSuperAdminDatasets(self):
-        return self.token != None and User.roles.superadmin_datasets in self.token["appRoles"]
+        return self._token != None and User.roles.superadmin_datasets in self._token["appRoles"]
 
     def canCreateDatasets(self):
-        return self.token != None and User.roles.admin_datasets in self.token["appRoles"]
+        return self._token != None and User.roles.admin_datasets in self._token["appRoles"]
 
     def canDeleteDatasets(self):
-        return self.token != None and User.roles.superadmin_datasets in self.token["appRoles"]
+        return self._token != None and User.roles.superadmin_datasets in self._token["appRoles"]
 
     def canAccessDataset(self, dataset, access_type = Access_type.VIEW_DETAILS):
         if access_type == Access_type.VIEW_DETAILS:
@@ -61,20 +74,19 @@ class User:
             return self.canUseDataset(dataset)
                 
     def canViewDatasetDetails(self, dataset):
-        if self.token != None and User.roles.superadmin_datasets in self.token["appRoles"]: return True
-        if dataset["draft"] and (self.token is None or self.token["sub"] != dataset["authorId"]):
-            return False
+        if self._token != None and User.roles.superadmin_datasets in self._token["appRoles"]: return True
+        if dataset["draft"] and (self._token is None or self._token["sub"] != dataset["authorId"]): return False
         if dataset["public"]: return True
-        return (self.token != None and User.roles.access_all_datasets in self.token["appRoles"])
+        return (self._token != None and User.roles.access_all_datasets in self._token["appRoles"])
     
     def canUseDataset(self, dataset):
         if not self.canViewDatasetDetails: return False
 
         if dataset["draft"] and dataset["creating"]: return False
-        if self.token != None and User.roles.superadmin_datasets in self.token["appRoles"]: return True
+        if self._token != None and User.roles.superadmin_datasets in self._token["appRoles"]: return True
         if dataset["invalidated"]: return False
-        if dataset["public"]: return (self.token != None)
-        return (self.token != None and "data-scientists" in self.token["groups"])
+        if dataset["public"]: return (self._token != None)
+        return (self._token != None and "data-scientists" in self._token["groups"])
 
     def getEditablePropertiesByTheUser(self, dataset):
         editableProperties = []
@@ -94,16 +106,16 @@ class User:
         return editableProperties
 
     def canModifyDataset(self, dataset):
-        if self.token is None: return False
-        if not User.roles.admin_datasets in self.token["appRoles"]: return False
-        if User.roles.superadmin_datasets in self.token["appRoles"]: return True
-        return self.token["sub"] == dataset["authorId"]
+        if self._token is None: return False
+        if not User.roles.admin_datasets in self._token["appRoles"]: return False
+        if User.roles.superadmin_datasets in self._token["appRoles"]: return True
+        return self._token["sub"] == dataset["authorId"]
 
     def userCanAdminUsers(self):
-        return self.token != None and self.roles.admin_users in self.token["appRoles"]
+        return self._token != None and self.roles.admin_users in self._token["appRoles"]
 
     def userCanAdminDatasetAccess(self):
-        return self.token != None and self.roles.admin_datasetAccess in self.token["appRoles"]
+        return self._token != None and self.roles.admin_datasetAccess in self._token["appRoles"]
 
 
 class Search_filter():
@@ -118,19 +130,19 @@ class Search_filter():
         return self._userId
 
     def adjustByUser(self, user: User):
-        if user.token is None or not User.roles.access_all_datasets in user.token["appRoles"]:
+        if user._token is None or not User.roles.access_all_datasets in user._token["appRoles"]:
             self.public = True
             self.invalidated = False
             self.draft = False
             return
 
-        if not User.roles.admin_datasets in user.token["appRoles"]:
+        if not User.roles.admin_datasets in user._token["appRoles"]:
             self.invalidated = False
             self.draft = False
             return
 
-        if not User.roles.superadmin_datasets in user.token["appRoles"]:
-            self._userId = user.token["sub"]
+        if not User.roles.superadmin_datasets in user._token["appRoles"]:
+            self._userId = user._token["sub"]
 
 class Upgradables_filter():
     def __init__(self):
@@ -140,6 +152,6 @@ class Upgradables_filter():
         return self._userId
 
     def adjustByUser(self, user: User):
-        if user.token is None: raise Exception()
-        if not User.roles.superadmin_datasets in user.token["appRoles"]:
-            self._userId = user.token["sub"]
+        if user._token is None: raise Exception()
+        if not User.roles.superadmin_datasets in user._token["appRoles"]:
+            self._userId = user._token["sub"]
