@@ -533,8 +533,16 @@ def _checkDatasetIntegrity(datasetId):
         return dict(success=False, msg="Not checked: file system or tracer no configured.")
     datasetDirName = datasetId
     datasetDirPath = os.path.join(CONFIG.self.datasets_mount_path, datasetDirName)
+
+    studiesHashes = {}
+    with DB(CONFIG.db) as db:
+        studies, total = db.getStudiesFromDataset(datasetId)
+        for study in studies:
+            studiesHashes[study["studyId"]] = study["hash"]
+    
     wrongHash = tracer.checkDatasetIntegrity(AUTH_CLIENT, CONFIG.tracer.url, datasetId, datasetDirPath,
-                                                CONFIG.self.index_file_name, CONFIG.self.eforms_file_name)
+                                                CONFIG.self.index_file_name, CONFIG.self.eforms_file_name,
+                                                studiesHashes)
     with DB(CONFIG.db) as db:
         db.setDatasetLastIntegrityCheck(datasetId, datetime.now())
     if wrongHash is None:

@@ -158,7 +158,7 @@ def getOriginalResourcesFromTracer(authClient: auth.AuthClient, tracerUrl, datas
     headers['Authorization'] = 'bearer ' + authClient.get_token()
     payload = ""
     # get original resources from Tracer
-    logging.root.debug('Getting trace from Tracer...')
+    logging.root.debug('Getting trace from Tracer (datsetId: %s)...' % datasetId)
     try:
         connection.request("GET", tracer.path + "api/v1/traces?datasetId=" + datasetId + "&userAction=CREATE_DATASET", payload, headers)
         res = connection.getresponse()
@@ -214,12 +214,30 @@ def checkHash(originalHash, currentHash, name):
         return False
     return True
 
-def checkDatasetIntegrity(authClient: auth.AuthClient, tracerUrl, datasetId, datasetDirPath, indexFileName, eformsFileName) -> str | None:
+def checkStudiesHashes(studiesHashes0, studiesHashes):
+    goodCount = 0
+    wrongCount = 0
+    for s in studiesHashes:
+        studyId = s['studyId']
+        if s['hash'] == studiesHashes0[studyId]:
+            goodCount += 1
+            if goodCount < 4: logging.root.info('Good study: '+studyId)
+        else:
+            wrongCount += 1
+            if wrongCount < 4: logging.root.info('Wrong study: '+studyId)
+
+    logging.root.info('%d/%d studies wrong' % (wrongCount, len(studiesHashes)))
+    
+
+def checkDatasetIntegrity(authClient: auth.AuthClient, tracerUrl, datasetId, datasetDirPath, indexFileName, eformsFileName, studiesHashes0) -> str | None:
     indexHash0, imagesHash0, clinicalDataHash0 = getOriginalResourcesFromTracer(authClient, tracerUrl, datasetId)
-    indexHash, imagesHash, clinicalDataHash = hash.getHashesOfDataset(datasetDirPath, indexFileName, eformsFileName)
-    if not checkHash(indexHash0,        indexHash,        'index'):        return 'index'
-    if not checkHash(imagesHash0,       imagesHash,       'images'):       return 'images'
+    studiesHashes = []
+    indexHash, imagesHash, clinicalDataHash = hash.getHashesOfDataset(datasetDirPath, indexFileName, eformsFileName, studiesHashes=studiesHashes)
     if not checkHash(clinicalDataHash0, clinicalDataHash, 'clinicalData'): return 'clinicalData'
+    if not checkHash(indexHash0,        indexHash,        'index'):        return 'index'
+    if not checkHash(imagesHash0,       imagesHash,       'images'):       
+        checkStudiesHashes(studiesHashes0, studiesHashes)
+        return 'images'
     logging.root.info('Dataset integrity OK.')
     return None
 

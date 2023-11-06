@@ -519,7 +519,8 @@ class DB:
         total = row[0] if row != None else 0
 
         self.cursor.execute(sql.SQL("""
-            SELECT study.id, study.name, study.subject_name, study.url, study.path_in_datalake, dataset_study.series
+            SELECT study.id, study.name, study.subject_name, study.url, study.path_in_datalake, 
+                   dataset_study.series, dataset_study.hash
             FROM study, dataset_study 
             WHERE dataset_study.dataset_id = %s AND dataset_study.study_id = study.id 
             ORDER BY study.name 
@@ -529,7 +530,7 @@ class DB:
         res = []
         for row in self.cursor:
             res.append(dict(studyId = row[0], studyName = row[1], subjectName = row[2], pathInDatalake = row[4],
-                            series = json.loads(row[5]), url = row[3]))
+                            series = json.loads(row[5]), url = row[3], hash = row[6]))
         return res, total
 
     def getPathsOfStudiesFromDataset(self, datasetId):
