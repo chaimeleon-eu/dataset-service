@@ -536,6 +536,17 @@ def _checkDatasetIntegrity(datasetId):
 
     studiesHashes = {}
     with DB(CONFIG.db) as db:
+        dataset = db.getDataset(datasetId)
+        if dataset is None: 
+            return dict(success=False, msg="Not checked: dataset removed.")
+        if dataset["draft"] and db.getDatasetCreationStatus(datasetId) != None:
+            return dict(success=False, msg="Not checked: it is still being created.")
+        lastCheck = None if dataset["lastIntegrityCheck"] is None \
+                        else datetime.fromisoformat(dataset["lastIntegrityCheck"]).timestamp()
+        now = datetime.now().timestamp()
+        if lastCheck != None and now < (lastCheck + INTEGRITY_CHECK_LIFE_TIME):
+            return dict(success=True, msg="Integrity OK (checked on %s)" % lastCheck)
+        
         studies, total = db.getStudiesFromDataset(datasetId)
         for study in studies:
             studiesHashes[study["studyId"]] = study["hash"]
@@ -583,15 +594,7 @@ def checkAllDatasetsIntegrity():
         LOG.debug("Total datasets to check: %d" % total)
         results = []
         for ds in datasets:
-            ds_details = db.getDataset(ds['id'])
-            if ds_details is None: raise Exception()
-            lastCheck = None if ds_details["lastIntegrityCheck"] is None \
-                             else datetime.fromisoformat(ds_details["lastIntegrityCheck"]).timestamp()
-            now = datetime.now().timestamp()
-            if lastCheck != None and now < (lastCheck + INTEGRITY_CHECK_LIFE_TIME):
-                result = dict(success=True, msg="Integrity OK (checked on %s)" % lastCheck)
-            else:
-                result = _checkDatasetIntegrity(ds['id'])
+            result = _checkDatasetIntegrity(ds['id'])
             results.append(dict(id=ds['id'], result=result))
 
     bottle.response.status = 201
