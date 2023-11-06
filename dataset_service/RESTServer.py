@@ -152,7 +152,7 @@ def validate_token(token) -> dict:
     decodedToken = jwt.decode(token, AUTH_PUBLIC_KEY.key, algorithms=['RS256'],  
                               issuer=CONFIG.auth.token_validation.issuer, audience=CONFIG.auth.token_validation.audience, 
                               options={'verify_signature': True, 'require': ["exp", "iat", "iss", "aud"]})
-    LOG.debug(json.dumps(decodedToken))
+    #LOG.debug(json.dumps(decodedToken))
     return decodedToken
 
 def getTokenFromAuthorizationHeader(serviceAccount=False) -> str | None | dict:
@@ -163,7 +163,7 @@ def getTokenFromAuthorizationHeader(serviceAccount=False) -> str | None | dict:
     '''
     encodedToken = bottle.request.get_header("authorization")
     if encodedToken is None: 
-        LOG.debug("Not registered user.")
+        LOG.debug("User: not registered")
         return None
     try:
         encodedToken = encodedToken[7:]
@@ -171,7 +171,10 @@ def getTokenFromAuthorizationHeader(serviceAccount=False) -> str | None | dict:
         return setErrorResponse(401, "invalid authorization header")
     token = validate_token(encodedToken)
     ok, missingProperty = authorization.User.validateToken(token, serviceAccount)
-    if not ok: return setErrorResponse(401,"invalid access token: missing '%s'" % missingProperty)
+    if ok: LOG.debug("User: " + token['preferred_username'])
+    else: 
+        LOG.debug(json.dumps(token))
+        return setErrorResponse(401,"invalid access token: missing '%s'" % missingProperty)
     return token
 
 def getTokenOfAUserFromAuthAdminClient(userId) -> str | dict:
@@ -524,32 +527,68 @@ def getDatasetCreationStatus(id):
     bottle.response.content_type = "application/json"
     return json.dumps(status)
 
-@app.route('/api/datasets/<id>/checkIntegrity', method='GET')
-def checkDatasetIntegrity(id):
+def _checkDatasetIntegrity(datasetId):
     if CONFIG is None or AUTH_CLIENT is None: raise Exception()
+    if CONFIG.self.datasets_mount_path == '' or CONFIG.tracer.url == '':
+        return dict(success=False, msg="Not checked: file system or tracer no configured.")
+    datasetDirName = datasetId
+    datasetDirPath = os.path.join(CONFIG.self.datasets_mount_path, datasetDirName)
+    wrongHash = tracer.checkDatasetIntegrity(AUTH_CLIENT, CONFIG.tracer.url, datasetId, datasetDirPath,
+                                                CONFIG.self.index_file_name, CONFIG.self.eforms_file_name)
+    with DB(CONFIG.db) as db:
+        db.setDatasetLastIntegrityCheck(datasetId, datetime.now())
+    if wrongHash is None:
+        return dict(success=True, msg="Integrity OK.")
+    else: return dict(success=False, msg="Resource hash mismatch: %s" % wrongHash)
+
+@app.route('/api/datasets/<id>/checkIntegrity', method='POST')
+def checkDatasetIntegrity(id):
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ret = getTokenFromAuthorizationHeader()
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
-
-    if not user.isSuperAdminDatasets():
+    if not user.canCheckIntegrityOfDatasets():
         return setErrorResponse(401,"unauthorized user")
-
+    
     datasetId = id
-    result = dict(success=False, msg="Not checked.")
-    if CONFIG.self.datasets_mount_path != '':
-        datasetDirName = datasetId
-        datasetDirPath = os.path.join(CONFIG.self.datasets_mount_path, datasetDirName)
-        if CONFIG.tracer.url != '':
-            wrongHash = tracer.checkDatasetIntegrity(AUTH_CLIENT, CONFIG.tracer.url, datasetId, datasetDirPath,
-                                                     CONFIG.self.index_file_name, CONFIG.self.eforms_file_name)
-            if wrongHash is None: 
-                result = dict(success=True, msg="Integrity OK.")
-            else: result = dict(success=False, msg="Resource hash mismatch: %s" % wrongHash) 
-
+    result = _checkDatasetIntegrity(datasetId)
     bottle.response.status = 201
     bottle.response.content_type = "application/json"
     return json.dumps(result)
+
+INTEGRITY_CHECK_LIFE_TIME = 30 * 24 * 60 * 60   # 30 days in seconds
+
+@app.route('/api/datasets/checkIntegrity', method='POST')
+def checkAllDatasetsIntegrity():
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    ret = getTokenFromAuthorizationHeader()
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
+    if not user.canCheckIntegrityOfDatasets():
+        return setErrorResponse(401,"unauthorized user")
+
+    with DB(CONFIG.db) as db:
+        searchFilter = authorization.Search_filter(draft = None, public = None, invalidated = None)
+        searchFilter.adjustByUser(user)
+        datasets, total =  db.getDatasets(0, 0, '', searchFilter, '', '')
+        LOG.debug("Total datasets to check: %d" % total)
+        results = []
+        for ds in datasets:
+            ds_details = db.getDataset(ds['id'])
+            if ds_details is None: raise Exception()
+            lastCheck = None if ds_details["lastIntegrityCheck"] is None \
+                             else datetime.fromisoformat(ds_details["lastIntegrityCheck"]).timestamp()
+            now = datetime.now().timestamp()
+            if lastCheck != None and now < (lastCheck + INTEGRITY_CHECK_LIFE_TIME):
+                result = dict(success=True, msg="Integrity OK (checked on %s)" % lastCheck)
+            else:
+                result = _checkDatasetIntegrity(ds['id'])
+            results.append(dict(id=ds['id'], result=result))
+
+    bottle.response.status = 201
+    bottle.response.content_type = "application/json"
+    return json.dumps(results)
 
 @app.route('/api/datasets/<id>', method='GET')
 def getDataset(id):

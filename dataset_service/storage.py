@@ -30,7 +30,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 16
+    CURRENT_SCHEMA_VERSION = 17
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -57,6 +57,7 @@ class DB:
             if version < 14: self.updateDB_v13To14()
             if version < 15: self.updateDB_v14To15()
             if version < 16: self.updateDB_v15To16()
+            if version < 17: self.updateDB_v16To17()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -131,6 +132,7 @@ class DB:
                 body_part text NOT NULL DEFAULT '[]',
                 modality text NOT NULL DEFAULT '[]',
                 series_tags text NOT NULL DEFAULT '[]',
+                last_integrity_check timestamp DEFAULT NULL,
                 constraint pk_dataset primary key (id),
                 constraint fk_author foreign key (author_id) references author(id)
             );
@@ -153,6 +155,14 @@ class DB:
                 constraint fk_dataset foreign key (dataset_id) references dataset(id),
                 constraint fk_study foreign key (study_id) references study(id)
             );
+            /* CREATE TABLE series (
+                study_id varchar(40),
+                seriesDirName varchar(128)
+                hash varchar(50) NOT NULL DEFAULT '',
+                hash_last_check timestamp DEFAULT NULL,
+                constraint pk_series primary key (study_id, seriesDirName),
+                constraint fk_study foreign key (study_id) references study(id)
+            ); */
             CREATE TABLE dataset_access (
                 id varchar(40),
                 user_gid integer,
@@ -288,7 +298,10 @@ class DB:
                                   constraint pk_dataset_creation_status primary key (dataset_id),
                                   constraint fk_dataset foreign key (dataset_id) references dataset(id)
                                );""")
-        
+
+    def updateDB_v16To17(self):
+        logging.root.info("Updating database from v16 to v17...")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN last_integrity_check timestamp DEFAULT NULL;")
 
     def createOrUpdateAuthor(self, userId, username, name, email):
         self.cursor.execute("SELECT id FROM author WHERE id=%s LIMIT 1;", (userId,))
@@ -447,7 +460,7 @@ class DB:
                    dataset.studies_count, dataset.subjects_count, 
                    dataset.age_low, dataset.age_high, 
                    dataset.sex, dataset.body_part, dataset.modality, dataset.series_tags, 
-                   dataset.next_id
+                   dataset.next_id, dataset.last_integrity_check
             FROM dataset, author 
             WHERE dataset.id=%s AND author.id = dataset.author_id 
             LIMIT 1;""",
@@ -456,6 +469,7 @@ class DB:
         if row is None: return None
         creationDate = str(row[6].astimezone())   # row[6] is a datetime without time zone, just add the local tz.
                                                   # If local tz is UTC, the string "+00:00" is added at the end.
+        lastIntegrityCheck = None if row[25] is None else str(row[25].astimezone())
         if row[18] is None:
             ageLow = None
             ageHigh = None
@@ -494,7 +508,7 @@ class DB:
                     studiesCount = row[16], subjectsCount = row[17], 
                     ageLow = ageLow, ageHigh = ageHigh, ageUnit = ageUnit, sex = sex, 
                     bodyPart = json.loads(row[21]), modality = json.loads(row[22]),
-                    seriesTags = json.loads(row[23]))
+                    seriesTags = json.loads(row[23]), lastIntegrityCheck = lastIntegrityCheck)
 
     def getStudiesFromDataset(self, datasetId, limit = 0, skip = 0):
         if limit == 0: limit = 'ALL'
@@ -649,7 +663,7 @@ class DB:
         self.cursor.execute("DELETE FROM dataset WHERE id=%s;", (datasetId,))
 
     def deleteOrphanStudies(self):
-        '''This a kind of garbage-collection that deletes all the studies not included in any dataset.'''
+        '''This is a kind of garbage-collection that deletes all the studies not included in any dataset_study.'''
         self.cursor.execute("""
             SELECT COUNT(*) FROM study as s
             WHERE not exists (select ds.dataset_id, ds.study_id 
@@ -709,6 +723,9 @@ class DB:
 
     def setDatasetContactInfo(self, id, newValue):
         self.cursor.execute("UPDATE dataset SET contact_info = %s WHERE id = %s;", (newValue, id))
+
+    def setDatasetLastIntegrityCheck(self, id, newValue):
+        self.cursor.execute("UPDATE dataset SET last_integrity_check = %s WHERE id = %s;", (newValue, id))
 
     def createDatasetAccess(self, datasetAccessId, datasetIDs, userGID, toolName, toolVersion):
         self.cursor.execute("""

@@ -193,7 +193,7 @@ def getOriginalResourcesFromTracer(authClient: auth.AuthClient, tracerUrl, datas
     logging.root.debug('Tracer call success.')
     response = json.loads(msg)
     try:
-        trace = response['traces'][0]['traces'][0]
+        trace = response['traces'][0]['trace']
         if trace['datasetId'] != datasetId or trace['userAction'] != "CREATE_DATASET": raise Exception()
         indexHash = imagesHash = clinicalDataHash = None
         for resource in trace['traceResources']:

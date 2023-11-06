@@ -72,13 +72,13 @@ class User:
             return self.canViewDatasetDetails(dataset)
         else:   # access_type == Access_type.USE
             return self.canUseDataset(dataset)
-                
+
     def canViewDatasetDetails(self, dataset):
         if self._token != None and User.roles.superadmin_datasets in self._token["appRoles"]: return True
         if dataset["draft"] and (self._token is None or self._token["sub"] != dataset["authorId"]): return False
         if dataset["public"]: return True
         return (self._token != None and User.roles.access_all_datasets in self._token["appRoles"])
-    
+
     def canUseDataset(self, dataset):
         if not self.canViewDatasetDetails: return False
 
@@ -87,6 +87,9 @@ class User:
         if dataset["invalidated"]: return False
         if dataset["public"]: return (self._token != None)
         return (self._token != None and "data-scientists" in self._token["groups"])
+
+    def canCheckIntegrityOfDatasets(self):
+        return self.isSuperAdminDatasets()
 
     def getEditablePropertiesByTheUser(self, dataset):
         editableProperties = []

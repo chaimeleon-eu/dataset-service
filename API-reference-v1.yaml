@@ -646,6 +646,13 @@ components:
           type: string
           format: date-time
           example: '2016-08-29T09:12:33.001Z'
+        lastIntegrityCheck:
+          type: string
+          format: date-time
+          description: |
+            The last time the integrity of dataset has been checked calculating the hash and comparing with the original saved in Tracer.
+            It is null in newly created datasets and while not checked.
+          example: '2016-08-29T09:12:33.001Z'
         description:
           type: string
           description: "Long explanation of dataset details, statistics, links, references, improvements/modifications if it's a new version, etc."
