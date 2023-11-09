@@ -17,15 +17,18 @@ def _updateSHAWithFile(sha, filePath: str):
             if not data: break
             sha.update(data)
 
-def _updateSHAWithDirectoryContents(sha, dirPath):
+def _updateSHAWithDirectoryContents(sha, dirPath, notifyProgress = None):
     filesList = os.listdir(dirPath)
     # The order is important to obtain the correct hash.
     # Also recomendable: filter by extension (.dcm) if there are other files that can change.
     filesList.sort()
     for name in filesList:
         filePath = os.path.join(dirPath, name)
-        if os.path.isdir(filePath): _updateSHAWithDirectoryContents(sha, filePath)
+        if os.path.isdir(filePath): _updateSHAWithDirectoryContents(sha, filePath, notifyProgress)
         else:                       _updateSHAWithFile(sha, filePath)
+        if notifyProgress != None: 
+            stop = notifyProgress('')
+            if stop: return
 
 def _bytesToBase64String(b: bytes) -> str:
     return base64.b64encode(b).decode('ascii')
@@ -50,20 +53,24 @@ def _getHashOfFile(filePath: str) -> bytes:
     _updateSHAWithFile(sha, filePath)
     return sha.digest()
 
-def _getHashOfDirectory(dirPath):
+def _getHashOfDirectory(dirPath, notifyProgress = None):
     sha = _createNewSHA()
-    _updateSHAWithDirectoryContents(sha, dirPath)
+    _updateSHAWithDirectoryContents(sha, dirPath, notifyProgress)
+    if notifyProgress != None: 
+        stop = notifyProgress('')
+        if stop: return None
     return sha.digest()
 
-def _getHashOfSerie(serieDirPath):
-    return _getHashOfDirectory(serieDirPath)
+def _getHashOfSeries(seriesDirPath, notifyProgress = None):
+    return _getHashOfDirectory(seriesDirPath, notifyProgress)
 
-def _getHashOfStudy(series, studyDirPath):
+def _getHashOfStudy(seriesList, studyDirPath, notifyProgress = None):
     sha = _createNewSHA()
-    for serie in series:
-        serieDirPath = os.path.join(studyDirPath, serie["folderName"])
-        serieHash = _getHashOfSerie(serieDirPath)
-        sha.update(serieHash)
+    for series in seriesList:
+        seriesDirPath = os.path.join(studyDirPath, series["folderName"])
+        seriesHash = _getHashOfSeries(seriesDirPath, notifyProgress)
+        if seriesHash is None: return None
+        sha.update(seriesHash)
     return sha.digest()
 
 def _getHashOfDatasetImages(datasetDirPath, studies, studiesHashes = None, notifyProgress = None):
@@ -75,8 +82,9 @@ def _getHashOfDatasetImages(datasetDirPath, studies, studiesHashes = None, notif
         studyDirPath = os.path.join(datasetDirPath, study['path'])
         logging.root.debug('Calculating SHA of study (%d/%d) [%s] ...' % (count, total, studyDirPath))
         if notifyProgress != None and (count == 1 or count % 2 == 0):
-            notifyProgress('Calculating SHA of study %d of %d) ...' % (count, total))
-        studyHash = _getHashOfStudy(study["series"], studyDirPath)
+            notifyProgress('Calculating SHA of study %d of %d) ...' % (count, total), log=False)
+        studyHash = _getHashOfStudy(study["series"], studyDirPath, notifyProgress)
+        if studyHash is None: return None
         if studiesHashes != None: studiesHashes.append(dict(studyId = study["studyId"], 
                                                             hash = _bytesToBase64String(studyHash)))
         sha.update(studyHash)
@@ -88,11 +96,15 @@ def getHashOfString(s):
 def getHashOfFile(filePath):
     return _bytesToBase64String(_getHashOfFile(filePath))
 
-def getHashOfSerie(serieDirPath):
-    return _bytesToBase64String(_getHashOfSerie(serieDirPath))
+def getHashOfSeries(serieDirPath):
+    seriesHash = _getHashOfSeries(serieDirPath)
+    if seriesHash is None: raise Exception()
+    return _bytesToBase64String(seriesHash)
 
 def getHashOfDatasetImages(datasetDirPath, studies, studiesHashes = None, notifyProgress = None):
-    return _bytesToBase64String(_getHashOfDatasetImages(datasetDirPath, studies, studiesHashes, notifyProgress))
+    imagesHash = _getHashOfDatasetImages(datasetDirPath, studies, studiesHashes, notifyProgress)
+    if imagesHash is None: return None
+    return _bytesToBase64String(imagesHash)
 
 def getHashesOfDataset(datasetDirPath, indexFileName, eformsFileName, studies = None, studiesHashes = None, notifyProgress = None):
     '''
@@ -112,6 +124,7 @@ def getHashesOfDataset(datasetDirPath, indexFileName, eformsFileName, studies = 
         indexHash = getHashOfFile(indexFilePath)
 
     imagesHash = getHashOfDatasetImages(datasetDirPath, studies, studiesHashes, notifyProgress)
+    if imagesHash is None: return None, None, None
     clinicalDataHash = getHashOfFile(eformsFilePath)
     return indexHash, imagesHash, clinicalDataHash
 

@@ -96,21 +96,32 @@ class dataset_creation_worker:
     #     dataset["bodyPart"] = values[0x0018, 0x0015]
     #     dataset["modality"] = values[0x0008, 0x0060]
 
-    def updateProgress(self, message: str) -> bool:
-        with DB(self.config.db) as db:
-            db.setDatasetCreationStatus(self.datasetId, "running", message)
-        return self.stopping
+    def updateProgress(self, message: str, log = True) -> bool:
+        ''' Returns True if the user have canceled the process and so all current tasks must stop.
+            The message can be empty string to avoid changing the status message and just to know whether to continue o cancel.
+        '''
+        if self.stopping: return True
+        if message != "":
+            if log: self.log.debug(message)
+            with DB(self.config.db) as db:
+                db.setDatasetCreationStatus(self.datasetId, "running", message)
+        return False
 
-    def endProgress(self, errorMessage: str | None = None):
+    def _endProgress(self, errorMessage: str | None = None):
         with DB(self.config.db) as db:
             if errorMessage is None:    # end successfully
                 db.deleteDatasetCreationStatus(self.datasetId)
             else:                       # end with error
                 db.setDatasetCreationStatus(self.datasetId, "error", errorMessage)
 
+    def _cancelProgress(self):
+        self._endProgress(errorMessage="Canceled by user")
+
     stopping = False
     def stop(self):
         self.stopping = True
+        with DB(self.config.db) as db:
+            db.setDatasetCreationStatus(self.datasetId, "running", "Canceling...")
 
     def run(self):
         datasetDirName = ''
@@ -118,7 +129,7 @@ class dataset_creation_worker:
         try:
             if self.config.self.datasets_mount_path == '':
                 logging.root.warn("datasets_mount_path is empty: there is nothing to do by this job.")
-                self.endProgress()
+                self._endProgress()
                 return
 
             dataset_file_system.check_file_system(self.config.self.datalake_mount_path, self.config.self.datasets_mount_path)
@@ -134,13 +145,13 @@ class dataset_creation_worker:
                 datasetStudies, total = db.getStudiesFromDataset(self.datasetId)
                 dataset["studies"] = datasetStudies
 
-                self.log.debug("Scanning dataset for collecting metadata...")
-                self.updateProgress("Scanning dataset for collecting metadata")
+                stop = self.updateProgress("Scanning dataset for collecting metadata...")
+                if stop: self._cancelProgress(); return
                 self.collectMetadata(dataset)
                 db.updateDatasetMetadata(dataset)
                 
-            self.log.debug("Creating symbolic links...")
-            self.updateProgress("Creating symbolic links")
+            stop = self.updateProgress("Creating symbolic links...")
+            if stop: self._cancelProgress(); return
             datasetDirName = self.datasetId
             dataset_file_system.create_dataset(self.config.self.datasets_mount_path, datasetDirName, 
                                                self.config.self.datalake_mount_path, datasetStudies)
@@ -149,20 +160,26 @@ class dataset_creation_worker:
 
             if self.config.tracer.url != '':
                 studiesHashes = []
-                self.updateProgress("Calculating the hash of dataset")
+                stop = self.updateProgress("Calculating the hashes of the dataset...")
+                if stop: self._cancelProgress(); return
                 tracer.traceDatasetCreation(auth_client, self.config.tracer.url, 
                                             datasetDirPath, self.config.self.index_file_name, self.config.self.eforms_file_name, 
                                             self.datasetId, dataset["authorId"], None, studiesHashes, self.updateProgress)
-                # Save the hash of each study in the DB just for be able to get which studies have been changed 
+
+                stop = self.updateProgress("Saving hashes in database...")
+                if stop: self._cancelProgress(); return
+                # Save the hash of each study in the DB just for being able to know which studies have been changed 
                 # in the unusual case in which the general hash of the dataset stored in the tracer has changed.
                 with DB(self.config.db) as db:
                     for studyHash in studiesHashes:
                         db.setDatasetStudyHash(self.datasetId, studyHash["studyId"], studyHash["hash"])
         
-            self.endProgress()
+            stop = self.updateProgress("Dataset creation finished.")
+            if stop: self._cancelProgress(); return
+            self._endProgress()
 
         except (tracer.TraceException, dataset_file_system.DatasetException, LoginException) as e:
-            self.endProgress(errorMessage=str(e))
+            self._endProgress(errorMessage=str(e))
         except Exception as e:
-            self.endProgress(errorMessage="unexpected error")
+            self._endProgress(errorMessage="Unexpected error")
             self.log.exception(e)

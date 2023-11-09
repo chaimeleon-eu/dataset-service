@@ -122,13 +122,15 @@ def traceDatasetCreation(authClient: auth.AuthClient, tracerUrl, datasetDirPath,
         datasetId = datasetId,
         resources = _getResources(datasetDirPath, indexFileName, eformsFileName, datasetStudies, studiesHashes, notifyProgress)
     )
-
     # if dataset["previousId"] != None:
     #     body['userAction'] = 'CREATE_VERSION_DATASET'
     #     body['previousId'] = dataset["previousId"]
     
-    payload = json.dumps(body)
+    if notifyProgress != None: 
+        stop = notifyProgress('Notifying the creation to the Tracer...')
+        if stop: return
 
+    payload = json.dumps(body)
     headers['Authorization'] = 'bearer ' + authClient.get_token()
     # headers['Authorization'] = 'Basic XXXXXXXXXXXX'
 
