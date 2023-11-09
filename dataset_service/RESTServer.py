@@ -248,8 +248,8 @@ def getDatalakeInfo(file_path):
     return bottle.static_file(file_path, CONFIG.self.datalakeinfo_dir_path)
 
 
-class WrongInputException(Exception):
-    pass
+class WrongInputException(Exception): pass
+class K8sException(Exception): pass
 
 def checkPath(basePath: str, relativePath: str):
     ''' Ensures relativePath is in fact a subpath of basePath. Raises an exception if wrong path.
@@ -455,17 +455,20 @@ def postDataset():
                 json.dump(dataset["studies"], outputStream)
 
             LOG.debug('Creating status in DB...')
-            db.createDatasetCreationStatus(datasetId, "pending", "Launching dataset creation job")
+            db.createDatasetCreationStatus(datasetId, "pending", "Launching dataset creation job...")
             LOG.debug('Launching dataset creation job...')
-            k8s.create_job("creating-dataset-" + datasetId, datasetId)
+            ok = k8s.add_dataset_creation_job(datasetId)
+            if not ok: 
+                db.createDatasetCreationStatus(datasetId, "error", "Unexpected error launching dataset creation job.")
+                raise K8sException("Unexpected error launching dataset creation job.")
 
-        LOG.debug('Dataset successfully created.')
+        LOG.debug('Dataset successfully created in DB and creation job launched in K8s.')
         bottle.response.status = 201
         bottle.response.content_type = "application/json"
         return json.dumps(dict(apiUrl = "/api/datasets/" + datasetId,
                                url = CONFIG.self.dataset_link_format % datasetId))
 
-    except (WrongInputException) as e:
+    except (WrongInputException, K8sException) as e:
         if datasetDirName != '': dataset_file_system.remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
         return setErrorResponse(400, str(e))
     except Exception as e:
@@ -856,23 +859,38 @@ def getUpgradableDatasets():
 
 @app.route('/api/datasets/<id>', method='DELETE')
 def deleteDataset(id):
-    '''
-    Warning: The normal procedure is to invalidate the datasets, because they can not be deleted from the tracer-service, but it will be hidden;
-        this method is only intended for development state, to delete test datasets when the tracer-service is also cleaned
-        or is going to be cleaned when changing to the production state.
+    ''' Notes: 
+        The normal procedure is to invalidate the datasets, because they can not be deleted from the tracer-service, but it will be hidden;
+        this method is only intended for development state and for superadmin_datasets role, 
+        to delete test datasets when the tracer-service is also cleaned or is going to be cleaned when changing to the production state.
+        Only in case of the dataset is still creating (or with error in creation) (still not in the tracer-service) 
+        then it can be deleted normally and by normal users.
     '''
     if CONFIG is None: raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ret = getTokenFromAuthorizationHeader()
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
-    if not user.canDeleteDatasets():
+    if user.isUnregistered():
         return setErrorResponse(401, "unauthorized user")
 
     datasetId = id
     with DB(CONFIG.db) as db:
-        if not db.existDataset(datasetId):
+        dataset = db.getDataset(datasetId)
+        if dataset is None:
             return setErrorResponse(404, "not found")
+        if dataset["draft"]:
+            dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
+        if not user.canDeleteDataset(dataset):
+            return setErrorResponse(401, "unauthorized user")
+
+        if "creating" in dataset and dataset["creating"]:
+            #First of all stop the job
+            LOG.debug('Deleting dataset creation job...')
+            ok = k8s.delete_dataset_creation_job(datasetId)
+            if not ok: return setErrorResponse(500, "Unexpected error")
+        
+        # Now let's remove the dataset from all sites
         accesses = db.getDatasetAccesses(datasetId)
         if len(accesses) > 0:
             return setErrorResponse(400, "The dataset can't be removed because it is currently accessed by: " + json.dumps(accesses))

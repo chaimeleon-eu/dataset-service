@@ -5,11 +5,13 @@ import logging
 import json
 from dataset_service.config import CONFIG_ENV_VAR_NAME
 
+DATASET_CREATION_JOB_PREFIX="creating-dataset-"
+
 def _get_deployment_of_dataset_service_backend(namespace):
     API = client.AppsV1Api()
     return API.read_namespaced_deployment("dataset-service-backend", namespace)
 
-def create_job(job_name, datasetId):
+def add_dataset_creation_job(datasetId):
     config.load_incluster_config()
     current_namespace = open("/var/run/secrets/kubernetes.io/serviceaccount/namespace").read()
     API = client.BatchV1Api()
@@ -34,7 +36,7 @@ def create_job(job_name, datasetId):
     body = client.V1Job(
         api_version='batch/v1',
         kind='Job',
-        metadata = client.V1ObjectMeta(name=job_name),
+        metadata = client.V1ObjectMeta(name = DATASET_CREATION_JOB_PREFIX + datasetId),
         spec = client.V1JobSpec(
             backoff_limit = 0,   # no retries
             ttl_seconds_after_finished = 86400,   # 24 hours after finish to remove the job
@@ -68,6 +70,21 @@ def create_job(job_name, datasetId):
     except ApiException as e:
         logging.root.error("Exception when calling BatchV1Api->create_namespaced_job: %s\n" % e)
         return False
-
     return True
     
+def delete_dataset_creation_job(datasetId):
+    config.load_incluster_config()
+    current_namespace = open("/var/run/secrets/kubernetes.io/serviceaccount/namespace").read()
+    API = client.BatchV1Api()
+
+    try:
+        # propagation_policy='Foreground' to include the deletion of the pod
+        api_response = API.delete_namespaced_job(DATASET_CREATION_JOB_PREFIX + datasetId, current_namespace, propagation_policy='Foreground')
+        #logging.root.debug(api_response)
+    except ApiException as e:
+        if e.status == 404: 
+            logging.root.debug("The job is already deleted or finished.")
+            return True
+        logging.root.error("Exception when calling BatchV1Api->delete_namespaced_job: %s\n" % e)
+        return False
+    return True

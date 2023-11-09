@@ -250,6 +250,30 @@ paths:
           description: "bad request content"
         '404':
           description: "not found"
+    delete:
+      tags:
+        - datasets
+      summary: deletes a dataset by its id
+      operationId: deleteDataset
+      description:  |
+        Deletes a dataset in the system. 
+        Normal users only can delete a dataset when it is still being created (or ended with error) (i.e. "creating" flag is true). Once created it can be used, and this usage will be traced, so it cannot be deleted (the deletion would hide the usage), but it can be invalidated instead.
+      parameters:
+        - name: id
+          description: "the id of the dataset to delete"
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: "successful operation"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '400': 
+          description: "bad request, it cannot be removed"
+        '404':
+          description: "not found"
 
   /datasets/{id}/creationStatus:
     get:

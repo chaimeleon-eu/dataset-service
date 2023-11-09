@@ -64,8 +64,11 @@ class User:
     def canCreateDatasets(self):
         return self._token != None and User.roles.admin_datasets in self._token["appRoles"]
 
-    def canDeleteDatasets(self):
-        return self._token != None and User.roles.superadmin_datasets in self._token["appRoles"]
+    def canDeleteDataset(self, dataset):
+        if self._token is None: return False
+        if not self.canModifyDataset(dataset): return False
+        if User.roles.superadmin_datasets in self._token["appRoles"]: return True
+        return "creating" in dataset and dataset["creating"]
 
     def canAccessDataset(self, dataset, access_type = Access_type.VIEW_DETAILS):
         if access_type == Access_type.VIEW_DETAILS:
