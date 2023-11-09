@@ -110,6 +110,16 @@ class User:
             editableProperties.append("contactInfo")
             editableProperties.append("license")
         return editableProperties
+    
+    def getAllowedActionsForTheUser(self, dataset):
+        allowedActions = []
+        if self.canAccessDataset(dataset, Access_type.USE):
+            allowedActions.append("use")
+        if self.canDeleteDataset(dataset):
+            allowedActions.append("delete")
+        if self.canCheckIntegrityOfDatasets():
+            allowedActions.append("checkIntegrity")
+        return allowedActions
 
     def canModifyDataset(self, dataset):
         if self._token is None: return False

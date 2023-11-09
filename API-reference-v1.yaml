@@ -312,6 +312,39 @@ paths:
         '404':
           description: "not found"
 
+  /datasets/{id}/checkIntegrity:
+    post:
+      tags:
+        - datasets
+      summary: check the integrity of dataset
+      operationId: checkDatasetIntegrity
+      description: |
+        Launch a process to read the entire dataset, calculate the hash and compare with the one stored in the creation.
+        It is intended be called only from the superadmin_datasets role and automated scheduled process.
+        The result will be in the property "DatasetDetails.lastIntegrityCheck".
+      parameters:
+        - name: id
+          description: the id of the dataset
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: "successful operation"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  msg:
+                    type: string
+                    description: "A descriptive message of result."
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /upgradableDatasets:
     get:
       tags:
@@ -769,10 +802,31 @@ components:
           description: "If true the dataset can not be used and only appears in the list for the author."
         editablePropertiesByTheUser:
           type: array
-          description: "The properties that can be modified with PATCH operation by the current authenticated user in the current state of this dataset. The array will be empty if no properties can be modified."
+          description: |
+            The properties that can be modified with PATCH operation by the current authenticated user in the current state of this dataset. 
+            The array will be empty if no properties can be modified.
           example: '["public", "invalidated", "name", "description"]'
           items:
             type: string
+        allowedActionsForTheUser:
+          type: array
+          description: |
+            The actions that the current authenticated user can do in the current state of this dataset. 
+            The actions are some operations apart from edit fields/flags which are already specified in the previous property "editablePropertiesByTheUser".
+            So this property is intended for let the UI know which other actions to show apart from those related with flags, 
+            like "Release" (change the flag "public") or "Invalidate" (change the flag "invalidated").
+            Possible values are:
+             * `use` - To launch a workstation in the platform with access to this dataset, 
+                       The k8s operator will be able to do a POST /datasetAccess/{id} for this user on this dataset.
+             * `delete` - To do a DELETE /datasets/{id}.
+             * `checkIntegrity` - To do a POST /datasets/{id}/checkIntegrity.
+          example: '["use", "checkIntegrity"]'
+          items:
+            type: string
+            enum: 
+             - "use"
+             - "delete"
+             - "checkIntegrity"
         studiesCount:
           type: integer
           description: "The number of studies contained in the dataset"

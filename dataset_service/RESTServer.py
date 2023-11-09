@@ -622,20 +622,19 @@ def getDataset(id):
         dataset = db.getDataset(datasetId)
         if dataset is None:
             return setErrorResponse(404,"not found")
-
-        # check access permission
-        if not user.canAccessDataset(dataset):
-            return setErrorResponse(401,"unauthorized user")
-
         if dataset["draft"]:
             dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
+        if not user.canAccessDataset(dataset):
+            return setErrorResponse(401,"unauthorized user")
         dataset["editablePropertiesByTheUser"] = user.getEditablePropertiesByTheUser(dataset)
+        dataset["allowedActionsForTheUser"] = user.getAllowedActionsForTheUser(dataset)
 
         studies, total = db.getStudiesFromDataset(datasetId, limit, skip)
         username = "unregistered" if user.isUnregistered() else user.username
         for study in studies: 
             # pathInDatalake is an internal info not interesting for the normal user nor unregistered user
             del study['pathInDatalake']
+            del study['hash']
             # QuibimPrecision requires to set the username in the url
             study['url'] = str(study['url']).replace("<USER>", username, 1)
         if not 'v2' in bottle.request.params:  
