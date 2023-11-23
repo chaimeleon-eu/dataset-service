@@ -126,7 +126,7 @@ def run(host, port, config):
         
     thisRESTServer = RESTServer(host=host, port=port)
     LOG.info("Running the service in %s:%s..." % (host, port))
-    bottle.BaseRequest.MEMFILE_MAX = 15 * 1024 * 1024   # In bytes, default 102400
+    bottle.BaseRequest.MEMFILE_MAX = 120 * 1024 * 1024   # In bytes, default 102400
                                                         # We have to increase to avoid error "413: request entity too large" 
                                                         # when creating dataset.
     bottle.run(app, server=thisRESTServer, quiet=True)

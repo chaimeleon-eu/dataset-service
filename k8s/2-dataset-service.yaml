@@ -98,7 +98,7 @@ spec:
                 }
           resources:
             requests:
-              memory: "250Mi"
+              memory: "320Mi"
               cpu: "300m"
       priorityClassName: core-services
       nodeSelector: 
