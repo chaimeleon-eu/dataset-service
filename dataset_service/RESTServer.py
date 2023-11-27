@@ -302,7 +302,6 @@ def completeDatasetFromCSV(dataset, csvdata):
                 'eForm': eform 
             })
 
-
 @app.route('/api/datasets', method='POST')
 def postDataset():
     if CONFIG is None \
@@ -367,6 +366,7 @@ def postDataset():
 
             # Integrity checks
             subjects = set()
+            study_paths = set()
             for subject in dataset["subjects"]:
                 if subject["subjectName"] in subjects:
                     raise WrongInputException("The subjectName '%s' is duplicated in 'subjects' array of the dataset." % subject["subjectName"])
@@ -376,6 +376,14 @@ def postDataset():
                 if not study["subjectName"] in subjects:
                     raise WrongInputException("The study with id '%s' has a 'subjectName' which is not in the " % study["studyId"]
                                              +"'subjects' array of the dataset." )
+                studyDirName = os.path.basename(study['pathInDatalake'])
+                study_path = os.path.join(study["subjectName"], studyDirName)
+                # example of study_path: 17B76FEW/TCPEDITRICOABDOMINOPLVICO20150129
+                if study_path in study_paths:
+                    raise WrongInputException("The study with id '%s' seems duplicated, " % study["studyId"]
+                                             +"it has the same directory name '%s' as another study of the same subject '%s', " % (studyDirName, study["subjectName"])
+                                             +"this will cause a conflict when creating the dataset's directories structure." )
+                else: study_paths.add(study_path)
             
             # File system checks
             if CONFIG.self.datalake_mount_path != '':
@@ -459,7 +467,7 @@ def postDataset():
             LOG.debug('Launching dataset creation job...')
             ok = k8s.add_dataset_creation_job(datasetId)
             if not ok: 
-                db.createDatasetCreationStatus(datasetId, "error", "Unexpected error launching dataset creation job.")
+                db.setDatasetCreationStatus(datasetId, "error", "Unexpected error launching dataset creation job.")
                 raise K8sException("Unexpected error launching dataset creation job.")
 
         LOG.debug('Dataset successfully created in DB and creation job launched in K8s.')
@@ -504,6 +512,33 @@ def postDataset_adjustFilePermissionsInDatalake(id):
     bottle.response.status = 204
 
 
+@app.route('/api/datasets/<id>/relaunchCreationJob', method='POST')
+def postDataset_relaunchCreationJob(id):
+    '''
+    Note: this method is only for admins and for special case when a creation job is interrupted (and fail) for any reason.
+          So, when the problem is solved, then the admin can launch another creation job in k8s in order to complete the process of creation.
+    '''
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    ret = getTokenFromAuthorizationHeader()
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
+    if not user.isSuperAdminDatasets():
+        return setErrorResponse(401,"unauthorized user")
+    datasetId = id
+    with DB(CONFIG.db) as db:
+        if not db.existDataset(datasetId): 
+            return setErrorResponse(404, "not found")
+        LOG.debug('Updating status in DB...')
+        db.setDatasetCreationStatus(datasetId, "pending", "Relaunching dataset creation job...")
+        LOG.debug('Relaunching dataset creation job in k8s...')
+        ok = k8s.add_dataset_creation_job(datasetId)
+        if not ok: 
+            db.setDatasetCreationStatus(datasetId, "error", "Unexpected error launching dataset creation job.")
+            raise K8sException("Unexpected error launching dataset creation job.")
+    LOG.debug('Dataset creation job successfully launched in K8s.')
+    bottle.response.status = 204
+    
 @app.route('/api/datasets/<id>/creationStatus', method='GET')
 def getDatasetCreationStatus(id):
     if CONFIG is None: raise Exception()
@@ -1000,6 +1035,7 @@ def putUser(userName):
 
 @app.route('/api/users/<userName>', method='GET')
 def getUser(userName):
+    if CONFIG is None: raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ret = getTokenFromAuthorizationHeader(serviceAccount=True)
     if isinstance(ret, str): return ret  # return error message
@@ -1180,6 +1216,7 @@ def getUnknown(any_path):
 # To avoid conflicts, static files prefixed with /web/
 @app.route('/web/<file_path:re:.*\.(html|js|json|txt|map|css|jpg|png|gif|ico|svg|pdf)>', method='GET')
 def getStaticFileWeb(file_path):
+    if CONFIG is None: raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     LOG.debug("Static file (web): "+file_path)
     return bottle.static_file(file_path, CONFIG.self.static_files_dir_path)
@@ -1204,6 +1241,7 @@ def getUnknownWeb(any_path):
 @app.route('/', method='GET')
 @app.route('/<any_path:re:.+>', method='GET')
 def getWebUI(any_path=''):
+    if CONFIG is None: raise Exception()
     LOG.debug("Received GET /" + any_path)
     LOG.debug("Routed to index.html")
     return bottle.static_file('index.html', CONFIG.self.static_files_dir_path)

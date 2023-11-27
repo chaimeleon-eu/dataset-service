@@ -92,10 +92,12 @@ def create_dataset(datasets_dir_path, dataset_dir_name, datalake_dir_path, studi
         linkLocation = os.path.join(subjectDirPath, studyDirName)
         linkDestination = os.path.join(datalake_dir_path, study['pathInDatalake'])
         #   linkLocation example: /mnt/cephfs/datasets/myDataset/17B76FEW/TCPEDITRICOABDOMINOPLVICO20150129
+        if os.path.islink(linkLocation): 
+            continue   # already created (it can happen when the process is interrupted and relaunched)
         ok = symlink(linkDestination, linkLocation, target_is_directory=True, uid=owner_uid, gid=owner_gid)
         if not ok: 
-            logging.root.error("Error creating symlink (probably already exists): " + linkLocation + " -> " + linkDestination)
-            raise DatasetException("Error creating symlink (probably already exists)")
+            logging.root.error("Error creating symlink: " + linkLocation + " -> " + linkDestination)
+            raise DatasetException("Error creating symlink")
             
     adjust_file_permissions_in_datalake(datalake_dir_path, studies)
 
