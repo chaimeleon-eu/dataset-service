@@ -403,7 +403,7 @@ paths:
           schema:
             type: string
       responses:
-        '201':
+        '200':
           description: "successful operation"
           content:
             application/json:
@@ -417,6 +417,31 @@ paths:
                     description: "A descriptive message of result."
         '401':
           $ref: '#/components/responses/Unauthorized'
+
+  /datasets/{id}/relaunchCreationJob:
+    post:
+      tags:
+        - datasets
+      summary: relaunch the dataset creation job
+      operationId: postDataset_relaunchCreationJob
+      description: |
+        (This operation is intended only for the superadmin_datasets role)
+        when a creation job is interrupted (and fail) for any reason and the admin fix the problem, 
+        then another creation job can be launched in k8s with this operation in order to restart and complete the process of creation.
+      parameters:
+        - name: id
+          description: the id of the dataset
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: "successful operation"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: "not found"
 
   /upgradableDatasets:
     get:
@@ -893,6 +918,7 @@ components:
                        The k8s operator will be able to do a POST /datasetAccess/{id} for this user on this dataset.
              * `delete` - To do a DELETE /datasets/{id}.
              * `checkIntegrity` - To do a POST /datasets/{id}/checkIntegrity.
+             * `relaunchCreationJob` - To do a POST /datasets/{id}/relaunchCreationJob.
           example: '["use", "checkIntegrity"]'
           items:
             type: string
@@ -900,6 +926,7 @@ components:
              - "use"
              - "delete"
              - "checkIntegrity"
+             - "relaunchCreationJob"
         studiesCount:
           type: integer
           description: "The number of studies contained in the dataset"

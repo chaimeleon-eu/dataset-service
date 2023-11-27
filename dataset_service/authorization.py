@@ -64,6 +64,10 @@ class User:
     def canCreateDatasets(self):
         return self._token != None and User.roles.admin_datasets in self._token["appRoles"]
 
+    def canRelaunchDatasetCreation(self, dataset):
+        return User.roles.superadmin_datasets in self._token["appRoles"] \
+            and "creating" in dataset and dataset["creating"]
+
     def canDeleteDataset(self, dataset):
         if self._token is None: return False
         if not self.canModifyDataset(dataset): return False
@@ -119,6 +123,8 @@ class User:
             allowedActions.append("delete")
         if self.canCheckIntegrityOfDatasets():
             allowedActions.append("checkIntegrity")
+        if self.canRelaunchDatasetCreation(dataset):
+            allowedActions.append("relaunchCreationJob")
         return allowedActions
 
     def canModifyDataset(self, dataset):

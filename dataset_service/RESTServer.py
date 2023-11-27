@@ -527,8 +527,13 @@ def postDataset_relaunchCreationJob(id):
         return setErrorResponse(401,"unauthorized user")
     datasetId = id
     with DB(CONFIG.db) as db:
-        if not db.existDataset(datasetId): 
+        dataset = db.getDataset(datasetId)
+        if dataset is None: 
             return setErrorResponse(404, "not found")
+        if dataset["draft"]:
+            dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
+        if not user.canRelaunchDatasetCreation(dataset):
+            return setErrorResponse(401,"unauthorized user")
         LOG.debug('Updating status in DB...')
         db.setDatasetCreationStatus(datasetId, "pending", "Relaunching dataset creation job...")
         LOG.debug('Relaunching dataset creation job in k8s...')
@@ -609,7 +614,7 @@ def checkDatasetIntegrity(id):
     
     datasetId = id
     result = _checkDatasetIntegrity(datasetId)
-    bottle.response.status = 201
+    bottle.response.status = 200
     bottle.response.content_type = "application/json"
     return json.dumps(result)
 
@@ -635,7 +640,7 @@ def checkAllDatasetsIntegrity():
             result = _checkDatasetIntegrity(ds['id'])
             results.append(dict(id=ds['id'], result=result))
 
-    bottle.response.status = 201
+    bottle.response.status = 200
     bottle.response.content_type = "application/json"
     return json.dumps(results)
 
