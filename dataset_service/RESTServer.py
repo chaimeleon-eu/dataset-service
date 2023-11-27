@@ -637,20 +637,56 @@ def getDataset(id):
             del study['hash']
             # QuibimPrecision requires to set the username in the url
             study['url'] = str(study['url']).replace("<USER>", username, 1)
-        if not 'v2' in bottle.request.params:  
-            # transitional param while clients change to the new reponse type
+        if 'v2' in bottle.request.params or 'paginationInfo' in bottle.request.params:  
+            dataset["studies"] = { "total": total,
+                                   "returned": len(studies),
+                                   "skipped": skip,
+                                   "limit": limit,
+                                   "list": studies }
+        else: 
             dataset["studies"] = studies
-        else:
-            dataset["studies"] = {
-                "total": total,
-                "returned": len(studies),
-                "skipped": skip,
-                "limit": limit,
-                "list": studies 
-            }
 
     bottle.response.content_type = "application/json"
     return json.dumps(dataset)
+
+@app.route('/api/datasets/<id>/studies', method='GET')
+def getDatasetStudies(id):
+    if CONFIG is None or not isinstance(bottle.request.query, bottle.FormsDict): raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    ret = getTokenFromAuthorizationHeader()
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
+
+    datasetId = id
+    skip = int(bottle.request.query['skip']) if 'skip' in bottle.request.query else 0
+    limit = int(bottle.request.query['limit']) if 'limit' in bottle.request.query else 30
+    if skip < 0: skip = 0
+    if limit < 0: limit = 0
+
+    with DB(CONFIG.db) as db:
+        dataset = db.getDataset(datasetId)
+        if dataset is None:
+            return setErrorResponse(404,"not found")
+        if dataset["draft"]:
+            dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
+        if not user.canAccessDataset(dataset):
+            return setErrorResponse(401,"unauthorized user")
+
+        studies, total = db.getStudiesFromDataset(datasetId, limit, skip)
+        username = "unregistered" if user.isUnregistered() else user.username
+        for study in studies: 
+            # pathInDatalake is an internal info not interesting for the normal user nor unregistered user
+            del study['pathInDatalake']
+            del study['hash']
+            # QuibimPrecision requires to set the username in the url
+            study['url'] = str(study['url']).replace("<USER>", username, 1)
+            
+    bottle.response.content_type = "application/json"
+    return json.dumps({ "total": total,
+                        "returned": len(studies),
+                        "skipped": skip,
+                        "limit": limit,
+                        "list": studies })
 
 def createZenodoDeposition(db, dataset):
     if CONFIG is None: raise Exception()
@@ -822,19 +858,16 @@ def getDatasets():
     
     with DB(CONFIG.db) as db:
         datasets, total = db.getDatasets(skip, limit, searchString, searchFilter, sortBy, sortDirection)
-        response = {
-            "total": total,
-            "returned": len(datasets),
-            "skipped": skip,
-            "limit": limit,
-            "list": datasets 
-        }
 
     bottle.response.content_type = "application/json"
-    if not 'v2' in bottle.request.params:  
-        # transitional param while clients change to the new reponse type
-        return json.dumps(response["list"])
-    return json.dumps(response)
+    if 'v2' in bottle.request.params or 'paginationInfo' in bottle.request.params:
+        return json.dumps({ "total": total,
+                            "returned": len(datasets),
+                            "skipped": skip,
+                            "limit": limit,
+                            "list": datasets })
+    else:
+        return json.dumps(datasets)
 
 @app.route('/api/upgradableDatasets', method='GET')
 def getUpgradableDatasets():

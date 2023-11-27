@@ -15,6 +15,7 @@ externalDocs:
   url: https://github.com/chaimeleon-eu/dataset-service
 
 servers:
+  - url: https://chaimeleon-eu.i3m.upv.es/dataset-service/api
   # Added by API Auto Mocking Plugin
   - description: SwaggerHub API Auto Mocking
     url: https://virtserver.swaggerhub.com/UPV-CHAIMELEON/Dataset-service/1.0.0
@@ -109,6 +110,11 @@ paths:
             type: integer
             format: int32
             minimum: 0
+        - name: paginationInfo:
+          description: |
+            (Optional, default=false) 
+            If true, an object is returned with some extra information useful for pagination UI controls; 
+            if false, just the array of datasets is returned.
         - name: sortBy
           description: "(Optional, default=creationDate) The list will be sorted by this property."
           in: query
@@ -136,28 +142,32 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  total:
-                    type: integer
-                    format: int32
-                    description: "Total of records found with the search criteria"
-                  returned:
-                    type: integer
-                    format: int32
-                    description: "Number of records returned (can be smaller because of skip and limit params)"
-                  skipped:
-                    type: integer
-                    format: int32
-                    description: "Number of records skipped from the beginning (as requested)"
-                  limit:
-                    type: integer
-                    format: int32
-                    description: "Limit of records fixed by the request (usually the page size)"
-                  list:
-                    type: array
-                    items:
+                oneOf:
+                  - type: array
+                    items: 
                       $ref: '#/components/schemas/DatasetListItem'
+                  - type: object
+                    properties:
+                      total:
+                        type: integer
+                        format: int32
+                        description: "Total of records found with the search criteria"
+                      returned:
+                        type: integer
+                        format: int32
+                        description: "Number of records returned (can be lower than total because of skip and limit params)"
+                      skipped:
+                        type: integer
+                        format: int32
+                        description: "Number of records skipped from the beginning (as requested)"
+                      limit:
+                        type: integer
+                        format: int32
+                        description: "Limit of records fixed by the request (usually the page size)"
+                      list:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/DatasetListItem'
         '401':
           $ref: '#/components/responses/Unauthorized'
           
@@ -272,6 +282,69 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '400': 
           description: "bad request, it cannot be removed"
+        '404':
+          description: "not found"
+
+  /datasets/{id}/studies:
+    get:
+      tags:
+        - datasets
+      summary: list studies of dataset
+      operationId: getDatasetStudies
+      description: Returns the list of studies in a dataset specified by its id.
+      parameters:
+        - name: id
+          description: the id of the dataset
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: skip
+          description: "(optional, default=0) number of studies to skip for pagination"
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+        - name: limit
+          description: "(optional, default=30) maximum number of studies to return (records per page), value of 0 means no limit"
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+      responses:
+        '200':
+          description: "successful operation"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                    format: int32
+                    description: "Total of records found"
+                  returned:
+                    type: integer
+                    format: int32
+                    description: "Number of records returned (can be lower than total because of skip and limit params)"
+                  skipped:
+                    type: integer
+                    format: int32
+                    description: "Number of records skipped from the beginning (as requested)"
+                  limit:
+                    type: integer
+                    format: int32
+                    description: "Limit of records fixed by the request (usually the page size)"
+                  list:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Study'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           description: "not found"
 
@@ -768,7 +841,7 @@ components:
             returned:
               type: integer
               format: int32
-              description: "Number of records returned (can be smaller because of skip and limit params)."
+              description: "Number of records returned (can be lower than total because of skip and limit params)."
             skipped:
               type: integer
               format: int32
