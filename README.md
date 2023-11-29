@@ -367,7 +367,7 @@ docker exec -it my-postgres bash
 
 ## Configuration
 
-Configuration values especification: see `etc/dataset-service.default.yaml`
+Configuration values specification: see `etc/dataset-service.default.yaml`
 
 First of all, **default configuration values** will be loaded from a file located in (the first that exists):
  - `./etc/dataset-service.default.yaml`
@@ -507,4 +507,14 @@ And these are the properties that can be modified (and when):
  - licenseUrl (always)
  - contactInfo (always)
  - pidUrl (when draft = false)
+
+
+## Integration with EUCAIM federated search
+
+That service provides a POST /datasets/eucaimSearch operation which fulfills the [requirements](http://eucaim.ics.forth.gr/docs#/default/search_search_post) 
+of the [Federated Search](https://explorer.eucaim.cancerimage.eu/) 
+of the [EUCAIM project](https://cancerimage.eu/) and currently is integrated. 
+So any released or published dataset (not draft, nor invalidated) will be included in the results of that Federated Search.
+
+
 

@@ -1,10 +1,8 @@
 import logging
-from os import truncate
 import psycopg2
 from psycopg2 import sql
 import json
-from dataset_service import dicom
-from dataset_service import authorization
+from dataset_service import authorization, dicom, eucaim_formats, miabis_formats
 
 class DB:
     def __init__(self, dbConfig):
@@ -30,7 +28,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 17
+    CURRENT_SCHEMA_VERSION = 18
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -58,6 +56,7 @@ class DB:
             if version < 15: self.updateDB_v14To15()
             if version < 16: self.updateDB_v15To16()
             if version < 17: self.updateDB_v16To17()
+            if version < 18: self.updateDB_v17To18()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -106,6 +105,13 @@ class DB:
                 subject_name varchar(128) NOT NULL,
                 path_in_datalake varchar(256),
                 url varchar(256),
+                age_in_days integer DEFAULT NULL,
+                sex char(1) DEFAULT NULL,
+                body_part varchar(16) DEFAULT NULL,
+                modality varchar(16) DEFAULT NULL,
+                manufacturer varchar(64) DEFAULT NULL,
+                diagnosis varchar(16) DEFAULT NULL,
+                study_date timestamp DEFAULT NULL,
                 constraint pk_study primary key (id)
             );
             CREATE TABLE dataset (
@@ -302,6 +308,16 @@ class DB:
     def updateDB_v16To17(self):
         logging.root.info("Updating database from v16 to v17...")
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN last_integrity_check timestamp DEFAULT NULL;")
+    
+    def updateDB_v17To18(self):
+        logging.root.info("Updating database from v17 to v18...")
+        self.cursor.execute("ALTER TABLE study ADD COLUMN age_in_days integer DEFAULT NULL")
+        self.cursor.execute("ALTER TABLE study ADD COLUMN sex char(1) DEFAULT NULL")
+        self.cursor.execute("ALTER TABLE study ADD COLUMN body_part varchar(16) DEFAULT NULL")
+        self.cursor.execute("ALTER TABLE study ADD COLUMN modality varchar(16) DEFAULT NULL")
+        self.cursor.execute("ALTER TABLE study ADD COLUMN manufacturer varchar(64) DEFAULT NULL")
+        self.cursor.execute("ALTER TABLE study ADD COLUMN diagnosis varchar(16) DEFAULT NULL")
+        self.cursor.execute("ALTER TABLE study ADD COLUMN study_date timestamp DEFAULT NULL")
 
     def createOrUpdateAuthor(self, userId, username, name, email):
         self.cursor.execute("SELECT id FROM author WHERE id=%s LIMIT 1;", (userId,))
@@ -391,6 +407,15 @@ class DB:
                              json.dumps(dataset["modality"]), json.dumps(dataset["seriesTags"]), 
                              dataset["id"]))
 
+    def updateStudyMetadata(self, study):
+        self.cursor.execute("""UPDATE study
+                               SET age_in_days = %s, sex = %s, body_part = %s, modality = %s, 
+                                   manufacturer = %s, diagnosis = %s, study_date = %s 
+                               WHERE id = %s;""", 
+                            (study['ageInDays'], study['sex'], study['bodyPart'], study['modality'], 
+                             study['manufacturer'], study['diagnosis'], study['studyDate'],
+                             study['studyId']))
+
     def createDatasetCreationStatus(self, datasetId, status, firstMessage):
         self.cursor.execute("""
             INSERT INTO dataset_creation_status (dataset_id, status, last_message)
@@ -475,12 +500,12 @@ class DB:
             ageHigh = None
             ageUnit = []
         else:
-            ageLow, ageLowUnit = dicom.getAgeInMiabisFormat(row[18])
-            ageHigh, ageHighUnit = dicom.getAgeInMiabisFormat(row[19])
+            ageLow, ageLowUnit = miabis_formats.ageToMiabis(row[18])
+            ageHigh, ageHighUnit = miabis_formats.ageToMiabis(row[19])
             ageUnit = [ageLowUnit, ageHighUnit]
         sex = []
         for s in json.loads(row[20]):
-            sex.append(dicom.getSexInMiabisFormat(s))
+            sex.append(miabis_formats.sexToMiabis(s))
         if row[10] is None:
             prefPid = None
             customPidUrl = None
@@ -656,6 +681,146 @@ class DB:
         res = []
         for row in self.cursor:
             res.append(row[0])
+        return res
+
+    class searchValidationException(Exception): pass
+
+    @staticmethod
+    def _ensureIsStr(value, conditionType, conditionKey):
+        if not isinstance(value, str): 
+            raise DB.searchValidationException(
+                "'value' for type '%s' in condition for %s must be a string" % (conditionType, conditionKey))
+    @staticmethod
+    def _ensureIsNum(value, conditionType, conditionKey):
+        if not isinstance(value, (int, float)): 
+            raise DB.searchValidationException(
+                "'value' for type '%s' in condition for %s must be a number" % (conditionType, conditionKey))
+    @staticmethod
+    def _ensureIsRangeOfNum(value, conditionType, conditionKey):
+        if not isinstance(value, dict): 
+            raise DB.searchValidationException("value for type '%s' in condition for %s must be an object" % (conditionType, conditionKey))
+        if not 'min' in value: raise DB.searchValidationException("missing 'min' in range")
+        if not 'max' in value: raise DB.searchValidationException("missing 'max' in range")
+        if not isinstance(value["min"], (int, float)) or not isinstance(value["max"], (int, float)): 
+                raise DB.searchValidationException("values for range condition for %s must be numbers" % conditionKey)
+    @staticmethod
+    def _ensureIsArrayOfString(value, conditionType, conditionKey):
+        if not isinstance(value, list): 
+            raise DB.searchValidationException("value for type '%s' in condition for %s must be an array of strings" % (conditionType, conditionKey))
+        for s in value:
+            if not isinstance(s, str): 
+                raise DB.searchValidationException("value for type '%s' in condition for %s must be an array of strings" % (conditionType, conditionKey))
+
+    @staticmethod
+    def _searchConditionStringValueToSQL(key, type, value) -> sql.SQL:
+        if type == "EQUALS":
+            return sql.SQL("{} = {}").format(sql.SQL(key), sql.Literal(value))
+        elif type == "NOT_EQUALS":
+            return sql.SQL("{} <> {}").format(sql.SQL(key), sql.Literal(value))
+        elif type == "IN":
+            return sql.SQL("{} IN ({})").format(sql.SQL(key), sql.SQL(', ').join(sql.Literal(item) for item in value))
+        elif type == "CONTAINS":
+            return sql.SQL("{} ILIKE {}").format(sql.SQL(key), sql.Literal('%'+value+'%'))
+        else: 
+            raise DB.searchValidationException("unknown 'type' in condition for %s" % key)
+
+    @staticmethod
+    def _searchConditionNumValueToSQL(key, type, value) -> sql.SQL:
+        if type == "EQUALS":
+            return sql.SQL("{} = {}").format(sql.SQL(key), sql.Literal(value))
+        elif type == "NOT_EQUALS":
+            return sql.SQL("{} <> {}").format(sql.SQL(key), sql.Literal(value))
+        elif type == "BETWEEN":
+            return sql.SQL("{} BETWEEN {} AND {}").format(sql.SQL(key), sql.Literal(value["min"]), sql.Literal(value["max"]))
+        elif type == "LOWER_THAN":
+            return sql.SQL("{} < {}").format(sql.SQL(key), sql.Literal(value))
+        elif type == "GREATER_THAN":
+            return sql.SQL("{} > {}").format(sql.SQL(key), sql.Literal(value))
+        else: 
+            raise DB.searchValidationException("unknown 'type' in condition for %s" % key)
+
+    @staticmethod
+    def _searchConditionStringToSQL(type, value, key, db_column, translate) -> sql.SQL:
+        if type in ["IN"]:
+            DB._ensureIsArrayOfString(value, type, key)
+            try:
+                value = [translate(s) for s in value]
+            except Exception as e: raise DB.searchValidationException("unknown 'value' in condition for %s" % key)
+        elif type in ["EQUALS","NOT_EQUALS","CONTAINS"]:
+            DB._ensureIsStr(value, type, key)
+            try:
+                value = translate(value)
+            except Exception as e: raise DB.searchValidationException("unknown 'value' in condition for %s" % key)
+        else: raise DB.searchValidationException("unknown 'type' in condition for %s" % key)
+        return DB._searchConditionStringValueToSQL(db_column, type, value)
+
+    @staticmethod
+    def _searchConditionNumToSQL(type, value, key, db_column, translate) -> sql.SQL:
+        if type in ["BETWEEN"]:
+            DB._ensureIsRangeOfNum(value, type, key)
+            value["min"] = translate(value["min"])
+            value["max"] = translate(value["max"])
+        elif type in ["EQUALS","NOT_EQUALS","LOWER_THAN","GREATER_THAN"]:
+            DB._ensureIsNum(value, type, key)
+            value = translate(value)
+        else: raise DB.searchValidationException("unknown 'type' in condition for %s" % key)
+        return DB._searchConditionNumValueToSQL(db_column, type, value)
+
+    @staticmethod
+    def _searchRequestToSQL(sr) -> sql.SQL | None:
+        if 'operand' in sr:   # is an operation
+            if not sr['operand'] in ['AND', 'OR']: raise DB.searchValidationException("unknown value for 'operand'")
+            if not 'children' in sr: raise DB.searchValidationException("missing 'children' in operation")
+            if not isinstance(sr['children'], list): raise DB.searchValidationException("'children' in operation must be an array")
+            if len(sr['children']) == 0: return None
+            operation = sql.SQL(' %s ' % sr['operand']).join(DB._searchRequestToSQL(child) for child in sr['children'])
+            return sql.SQL("(")+operation+sql.SQL(")")
+        elif 'key' in sr:   # is a condition
+            if not 'type' in sr: raise DB.searchValidationException("missing 'type' in condition")
+            if not 'value' in sr: raise DB.searchValidationException("missing 'value' in condition")
+            if sr['key'] == 'SNOMEDCT263495000':  # gender
+                return DB._searchConditionStringToSQL(sr['type'], sr['value'], 'gender', 'study.sex', eucaim_formats.getGender)
+            elif sr['key'] == 'SNOMEDCT423493009':  # age at diagnosis
+                return DB._searchConditionNumToSQL(sr['type'], sr['value'], 'age', 'study.age_in_days', eucaim_formats.getAge)
+            elif sr['key'] == 'SNOMEDCT439401001':  # diagnosis
+                return DB._searchConditionStringToSQL(sr['type'], sr['value'], 'diagnosis', 'study.diagnosis', eucaim_formats.getDiagnosis)
+            elif sr['key'] == 'SNOMEDCT432213005':  # year_of_diagnosis
+                return DB._searchConditionNumToSQL(sr['type'], sr['value'], 'year of diagnosis', 'study.study_date', eucaim_formats.getDateTime)
+            elif sr['key'] == 'RID10311':  # modality   SNOMEDCT363679005
+                return DB._searchConditionStringToSQL(sr['type'], sr['value'], 'modality', 'study.modality', eucaim_formats.getModality)
+            elif sr['key'] == 'SNOMEDCT123037004':  # body part   # mejor SNOMEDCT38866009 ?
+                return DB._searchConditionStringToSQL(sr['type'], sr['value'], 'body part', 'study.body_part', eucaim_formats.getBodyPart)
+            elif sr['key'] == 'C25392':  # manufacturer
+                return DB._searchConditionStringToSQL(sr['type'], sr['value'], 'Manufacturer', 'study.manufacturer', eucaim_formats.getManufacturer)
+            else: raise DB.searchValidationException("unkown 'key' in condition")
+        else: raise DB.searchValidationException("missing 'operand' or 'key'")
+
+    def eucaimSearchDatasets(self, skip, limit, searchRequest):
+        whereClause = DB._searchRequestToSQL(searchRequest)
+        whereClause = sql.SQL("") if whereClause is None else sql.SQL("AND ") + whereClause
+        if limit == 0: limit = 'ALL'
+        q = sql.SQL("""
+                SELECT dataset.id, dataset.name, dataset.creation_date, 
+                    dataset.draft, dataset.public, dataset.invalidated, 
+                    COUNT(study.id), COUNT(DISTINCT study.subject_name), 
+                    dataset.age_low, dataset.age_high, dataset.sex, 
+                    dataset.modality, dataset.body_part, dataset.description
+                FROM dataset, dataset_study, study
+                WHERE dataset.id = dataset_study.dataset_id AND dataset_study.study_id = study.id
+                      AND dataset.draft = false AND dataset.invalidated = false {}
+                GROUP BY dataset.id
+                ORDER BY dataset.creation_date DESC
+                LIMIT {} OFFSET {};"""
+            ).format(whereClause, sql.SQL(str(limit)), sql.SQL(str(skip)))
+        logging.root.debug("QUERY: " + q.as_string(self.conn))
+        self.cursor.execute(q)
+        res = []
+        for row in self.cursor:
+            res.append(dict(id = row[0], name = row[1], 
+                            studies_count = row[6], subjects_count = row[7], 
+                            age_range = dict(min = row[8], max = row[9]),
+                            gender = json.loads(row[10]), modality = json.loads(row[11]), body_parts = json.loads(row[12]),
+                            description = row[13]))
         return res
 
     def deleteDataset(self, datasetId):

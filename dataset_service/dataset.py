@@ -1,7 +1,8 @@
 import shutil
-from dataset_service.POSIX import *
 import logging
-import dataset_service.utils
+import pydicom
+from dataset_service.POSIX import *
+from dataset_service import dicom
 
 class DatasetException(Exception):
     pass
@@ -164,3 +165,99 @@ def invalidate_dataset(datasets_dir_path, dataset_dir_name):
 
     ## Delete ACLs in directories of studies
     ## It is complex because many datasets can include the same study.
+
+
+def _getMetadataFromFirstDicomFile(serieDirPath):
+    for name in os.listdir(serieDirPath):
+        if name.lower().endswith(".dcm"):
+            dicomFilePath = os.path.join(serieDirPath, name)
+            dcm = pydicom.dcmread(dicomFilePath)
+            age = dcm[dicom.AGE_TAG].value                   if dicom.AGE_TAG in dcm else None
+            sex = dcm[dicom.SEX_TAG].value                   if dicom.SEX_TAG in dcm else None
+            bodyPart = dcm[dicom.BODY_PART_TAG].value        if dicom.BODY_PART_TAG in dcm else None
+            modality = dcm[dicom.MODALITY_TAG].value         if dicom.MODALITY_TAG in dcm else None
+            manufacturer = dcm[dicom.MANUFACTURER_TAG].value if dicom.MANUFACTURER_TAG in dcm else None
+            studyDate = dcm[dicom.STUDY_DATE_TAG].value      if dicom.STUDY_DATE_TAG in dcm else None
+            diagnosis = None
+            if dicom.PROJECT_NAME_PRIVATE_TAG in dcm: 
+                project_name = dcm[dicom.PROJECT_NAME_PRIVATE_TAG].value
+                diagnosis = ' '.join(str(project_name).split(' ')[:2])
+            #datasetType = dcm[dicom.DATASET_TYPE_TAG].value    it seems very similar to modality
+            return age, sex, bodyPart, modality, manufacturer, diagnosis, studyDate
+    return None, None, None, None, None, None, None
+
+def collectMetadata(dataset, datalake_mount_path):
+    differentSubjects = set()
+    studiesCount = 0
+    maxAge = "000D"
+    minAge = "999Y"
+    sexList = set()
+    bodyPartList = set()
+    modalityList = set()
+    seriesTagsList = set()
+    for study in dataset["studies"]:
+        studiesCount += 1
+        if not study["subjectName"] in differentSubjects: 
+            differentSubjects.add(study["subjectName"])
+        if len(study['series']) == 0: continue
+        if datalake_mount_path != '':
+            seriePathInDatalake = os.path.join(datalake_mount_path, study['pathInDatalake'], study['series'][0]['folderName'])
+            age, sex, bodyPart, modality, manufacturer, diagnosis, studyDate = _getMetadataFromFirstDicomFile(seriePathInDatalake)
+            if (age is None or sex is None or bodyPart is None or modality is None):
+                # sometimes first serie is special, try with the second if exists
+                if len(study['series']) > 1:
+                    seriePathInDatalake = os.path.join(datalake_mount_path, study['pathInDatalake'], study['series'][1]['folderName'])
+                    age, sex, bodyPart, modality, manufacturer, diagnosis, studyDate = _getMetadataFromFirstDicomFile(seriePathInDatalake)
+            study["ageInDays"] = None if age is None else dicom.getAgeInDays(age)
+            study["sex"] = sex
+            study["bodyPart"] = bodyPart
+            study["modality"] = modality
+            study["manufacturer"] = manufacturer
+            study["diagnosis"] = diagnosis
+            study["studyDate"] = None if studyDate is None else dicom.getDatetime(studyDate)
+
+            if age != None:
+                minAge = min(minAge, age, key=lambda x: dicom.getAgeInDays(x))
+                maxAge = max(maxAge, age, key=lambda x: dicom.getAgeInDays(x))
+            if sex != None: sexList.add(sex)
+            if bodyPart != None: bodyPartList.add(bodyPart)
+            if modality != None: modalityList.add(modality)
+        for series in study["series"]:
+            seriesTagsList.update(series["tags"])
+            
+    dataset["studiesCount"] = studiesCount
+    dataset["subjectsCount"] = len(differentSubjects)
+    dataset["ageLow"] = (minAge if minAge != "999Y" else None)
+    dataset["ageHigh"] = (maxAge if maxAge != "000D" else None)
+    dataset["sex"] = list(sexList)
+    dataset["bodyPart"] = list(bodyPartList)
+    dataset["modality"] = list(modalityList)
+    dataset["seriesTags"] = list(seriesTagsList)
+    logging.root.debug("  -studiesCount: %s" % dataset["studiesCount"])
+    logging.root.debug("  -subjectsCount: %s" % dataset["subjectsCount"])
+    logging.root.debug("  -ageLow: %s" % dataset["ageLow"])
+    logging.root.debug("  -ageHigh: %s" % dataset["ageHigh"])
+    logging.root.debug("  -sex: %s" % dataset["sex"])
+    logging.root.debug("  -bodyPart: %s" % dataset["bodyPart"])
+    logging.root.debug("  -modality: %s" % dataset["modality"])
+    logging.root.debug("  -seriesTags: %s" % dataset["seriesTags"])
+    
+# def collectMetadata2(self, dataset):
+#     if self.config.self.datalake_mount_path == '': return
+#     from pydicom.fileset import FileSet
+#     fs = FileSet()
+#     for study in dataset["studies"]:
+#         for serie in study["series"]:
+#             seriePathInDatalake = os.path.join(self.config.self.datalake_mount_path, study['pathInDatalake'], study['series'][0])
+#             fs.add(seriePathInDatalake)
+#     values = fs.find_values(["StudyInstanceUID", "PatientID", (0x0010, 0x1010), (0x0010, 0x0040), (0x0008, 0x0016), (0x0018, 0x0015), (0x0008, 0x0060)])
+#     dataset["studiesCount"] = len(values["StudyInstanceUID"])
+#     dataset["subjectsCount"] = len(values["PatientID"])
+#     # dataset["ageLow"] = reduce(lambda x, y: min(x, getAgeInYears(y)), values[0x0010, 0x1010])
+#     # dataset["ageHigh"] = reduce(lambda x, y: max(x, getAgeInYears(y)), values[0x0010, 0x1010])
+#     dataset["ageLow"] = min(values[0x0010, 0x1010], key=lambda x: dicom.getAgeInDays(x))
+#     dataset["ageHigh"] = max(values[0x0010, 0x1010], key=lambda x: dicom.getAgeInDays(x))
+#     dataset["sex"] = values[0x0010, 0x0040]
+#     dataset["datasetType"] = values[0x0008, 0x0016]
+#     dataset["bodyPart"] = values[0x0018, 0x0015]
+#     dataset["modality"] = values[0x0008, 0x0060]

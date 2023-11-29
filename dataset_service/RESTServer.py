@@ -512,6 +512,35 @@ def postDataset_adjustFilePermissionsInDatalake(id):
     bottle.response.status = 204
 
 
+@app.route('/api/datasets/<id>/recollectMetadata', method='POST')
+def postDataset_recollectMetadata(id):
+    '''
+    Note: this method is only for admins and for special case when upgrade to a new version which adds new metadata fields.
+          So, with this method any previous dataset can be rescan for collecting metadata again and fill all the fields.
+    '''
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    ret = getTokenFromAuthorizationHeader()
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
+    if not user.isSuperAdminDatasets():
+        return setErrorResponse(401,"unauthorized user")
+
+    datasetId = id
+    with DB(CONFIG.db) as db:
+        dataset = db.getDataset(datasetId)
+        if dataset is None: 
+            return setErrorResponse(404, "not found")
+        datasetStudies, total = db.getStudiesFromDataset(datasetId)
+        dataset["studies"] = datasetStudies
+        dataset_file_system.collectMetadata(dataset, CONFIG.self.datalake_mount_path)
+        for study in dataset["studies"]:
+            db.updateStudyMetadata(study)
+        db.updateDatasetMetadata(dataset)
+    
+    LOG.debug('Dataset metadata successfully collected.')
+    bottle.response.status = 204
+
 @app.route('/api/datasets/<id>/relaunchCreationJob', method='POST')
 def postDataset_relaunchCreationJob(id):
     '''
@@ -908,6 +937,42 @@ def getDatasets():
                             "list": datasets })
     else:
         return json.dumps(datasets)
+
+@app.route('/api/datasets/eucaimSearch', method='POST')
+def eucaimSearchDatasets():
+    if CONFIG is None or not isinstance(bottle.request.query, bottle.FormsDict): raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    if CONFIG.self.eucaim_search_token == "":
+        return setErrorResponse(404, "Not found: '%s'" % bottle.request.path)
+    if bottle.request.get_header("Authorization") != "Secret " + CONFIG.self.eucaim_search_token:
+        return setErrorResponse(401,"unauthorized user")
+    
+    content_types = get_header_media_types('Content-Type')
+    if not 'application/json' in content_types:
+        return setErrorResponse(400,"invalid 'Content-Type' header, required 'application/json'")
+    read_data = bottle.request.body.read().decode('UTF-8')
+    LOG.debug("BODY: " + read_data)
+    try:
+        search_rq = json.loads(read_data)
+        if not isinstance(search_rq, dict): raise WrongInputException("The body must be a json object.")
+        if not 'ast' in search_rq: raise WrongInputException("Missing property 'ast' in the request object.")
+        if not isinstance(search_rq['ast'], dict): raise WrongInputException("The value of property 'ast' must be a json object.")
+        #parseAST()
+        with DB(CONFIG.db) as db:
+            result = db.eucaimSearchDatasets(0, 0, search_rq['ast'])
+            
+            LOG.debug('Dataset successfully created in DB and creation job launched in K8s.')
+            bottle.response.status = 200
+            bottle.response.content_type = "application/json"
+            return json.dumps({'collections': result})
+    except (WrongInputException, DB.searchValidationException) as e:
+        return setErrorResponse(422, "Request validation error: %s" % e)
+    except Exception as e:
+        LOG.exception(e)
+        if read_data != None:
+            LOG.error("May be the body of the request is wrong: %s" % read_data)
+        return setErrorResponse(500, "Unexpected error, may be the input is wrong")
+
 
 @app.route('/api/upgradableDatasets', method='GET')
 def getUpgradableDatasets():

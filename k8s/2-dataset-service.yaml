@@ -93,7 +93,8 @@ spec:
                       "datalakeinfo_dir_path": "/var/www/datalakeinfo",
                       "datalakeinfo_token": "XXXXXXXX",
                       "datalake_mount_path": "/mnt/datalake",
-                      "datasets_mount_path": "/mnt/datasets"
+                      "datasets_mount_path": "/mnt/datasets",
+                      "eucaim_search_token": "XXXXXXXX"
                   }
                 }
           resources:

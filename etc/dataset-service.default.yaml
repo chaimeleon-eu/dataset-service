@@ -89,3 +89,6 @@ self:
     # Url format of public available details of a dataset (using the endpoint of the WebUI, the Dataset-explorer)
     # It is used for the url returned in the dataset creation POST, 
     # and also for the links incluided in the publication submited to Zenodo.
+  eucaim_search_token: ""
+    # Secret token for the POST "/datasets/eucaimSearch" operation (custom search for EUCAIM project).
+    # If empty token, that operation is not allowed (404 returned), this way you can disable it.
