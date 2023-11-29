@@ -508,6 +508,29 @@ And these are the properties that can be modified (and when):
  - contactInfo (always)
  - pidUrl (when draft = false)
 
+## Integration with Zenodo
+
+Dataset-service is able to use the Zenodo API to automatically create a deposition of dataset metadata. 
+This will be done for published datasets and optionally for released datasets. 
+
+The publication at Zenodo gives visibility to the dataset and allow us to obtain a DOI, 
+which is a permanent reference (Permanent ID Url) to the dataset that can be included in publications.
+
+Only metadata will be published in Zenodo, never the contents of the dataset (images nor clinical data).
+
+On invalidated datasets, the Zenodo deposition will be closed 
+(not listed in searches and showing the “closed” label for someone who access through a reference).
+
+There is a section in the config file to configure that functionality:
+```
+zenodo:
+  url: "https://sandbox.zenodo.org/"
+    # The url of Zenodo service to submit depositions.
+    # Usually "https://sandbox.zenodo.org/" for testing, and "https://zenodo.org/" for production.
+  access_token: "XXXXXXXXXXXXXXXXXXXXXXX"
+  community: ""
+  grant: ""
+```
 
 ## Integration with EUCAIM federated search
 
