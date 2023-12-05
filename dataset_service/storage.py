@@ -28,7 +28,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 18
+    CURRENT_SCHEMA_VERSION = 19
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -57,6 +57,7 @@ class DB:
             if version < 16: self.updateDB_v15To16()
             if version < 17: self.updateDB_v16To17()
             if version < 18: self.updateDB_v17To18()
+            if version < 19: self.updateDB_v18To19()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -132,8 +133,10 @@ class DB:
                 invalidated boolean NOT NULL DEFAULT false,
                 studies_count integer NOT NULL,
                 subjects_count integer NOT NULL,
-                age_low varchar(4) DEFAULT NULL,
-                age_high varchar(4) DEFAULT NULL,
+                age_low_in_days integer DEFAULT NULL,
+                age_low_unit char(1) DEFAULT NULL,
+                age_high_in_days integer DEFAULT NULL,
+                age_high_unit char(1) DEFAULT NULL,
                 sex varchar(16) NOT NULL DEFAULT '[]',
                 body_part text NOT NULL DEFAULT '[]',
                 modality text NOT NULL DEFAULT '[]',
@@ -318,6 +321,16 @@ class DB:
         self.cursor.execute("ALTER TABLE study ADD COLUMN manufacturer varchar(64) DEFAULT NULL")
         self.cursor.execute("ALTER TABLE study ADD COLUMN diagnosis varchar(16) DEFAULT NULL")
         self.cursor.execute("ALTER TABLE study ADD COLUMN study_date timestamp DEFAULT NULL")
+    
+    def updateDB_v18To19(self):
+        logging.root.info("Updating database from v18 to v19...")
+        self.cursor.execute("ALTER TABLE dataset DROP COLUMN age_low;")
+        self.cursor.execute("ALTER TABLE dataset DROP COLUMN age_high;")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN age_low_in_days integer DEFAULT NULL;")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN age_low_unit char(1) DEFAULT NULL;")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN age_high_in_days integer DEFAULT NULL;")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN age_high_unit char(1) DEFAULT NULL;")
+        
 
     def createOrUpdateAuthor(self, userId, username, name, email):
         self.cursor.execute("SELECT id FROM author WHERE id=%s LIMIT 1;", (userId,))
@@ -386,23 +399,28 @@ class DB:
             INSERT INTO dataset (id, name, previous_id, author_id, 
                                  creation_date, description, public,
                                  studies_count, subjects_count, 
-                                 age_low, age_high, 
+                                 age_low_in_days, age_low_unit, 
+                                 age_high_in_days, age_high_unit,
                                  sex, body_part, modality, series_tags)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s);""",
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s);""",
             (dataset["id"], dataset["name"], dataset["previousId"], userId, 
              dataset["creationDate"], dataset["description"], dataset["public"], 
              dataset["studiesCount"], dataset["subjectsCount"], 
-             dataset["ageLow"], dataset["ageHigh"], 
+             dataset["ageLowInDays"], dataset["ageLowUnit"], 
+             dataset["ageHighInDays"], dataset["ageHighUnit"], 
              json.dumps(dataset["sex"]), json.dumps(dataset["bodyPart"]), 
              json.dumps(dataset["modality"]), json.dumps(dataset["seriesTags"])))
 
     def updateDatasetMetadata(self, dataset):
         self.cursor.execute("""UPDATE dataset 
-                               SET studies_count = %s, subjects_count = %s, age_low = %s, age_high = %s, 
+                               SET studies_count = %s, subjects_count = %s, 
+                                   age_low_in_days = %s, age_low_unit = %s, 
+                                   age_high_in_days = %s, age_high_unit = %s, 
                                    sex = %s, body_part = %s, modality = %s, series_tags = %s
                                WHERE id = %s;""", 
                             (dataset["studiesCount"], dataset["subjectsCount"], 
-                             dataset["ageLow"], dataset["ageHigh"], 
+                             dataset["ageLowInDays"], dataset["ageLowUnit"], 
+                             dataset["ageHighInDays"], dataset["ageHighUnit"], 
                              json.dumps(dataset["sex"]), json.dumps(dataset["bodyPart"]), 
                              json.dumps(dataset["modality"]), json.dumps(dataset["seriesTags"]), 
                              dataset["id"]))
@@ -483,7 +501,8 @@ class DB:
                    dataset.pid_url, dataset.zenodo_doi, dataset.contact_info, 
                    dataset.draft, dataset.public, dataset.invalidated, 
                    dataset.studies_count, dataset.subjects_count, 
-                   dataset.age_low, dataset.age_high, 
+                   dataset.age_low_in_days, dataset.age_low_unit, 
+                   dataset.age_high_in_days, dataset.age_high_unit, 
                    dataset.sex, dataset.body_part, dataset.modality, dataset.series_tags, 
                    dataset.next_id, dataset.last_integrity_check
             FROM dataset, author 
@@ -494,17 +513,17 @@ class DB:
         if row is None: return None
         creationDate = str(row[6].astimezone())   # row[6] is a datetime without time zone, just add the local tz.
                                                   # If local tz is UTC, the string "+00:00" is added at the end.
-        lastIntegrityCheck = None if row[25] is None else str(row[25].astimezone())
+        lastIntegrityCheck = None if row[27] is None else str(row[27].astimezone())
         if row[18] is None:
             ageLow = None
             ageHigh = None
             ageUnit = []
         else:
-            ageLow, ageLowUnit = miabis_formats.ageToMiabis(row[18])
-            ageHigh, ageHighUnit = miabis_formats.ageToMiabis(row[19])
+            ageLow, ageLowUnit = miabis_formats.ageToMiabis(row[18], row[19])
+            ageHigh, ageHighUnit = miabis_formats.ageToMiabis(row[20], row[21])
             ageUnit = [ageLowUnit, ageHighUnit]
         sex = []
-        for s in json.loads(row[20]):
+        for s in json.loads(row[22]):
             sex.append(miabis_formats.sexToMiabis(s))
         if row[10] is None:
             prefPid = None
@@ -517,7 +536,7 @@ class DB:
             customPidUrl = row[10]
         
         return dict(id = row[0], name = row[1], 
-                    previousId = row[2], nextId = row[24], 
+                    previousId = row[2], nextId = row[26], 
                     authorId = row[3], authorName = row[4], authorEmail = row[5], 
                     creationDate = creationDate, description = row[7], 
                     license = dict(
@@ -532,8 +551,8 @@ class DB:
                     draft = row[13], public = row[14], invalidated = row[15], 
                     studiesCount = row[16], subjectsCount = row[17], 
                     ageLow = ageLow, ageHigh = ageHigh, ageUnit = ageUnit, sex = sex, 
-                    bodyPart = json.loads(row[21]), modality = json.loads(row[22]),
-                    seriesTags = json.loads(row[23]), lastIntegrityCheck = lastIntegrityCheck)
+                    bodyPart = json.loads(row[23]), modality = json.loads(row[24]),
+                    seriesTags = json.loads(row[25]), lastIntegrityCheck = lastIntegrityCheck)
 
     def getStudiesFromDataset(self, datasetId, limit = 0, skip = 0):
         if limit == 0: limit = 'ALL'
@@ -803,7 +822,7 @@ class DB:
                 SELECT dataset.id, dataset.name, dataset.creation_date, 
                     dataset.draft, dataset.public, dataset.invalidated, 
                     COUNT(study.id), COUNT(DISTINCT study.subject_name), 
-                    dataset.age_low, dataset.age_high, dataset.sex, 
+                    dataset.age_low_in_days, dataset.age_high_in_days, dataset.sex, 
                     dataset.modality, dataset.body_part, dataset.description
                 FROM dataset, dataset_study, study
                 WHERE dataset.id = dataset_study.dataset_id AND dataset_study.study_id = study.id
@@ -818,7 +837,7 @@ class DB:
         for row in self.cursor:
             res.append(dict(id = row[0], name = row[1], 
                             studies_count = row[6], subjects_count = row[7], 
-                            age_range = dict(min = row[8], max = row[9]),
+                            age_range = dict(min = round(row[8]/365), max = round(row[9]/365)),
                             gender = json.loads(row[10]), modality = json.loads(row[11]), body_parts = json.loads(row[12]),
                             description = row[13]))
         return res

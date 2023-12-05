@@ -426,8 +426,8 @@ def postDataset():
             # Metada will be collected later, now let's set it to empty
             dataset["studiesCount"] = len(dataset["studies"])
             dataset["subjectsCount"] = 0
-            dataset["ageLow"] = None
-            dataset["ageHigh"] = None
+            dataset["ageLowInDays"], dataset["ageLowUnit"] = None, None
+            dataset["ageHighInDays"], dataset["ageHighUnit"] = None, None
             dataset["sex"] = []
             dataset["bodyPart"] = []
             dataset["modality"] = []

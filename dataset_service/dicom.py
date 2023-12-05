@@ -32,13 +32,13 @@ DATASET_TYPE_TAG = 0x0008, 0x0016
 PROJECT_NAME_PRIVATE_TAG = 0x70D1, 0x2000
 # Value examples: "Colon cancer CT_only", "Lung cancer CT_only"
 
-def getAgeInDays(dicomAge):
+def getAge(dicomAge) -> tuple[int, str]:
     age = int(dicomAge[:3])
     unit = dicomAge[-1:]
-    if unit == "Y": return age*365
-    if unit == "M": return age*30
-    if unit == "W": return age*7
-    if unit == "D": return age
+    if unit == "Y": return age*365, unit
+    if unit == "M": return int(age*30.5), unit
+    if unit == "W": return age*7, unit
+    if unit == "D": return age, unit
     raise Exception("Dicom age cannot be parsed.")
 
 def getDatetime(dicomDate: str) -> datetime:

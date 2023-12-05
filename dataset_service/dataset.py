@@ -167,30 +167,40 @@ def invalidate_dataset(datasets_dir_path, dataset_dir_name):
     ## It is complex because many datasets can include the same study.
 
 
-def _getMetadataFromFirstDicomFile(serieDirPath):
+def _readMetadataFromFirstDicomFile(serieDirPath, study):
+    study["ageInDays"] = None
+    study["sex"] = None
+    study["bodyPart"] = None
+    study["modality"] = None
+    study["manufacturer"] = None
+    study["studyDate"] = None
+    study["diagnosis"] = None
     for name in os.listdir(serieDirPath):
         if name.lower().endswith(".dcm"):
             dicomFilePath = os.path.join(serieDirPath, name)
             dcm = pydicom.dcmread(dicomFilePath)
-            age = dcm[dicom.AGE_TAG].value                   if dicom.AGE_TAG in dcm else None
-            sex = dcm[dicom.SEX_TAG].value                   if dicom.SEX_TAG in dcm else None
-            bodyPart = dcm[dicom.BODY_PART_TAG].value        if dicom.BODY_PART_TAG in dcm else None
-            modality = dcm[dicom.MODALITY_TAG].value         if dicom.MODALITY_TAG in dcm else None
-            manufacturer = dcm[dicom.MANUFACTURER_TAG].value if dicom.MANUFACTURER_TAG in dcm else None
-            studyDate = dcm[dicom.STUDY_DATE_TAG].value      if dicom.STUDY_DATE_TAG in dcm else None
-            diagnosis = None
+            if dicom.AGE_TAG in dcm:
+                dicomAge = dcm[dicom.AGE_TAG].value
+                study["ageInDays"], study["ageUnit"] = dicom.getAge(dicomAge)
+            if dicom.SEX_TAG in dcm:           study["sex"] = dcm[dicom.SEX_TAG].value
+            if dicom.BODY_PART_TAG in dcm:     study["bodyPart"] = dcm[dicom.BODY_PART_TAG].value
+            if dicom.MODALITY_TAG in dcm:      study["modality"] = dcm[dicom.MODALITY_TAG].value
+            if dicom.MANUFACTURER_TAG in dcm:  study["manufacturer"] = dcm[dicom.MANUFACTURER_TAG].value
+            if dicom.STUDY_DATE_TAG in dcm:    study["studyDate"] = dicom.getDatetime(dcm[dicom.STUDY_DATE_TAG].value)
             if dicom.PROJECT_NAME_PRIVATE_TAG in dcm: 
                 project_name = dcm[dicom.PROJECT_NAME_PRIVATE_TAG].value
-                diagnosis = ' '.join(str(project_name).split(' ')[:2])
+                study["diagnosis"] = ' '.join(str(project_name).split(' ')[:2])
             #datasetType = dcm[dicom.DATASET_TYPE_TAG].value    it seems very similar to modality
-            return age, sex, bodyPart, modality, manufacturer, diagnosis, studyDate
-    return None, None, None, None, None, None, None
+
+MAX_AGE_VALUE = 500*365
 
 def collectMetadata(dataset, datalake_mount_path):
     differentSubjects = set()
     studiesCount = 0
-    maxAge = "000D"
-    minAge = "999Y"
+    minAgeInDays = MAX_AGE_VALUE
+    minAgeUnit = None
+    maxAgeInDays = 0
+    maxAgeUnit = None
     sexList = set()
     bodyPartList = set()
     modalityList = set()
@@ -202,33 +212,29 @@ def collectMetadata(dataset, datalake_mount_path):
         if len(study['series']) == 0: continue
         if datalake_mount_path != '':
             seriePathInDatalake = os.path.join(datalake_mount_path, study['pathInDatalake'], study['series'][0]['folderName'])
-            age, sex, bodyPart, modality, manufacturer, diagnosis, studyDate = _getMetadataFromFirstDicomFile(seriePathInDatalake)
-            if (age is None or sex is None or bodyPart is None or modality is None):
+            _readMetadataFromFirstDicomFile(seriePathInDatalake, study)
+            if (study["ageInDays"] is None or study["sex"] is None or study["bodyPart"] is None or study["modality"] is None):
                 # sometimes first serie is special, try with the second if exists
                 if len(study['series']) > 1:
                     seriePathInDatalake = os.path.join(datalake_mount_path, study['pathInDatalake'], study['series'][1]['folderName'])
-                    age, sex, bodyPart, modality, manufacturer, diagnosis, studyDate = _getMetadataFromFirstDicomFile(seriePathInDatalake)
-            study["ageInDays"] = None if age is None else dicom.getAgeInDays(age)
-            study["sex"] = sex
-            study["bodyPart"] = bodyPart
-            study["modality"] = modality
-            study["manufacturer"] = manufacturer
-            study["diagnosis"] = diagnosis
-            study["studyDate"] = None if studyDate is None else dicom.getDatetime(studyDate)
-
-            if age != None:
-                minAge = min(minAge, age, key=lambda x: dicom.getAgeInDays(x))
-                maxAge = max(maxAge, age, key=lambda x: dicom.getAgeInDays(x))
-            if sex != None: sexList.add(sex)
-            if bodyPart != None: bodyPartList.add(bodyPart)
-            if modality != None: modalityList.add(modality)
+                    _readMetadataFromFirstDicomFile(seriePathInDatalake, study)
+            if study["ageInDays"] != None:
+                if study["ageInDays"] < minAgeInDays:
+                    minAgeInDays = study["ageInDays"]
+                    minAgeUnit = study["ageUnit"]
+                if study["ageInDays"] > maxAgeInDays:
+                    maxAgeInDays = study["ageInDays"]
+                    maxAgeUnit = study["ageUnit"]
+            if study["sex"] != None: sexList.add(study["sex"])
+            if study["bodyPart"] != None: bodyPartList.add(study["bodyPart"])
+            if study["modality"] != None: modalityList.add(study["modality"])
         for series in study["series"]:
             seriesTagsList.update(series["tags"])
             
     dataset["studiesCount"] = studiesCount
     dataset["subjectsCount"] = len(differentSubjects)
-    dataset["ageLow"] = (minAge if minAge != "999Y" else None)
-    dataset["ageHigh"] = (maxAge if maxAge != "000D" else None)
+    dataset["ageLowInDays"], dataset["ageLowUnit"] = (minAgeInDays, minAgeUnit) if minAgeInDays != MAX_AGE_VALUE else (None, None)
+    dataset["ageHighInDays"], dataset["ageHighUnit"] = (maxAgeInDays, maxAgeUnit) if maxAgeInDays != 0 else (None, None)
     dataset["sex"] = list(sexList)
     dataset["bodyPart"] = list(bodyPartList)
     dataset["modality"] = list(modalityList)
