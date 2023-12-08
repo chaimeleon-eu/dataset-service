@@ -46,3 +46,19 @@ def getDatetime(dicomDate: str) -> datetime:
     month = int(dicomDate[4:6])
     day = int(dicomDate[6:8])
     return datetime(year, month, day)
+
+def getBodyPart(dicomBodyPart: str) -> str | None:
+    if dicomBodyPart == "": return None
+    return dicomBodyPart
+
+def getSex(dicomSex: str) -> str | None:
+    if dicomSex == "": return None
+    return dicomSex
+
+def getModality(dicomModality: str) -> str | None:
+    if dicomModality == "": return None
+    return dicomModality
+
+def getManufacturer(dicomManufacturer: str) -> str | None:
+    if dicomManufacturer == "": return None
+    return dicomManufacturer

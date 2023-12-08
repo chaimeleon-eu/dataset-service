@@ -2,7 +2,7 @@ import logging
 import psycopg2
 from psycopg2 import sql
 import json
-from dataset_service import authorization, dicom, eucaim_formats, miabis_formats
+from dataset_service import authorization, eucaim_formats, output_formats
 
 class DB:
     def __init__(self, dbConfig):
@@ -28,7 +28,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 19
+    CURRENT_SCHEMA_VERSION = 20
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -58,6 +58,7 @@ class DB:
             if version < 17: self.updateDB_v16To17()
             if version < 18: self.updateDB_v17To18()
             if version < 19: self.updateDB_v18To19()
+            if version < 20: self.updateDB_v19To20()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -137,9 +138,13 @@ class DB:
                 age_low_unit char(1) DEFAULT NULL,
                 age_high_in_days integer DEFAULT NULL,
                 age_high_unit char(1) DEFAULT NULL,
+                age_null_count integer DEFAULT NULL,
                 sex varchar(16) NOT NULL DEFAULT '[]',
+                sex_count text NOT NULL DEFAULT '[]',
                 body_part text NOT NULL DEFAULT '[]',
+                body_part_count text NOT NULL DEFAULT '[]',
                 modality text NOT NULL DEFAULT '[]',
+                modality_count text NOT NULL DEFAULT '[]',
                 series_tags text NOT NULL DEFAULT '[]',
                 last_integrity_check timestamp DEFAULT NULL,
                 constraint pk_dataset primary key (id),
@@ -330,7 +335,14 @@ class DB:
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN age_low_unit char(1) DEFAULT NULL;")
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN age_high_in_days integer DEFAULT NULL;")
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN age_high_unit char(1) DEFAULT NULL;")
-        
+    
+    def updateDB_v19To20(self):
+        logging.root.info("Updating database from v19 to v20...")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN age_null_count integer DEFAULT NULL;")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN sex_count text NOT NULL DEFAULT '[]';")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN body_part_count text NOT NULL DEFAULT '[]';")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN modality_count text NOT NULL DEFAULT '[]';")
+
 
     def createOrUpdateAuthor(self, userId, username, name, email):
         self.cursor.execute("SELECT id FROM author WHERE id=%s LIMIT 1;", (userId,))
@@ -398,31 +410,37 @@ class DB:
         self.cursor.execute("""
             INSERT INTO dataset (id, name, previous_id, author_id, 
                                  creation_date, description, public,
-                                 studies_count, subjects_count, 
-                                 age_low_in_days, age_low_unit, 
-                                 age_high_in_days, age_high_unit,
-                                 sex, body_part, modality, series_tags)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s);""",
+                                 studies_count, subjects_count)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s);""",
             (dataset["id"], dataset["name"], dataset["previousId"], userId, 
              dataset["creationDate"], dataset["description"], dataset["public"], 
-             dataset["studiesCount"], dataset["subjectsCount"], 
-             dataset["ageLowInDays"], dataset["ageLowUnit"], 
-             dataset["ageHighInDays"], dataset["ageHighUnit"], 
-             json.dumps(dataset["sex"]), json.dumps(dataset["bodyPart"]), 
-             json.dumps(dataset["modality"]), json.dumps(dataset["seriesTags"])))
+             dataset["studiesCount"], dataset["subjectsCount"]))
 
     def updateDatasetMetadata(self, dataset):
+        # For now let's store directly the final format for each value in the properties of type array of strings,
+        # because json don't allow store the None value in a array of strings.
+        # In final format the None value is converted to "Unknown" which is compliant with Miabis.
+        sexList = [output_formats.sexToMiabis(i) for i in dataset["sex"]]
+        bodyPartList = [output_formats.bodyPartToOutputFormat(i) for i in dataset["bodyPart"]]
+        modalityList = [output_formats.modalityToOutputFormat(i) for i in dataset["modality"]]
         self.cursor.execute("""UPDATE dataset 
                                SET studies_count = %s, subjects_count = %s, 
                                    age_low_in_days = %s, age_low_unit = %s, 
                                    age_high_in_days = %s, age_high_unit = %s, 
-                                   sex = %s, body_part = %s, modality = %s, series_tags = %s
+                                   age_null_count = %s,
+                                   sex = %s, sex_count = %s, 
+                                   body_part = %s, body_part_count = %s, 
+                                   modality = %s, modality_count = %s, 
+                                   series_tags = %s
                                WHERE id = %s;""", 
                             (dataset["studiesCount"], dataset["subjectsCount"], 
                              dataset["ageLowInDays"], dataset["ageLowUnit"], 
                              dataset["ageHighInDays"], dataset["ageHighUnit"], 
-                             json.dumps(dataset["sex"]), json.dumps(dataset["bodyPart"]), 
-                             json.dumps(dataset["modality"]), json.dumps(dataset["seriesTags"]), 
+                             dataset["ageNullCount"], 
+                             json.dumps(sexList), json.dumps(dataset["sexCount"]), 
+                             json.dumps(bodyPartList), json.dumps(dataset["bodyPartCount"]), 
+                             json.dumps(modalityList), json.dumps(dataset["modalityCount"]), 
+                             json.dumps(dataset["seriesTags"]), 
                              dataset["id"]))
 
     def updateStudyMetadata(self, study):
@@ -482,6 +500,15 @@ class DB:
             WHERE dataset_id = %s AND study_id = %s;""",
             (hash, datasetId, studyId))
 
+    # def getDatasetStudyHash(self, datasetId, studyId):
+    #     self.cursor.execute("""
+    #         SELECT hash FROM dataset_study 
+    #         WHERE dataset_id = %s AND study_id = %s;""",
+    #         (datasetId, studyId))
+    #     if self.cursor.rowcount == 0: return None
+    #     row = self.cursor.fetchone()
+    #     return row[0]
+
     def existDataset(self, id):
         """Note: invalidated datasets also exist.
         """
@@ -503,7 +530,11 @@ class DB:
                    dataset.studies_count, dataset.subjects_count, 
                    dataset.age_low_in_days, dataset.age_low_unit, 
                    dataset.age_high_in_days, dataset.age_high_unit, 
-                   dataset.sex, dataset.body_part, dataset.modality, dataset.series_tags, 
+                   dataset.age_null_count, 
+                   dataset.sex, dataset.sex_count, 
+                   dataset.body_part, dataset.body_part_count, 
+                   dataset.modality, dataset.modality_count, 
+                   dataset.series_tags, 
                    dataset.next_id, dataset.last_integrity_check
             FROM dataset, author 
             WHERE dataset.id=%s AND author.id = dataset.author_id 
@@ -513,18 +544,15 @@ class DB:
         if row is None: return None
         creationDate = str(row[6].astimezone())   # row[6] is a datetime without time zone, just add the local tz.
                                                   # If local tz is UTC, the string "+00:00" is added at the end.
-        lastIntegrityCheck = None if row[27] is None else str(row[27].astimezone())
+        lastIntegrityCheck = None if row[31] is None else str(row[31].astimezone())
         if row[18] is None:
             ageLow = None
             ageHigh = None
             ageUnit = []
         else:
-            ageLow, ageLowUnit = miabis_formats.ageToMiabis(row[18], row[19])
-            ageHigh, ageHighUnit = miabis_formats.ageToMiabis(row[20], row[21])
+            ageLow, ageLowUnit = output_formats.ageToMiabis(row[18], row[19])
+            ageHigh, ageHighUnit = output_formats.ageToMiabis(row[20], row[21])
             ageUnit = [ageLowUnit, ageHighUnit]
-        sex = []
-        for s in json.loads(row[22]):
-            sex.append(miabis_formats.sexToMiabis(s))
         if row[10] is None:
             prefPid = None
             customPidUrl = None
@@ -536,7 +564,7 @@ class DB:
             customPidUrl = row[10]
         
         return dict(id = row[0], name = row[1], 
-                    previousId = row[2], nextId = row[26], 
+                    previousId = row[2], nextId = row[30], 
                     authorId = row[3], authorName = row[4], authorEmail = row[5], 
                     creationDate = creationDate, description = row[7], 
                     license = dict(
@@ -550,9 +578,11 @@ class DB:
                             custom = customPidUrl)), 
                     draft = row[13], public = row[14], invalidated = row[15], 
                     studiesCount = row[16], subjectsCount = row[17], 
-                    ageLow = ageLow, ageHigh = ageHigh, ageUnit = ageUnit, sex = sex, 
-                    bodyPart = json.loads(row[23]), modality = json.loads(row[24]),
-                    seriesTags = json.loads(row[25]), lastIntegrityCheck = lastIntegrityCheck)
+                    ageLow = ageLow, ageHigh = ageHigh, ageUnit = ageUnit, ageNullCount = row[22], 
+                    sex = json.loads(row[23]), sexCount = json.loads(row[24]), 
+                    bodyPart = json.loads(row[25]), bodyPartCount = json.loads(row[26]), 
+                    modality = json.loads(row[27]), modalityCount = json.loads(row[28]), 
+                    seriesTags = json.loads(row[29]), lastIntegrityCheck = lastIntegrityCheck)
 
     def getStudiesFromDataset(self, datasetId, limit = 0, skip = 0):
         if limit == 0: limit = 'ALL'

@@ -182,10 +182,10 @@ def _readMetadataFromFirstDicomFile(serieDirPath, study):
             if dicom.AGE_TAG in dcm:
                 dicomAge = dcm[dicom.AGE_TAG].value
                 study["ageInDays"], study["ageUnit"] = dicom.getAge(dicomAge)
-            if dicom.SEX_TAG in dcm:           study["sex"] = dcm[dicom.SEX_TAG].value
-            if dicom.BODY_PART_TAG in dcm:     study["bodyPart"] = dcm[dicom.BODY_PART_TAG].value
-            if dicom.MODALITY_TAG in dcm:      study["modality"] = dcm[dicom.MODALITY_TAG].value
-            if dicom.MANUFACTURER_TAG in dcm:  study["manufacturer"] = dcm[dicom.MANUFACTURER_TAG].value
+            if dicom.SEX_TAG in dcm:           study["sex"] = dicom.getSex(dcm[dicom.SEX_TAG].value)
+            if dicom.BODY_PART_TAG in dcm:     study["bodyPart"] = dicom.getBodyPart(dcm[dicom.BODY_PART_TAG].value)
+            if dicom.MODALITY_TAG in dcm:      study["modality"] = dicom.getModality(dcm[dicom.MODALITY_TAG].value)
+            if dicom.MANUFACTURER_TAG in dcm:  study["manufacturer"] = dicom.getManufacturer(dcm[dicom.MANUFACTURER_TAG].value)
             if dicom.STUDY_DATE_TAG in dcm:    study["studyDate"] = dicom.getDatetime(dcm[dicom.STUDY_DATE_TAG].value)
             if dicom.PROJECT_NAME_PRIVATE_TAG in dcm: 
                 project_name = dcm[dicom.PROJECT_NAME_PRIVATE_TAG].value
@@ -194,6 +194,20 @@ def _readMetadataFromFirstDicomFile(serieDirPath, study):
 
 MAX_AGE_VALUE = 500*365
 
+def _agregateItemToCountDict(countDict: dict, newItem: str|None):
+    # if newItem is None, then None is added as a key to the countDict and is managed as any other item
+    if newItem in countDict:
+        countDict[newItem] += 1
+    else: countDict[newItem] = 0
+def _getValuesAndCountsFromCountDict(countDict: dict[str|None, int]) -> tuple[list[str|None], list[int]]:
+    # remove and reinsert the None key if exists in order to move it to the end
+    NoneCount = countDict.pop(None, None)
+    if NoneCount != None: countDict[None] = NoneCount
+    # Since python 3.7, keys() and values() order is guaranteed to be insertion order.
+    values = list(countDict.keys())
+    counts = list(countDict.values())
+    return values, counts
+
 def collectMetadata(dataset, datalake_mount_path):
     differentSubjects = set()
     studiesCount = 0
@@ -201,9 +215,10 @@ def collectMetadata(dataset, datalake_mount_path):
     minAgeUnit = None
     maxAgeInDays = 0
     maxAgeUnit = None
-    sexList = set()
-    bodyPartList = set()
-    modalityList = set()
+    ageNullCount = 0
+    sexDict = {}
+    bodyPartDict = {}
+    modalityDict = {}
     seriesTagsList = set()
     for study in dataset["studies"]:
         studiesCount += 1
@@ -225,9 +240,10 @@ def collectMetadata(dataset, datalake_mount_path):
                 if study["ageInDays"] > maxAgeInDays:
                     maxAgeInDays = study["ageInDays"]
                     maxAgeUnit = study["ageUnit"]
-            if study["sex"] != None: sexList.add(study["sex"])
-            if study["bodyPart"] != None: bodyPartList.add(study["bodyPart"])
-            if study["modality"] != None: modalityList.add(study["modality"])
+            else: ageNullCount += 1
+            _agregateItemToCountDict(sexDict, study["sex"])
+            _agregateItemToCountDict(bodyPartDict, study["bodyPart"])
+            _agregateItemToCountDict(modalityDict, study["modality"])
         for series in study["series"]:
             seriesTagsList.update(series["tags"])
             
@@ -235,9 +251,10 @@ def collectMetadata(dataset, datalake_mount_path):
     dataset["subjectsCount"] = len(differentSubjects)
     dataset["ageLowInDays"], dataset["ageLowUnit"] = (minAgeInDays, minAgeUnit) if minAgeInDays != MAX_AGE_VALUE else (None, None)
     dataset["ageHighInDays"], dataset["ageHighUnit"] = (maxAgeInDays, maxAgeUnit) if maxAgeInDays != 0 else (None, None)
-    dataset["sex"] = list(sexList)
-    dataset["bodyPart"] = list(bodyPartList)
-    dataset["modality"] = list(modalityList)
+    dataset["ageNullCount"] = ageNullCount
+    dataset["sex"], dataset["sexCount"] = _getValuesAndCountsFromCountDict(sexDict)
+    dataset["bodyPart"], dataset["bodyPartCount"] = _getValuesAndCountsFromCountDict(bodyPartDict)
+    dataset["modality"], dataset["modalityCount"] = _getValuesAndCountsFromCountDict(modalityDict)
     dataset["seriesTags"] = list(seriesTagsList)
     logging.root.debug("  -studiesCount: %s" % dataset["studiesCount"])
     logging.root.debug("  -subjectsCount: %s" % dataset["subjectsCount"])

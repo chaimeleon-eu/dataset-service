@@ -423,16 +423,11 @@ def postDataset():
             #if not "public" in dataset.keys(): 
             dataset["public"] = False
 
-            # Metada will be collected later, now let's set it to empty
             dataset["studiesCount"] = len(dataset["studies"])
-            dataset["subjectsCount"] = 0
-            dataset["ageLowInDays"], dataset["ageLowUnit"] = None, None
-            dataset["ageHighInDays"], dataset["ageHighUnit"] = None, None
-            dataset["sex"] = []
-            dataset["bodyPart"] = []
-            dataset["modality"] = []
-            dataset["seriesTags"] = []
-
+            dataset["subjectsCount"] = 0   # let's set now to zero 
+                                           # because the real number is obtained later, after a check for duplicates
+            # The rest of Metada will be collected later, now let's leave it empty (default values in DB)
+            
             LOG.debug('Creating dataset in DB...')
             db.createDataset(dataset, user.uid)
 

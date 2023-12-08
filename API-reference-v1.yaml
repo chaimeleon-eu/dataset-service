@@ -935,34 +935,69 @@ components:
           description: "The number of different subjects which are related with the studies contained in the dataset"
         ageLow:
           type: integer
-          description: "[Miabis] Age of youngest subject. Null if can not be collected from dataset contents."
+          description: |
+            [Miabis] Age of youngest subject. Null if metadata still not collected or age data empty for all studies.
+            Collected from Dicom tag (0010,1010) or from the subject clinical data.
         ageHigh:
           type: integer
-          description: "[Miabis] Age of oldest subject. Null if can not be collected from dataset contents."
+          description: |
+            [Miabis] Age of oldest subject. Null if metadata still not collected or age data empty for all studies.
+            Collected from Dicom tag (0010,1010) or from the subject clinical data.
         ageUnit:
           type: array
-          description: "[Miabis] Array of two items: unit for ageLow, unit for ageHigh. Empty if age can not be collected from dataset contents."
+          description: |
+            [Miabis] Array of two items: unit for ageLow, unit for ageHigh. 
+            Empty if metadata still not collected or age data empty for all studies.
           example: '["years", "years"]'
           items:
             type: string
+        ageNullCount:
+          type: integer
+          description: "The number of studies with unknown age data. Null if metadata still not collected."
         sex:
           type: array
-          description: "[Miabis] Array of different sex values in the dataset. Empty if can not be collected from dataset contents."
-          example: '["Male", "Female"]'
+          description: |
+            [Miabis] Array of different sex values in the dataset. Empty if metadata still not collected.
+            Collected from Dicom tag (0010,0040) or from the subject clinical data.
+            Miabis standard defines the possible values: "Male", "Female", "Undifferentiated", "Unknown".
+          example: '["Male", "Female", "Unknown"]'
           items:
             type: string
+        sexCount:
+          type: array
+          description: "Array with the number of studies for each item of the previous 'sex' array. Empty if metadata still not collected."
+          items:
+            type: integer
         bodyPart:
           type: array
-          description: "Array of different body parts (Dicom tag) in the dataset. Empty if can not be collected from dataset contents."
-          example: '["LUNG"]'
+          description: |
+            Array of different body parts in the dataset. Empty if metadata still not collected.
+            Collected from Dicom tag (0018,0015).
+            Dicom standard defines the posible values.
+            Additionally the value 'Unknown' will be added at the end if there is any case with empty body part data.
+          example: '["LUNG", "BRAIN", "Unknown"]'
           items:
             type: string
+        bodyPartCount:
+          type: array
+          description: "Array with the number of studies for each item of the previous 'bodyPart' array. Empty if metadata still not collected."
+          items:
+            type: integer
         modality:
           type: array
-          description: "Array of different modalities (Dicom tag) in the dataset. Empty if can not be collected from dataset contents."
-          example: '["CT"]'
+          description: |
+            Array of different modalities (Dicom tag) in the dataset. Empty if metadata still not collected.
+            Collected from Dicom tag (0008,0060).
+            Dicom standard defines the posible values.
+            Additionally the value 'Unknown' will be added at the end if there is any case with empty modality data.
+          example: '["CT", "MR", "Unknown"]'
           items:
             type: string
+        modalityCount:
+          type: array
+          description: "Array with the number of studies for each item of the previous 'modality' array. Empty if metadata still not collected."
+          items:
+            type: integer
         seriesTags:
           type: array
           description: "Array of different tags in series of the studies of the dataset."

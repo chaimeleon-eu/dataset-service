@@ -16,9 +16,21 @@ def ageDicomToMiabis(dicomAge):
     return age, unit
 
 def sexToMiabis(sex):
-    if sex is None: return None
+    if sex is None: return "Unkown"
     if sex == "M": return "Male"
     if sex == "F": return "Female"
     if sex == "O": return "Undifferentiated"
     raise Exception("Unexpected value")
+
+def bodyPartToOutputFormat(bodyPart):
+    # Body part is not in Miabis, we take the dicom values,
+    # but we use 'Unknown' to represent the empty value instead of '""' used by dicom.
+    if bodyPart is None: return 'Unknown'
+    else: return bodyPart
+
+def modalityToOutputFormat(modality):
+    # Modality is not in Miabis, we take the dicom values,
+    # but we use 'Unknown' to represent the empty value instead of '""' used by dicom.
+    if modality is None: return 'Unknown'
+    else: return modality
 
