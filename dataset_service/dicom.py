@@ -60,5 +60,30 @@ def getModality(dicomModality: str) -> str | None:
     return dicomModality
 
 def getManufacturer(dicomManufacturer: str) -> str | None:
+    # Dicom don't specifies the possible values,
+    # so, in order to harmonize, we take all the possible values from eucaim ontology,
+    # plus the 'Other' value for new manufacturers not included there.
     if dicomManufacturer == "": return None
-    return dicomManufacturer
+    dicomManufacturer = dicomManufacturer.lower()
+    if dicomManufacturer.find('adac') >= 0: return 'ADAC'
+    elif dicomManufacturer.find('agfa') >= 0: return 'Agfa'
+    elif dicomManufacturer.find('canon') >= 0: return 'Canon'
+    elif dicomManufacturer.find('elscint') >= 0: return 'Elscint'
+    elif dicomManufacturer.find('esaote') >= 0: return 'Esaote'
+    elif dicomManufacturer.find('fujifilm') >= 0: return 'Fujifilm'
+    elif dicomManufacturer.find('general electric') >= 0 \
+        or dicomManufacturer.find('ge ') >= 0: return 'General Electric'
+    elif dicomManufacturer.find('hitachi') >= 0: return 'Hitachi'
+    elif dicomManufacturer.find('hologic') >= 0: return 'Hologic'
+    elif dicomManufacturer.find('i.m.s') >= 0 \
+        or dicomManufacturer.find('ims ') >= 0 \
+        or dicomManufacturer == 'ims': return 'I.M.S'
+    elif dicomManufacturer.find('marconi') >= 0: return 'Marconi'
+    elif dicomManufacturer.find('mediso') >= 0: return 'Mediso'
+    elif dicomManufacturer.find('mie') >= 0: return 'MiE'
+    elif dicomManufacturer.find('philips') >= 0: return 'Philips'
+    elif dicomManufacturer.find('picker') >= 0: return 'Picker International'
+    elif dicomManufacturer.find('shimadzu') >= 0: return 'Shimadzu'
+    elif dicomManufacturer.find('siemens') >= 0: return 'Siemens'
+    elif dicomManufacturer.find('toshiba') >= 0: return 'Toshiba'
+    else: return 'Other'

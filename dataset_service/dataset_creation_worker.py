@@ -40,7 +40,6 @@ class dataset_creation_worker:
             db.setDatasetCreationStatus(self.datasetId, "running", "Canceling...")
 
     def run(self):
-        datasetDirName = ''
         auth_client = AuthClient(self.config.auth.client.auth_url, self.config.auth.client.client_id, self.config.auth.client.client_secret)
         try:
             if self.config.self.datasets_mount_path == '':
@@ -55,6 +54,9 @@ class dataset_creation_worker:
             else: 
                 tracer.check_connection(auth_client, self.config.tracer.url)
 
+            datasetDirName = self.datasetId
+            datasetDirPath = os.path.join(self.config.self.datasets_mount_path, datasetDirName)
+
             with DB(self.config.db) as db:
                 dataset = db.getDataset(self.datasetId)
                 if dataset is None: raise Exception("dataset not found in database")
@@ -63,18 +65,17 @@ class dataset_creation_worker:
 
                 stop = self.updateProgress("Scanning dataset for collecting metadata...")
                 if stop: self._cancelProgress(); return
-                dataset_file_system.collectMetadata(dataset, self.config.self.datalake_mount_path)
+                eformsFilePath = os.path.join(datasetDirPath, self.config.eforms_file_name)
+                dataset_file_system.collectMetadata(dataset, self.config.self.datalake_mount_path, eformsFilePath)
                 for study in dataset["studies"]:
                     db.updateStudyMetadata(study)
                 db.updateDatasetMetadata(dataset)
                 
             stop = self.updateProgress("Creating symbolic links...")
             if stop: self._cancelProgress(); return
-            datasetDirName = self.datasetId
+            
             dataset_file_system.create_dataset(self.config.self.datasets_mount_path, datasetDirName, 
                                                self.config.self.datalake_mount_path, datasetStudies)
-            
-            datasetDirPath = os.path.join(self.config.self.datasets_mount_path, datasetDirName)
 
             if self.config.tracer.url != '':
                 studiesHashes = []

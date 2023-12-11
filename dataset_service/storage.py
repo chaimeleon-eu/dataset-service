@@ -28,7 +28,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 20
+    CURRENT_SCHEMA_VERSION = 21
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -59,6 +59,7 @@ class DB:
             if version < 18: self.updateDB_v17To18()
             if version < 19: self.updateDB_v18To19()
             if version < 20: self.updateDB_v19To20()
+            if version < 21: self.updateDB_v20To21()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -109,11 +110,12 @@ class DB:
                 url varchar(256),
                 age_in_days integer DEFAULT NULL,
                 sex char(1) DEFAULT NULL,
+                diagnosis varchar(16) DEFAULT NULL,
+                diagnosis_year integer DEFAULT NULL,
+                study_date timestamp DEFAULT NULL,
                 body_part varchar(16) DEFAULT NULL,
                 modality varchar(16) DEFAULT NULL,
                 manufacturer varchar(64) DEFAULT NULL,
-                diagnosis varchar(16) DEFAULT NULL,
-                study_date timestamp DEFAULT NULL,
                 constraint pk_study primary key (id)
             );
             CREATE TABLE dataset (
@@ -141,10 +143,15 @@ class DB:
                 age_null_count integer DEFAULT NULL,
                 sex varchar(16) NOT NULL DEFAULT '[]',
                 sex_count text NOT NULL DEFAULT '[]',
+                diagnosis_year_low integer DEFAULT NULL,
+                diagnosis_year_high integer DEFAULT NULL,
+                diagnosis_year_null_count integer DEFAULT NULL,
                 body_part text NOT NULL DEFAULT '[]',
                 body_part_count text NOT NULL DEFAULT '[]',
                 modality text NOT NULL DEFAULT '[]',
                 modality_count text NOT NULL DEFAULT '[]',
+                manufacturer text NOT NULL DEFAULT '[]',
+                manufacturer_count text NOT NULL DEFAULT '[]',
                 series_tags text NOT NULL DEFAULT '[]',
                 last_integrity_check timestamp DEFAULT NULL,
                 constraint pk_dataset primary key (id),
@@ -342,6 +349,15 @@ class DB:
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN sex_count text NOT NULL DEFAULT '[]';")
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN body_part_count text NOT NULL DEFAULT '[]';")
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN modality_count text NOT NULL DEFAULT '[]';")
+    
+    def updateDB_v20To21(self):
+        logging.root.info("Updating database from v20 to v21...")
+        self.cursor.execute("ALTER TABLE study ADD COLUMN diagnosis_year timestamp DEFAULT NULL;")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN diagnosis_year_low timestamp DEFAULT NULL;")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN diagnosis_year_high timestamp DEFAULT NULL;")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN diagnosis_year_null_count integer DEFAULT NULL;")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN manufacturer text NOT NULL DEFAULT '[]';")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN manufacturer_count text NOT NULL DEFAULT '[]';")
 
 
     def createOrUpdateAuthor(self, userId, username, name, email):
@@ -423,14 +439,18 @@ class DB:
         sexList = [output_formats.sexToMiabis(i) for i in dataset["sex"]]
         bodyPartList = [output_formats.bodyPartToOutputFormat(i) for i in dataset["bodyPart"]]
         modalityList = [output_formats.modalityToOutputFormat(i) for i in dataset["modality"]]
+        manufacturerList = [output_formats.manufacturerToOutputFormat(i) for i in dataset["manufacturer"]]
         self.cursor.execute("""UPDATE dataset 
                                SET studies_count = %s, subjects_count = %s, 
                                    age_low_in_days = %s, age_low_unit = %s, 
                                    age_high_in_days = %s, age_high_unit = %s, 
-                                   age_null_count = %s,
+                                   age_null_count = %s, 
                                    sex = %s, sex_count = %s, 
+                                   diagnosis_year_low = %s, diagnosis_year_high = %s, 
+                                   diagnosis_year_null_count = %s, 
                                    body_part = %s, body_part_count = %s, 
                                    modality = %s, modality_count = %s, 
+                                   manufacturer = %s, manufacturer_count = %s, 
                                    series_tags = %s
                                WHERE id = %s;""", 
                             (dataset["studiesCount"], dataset["subjectsCount"], 
@@ -438,18 +458,21 @@ class DB:
                              dataset["ageHighInDays"], dataset["ageHighUnit"], 
                              dataset["ageNullCount"], 
                              json.dumps(sexList), json.dumps(dataset["sexCount"]), 
+                             dataset["diagnosisYearLow"], dataset["diagnosisYearHigh"], 
+                             dataset["diagnosisYearNullCount"], 
                              json.dumps(bodyPartList), json.dumps(dataset["bodyPartCount"]), 
                              json.dumps(modalityList), json.dumps(dataset["modalityCount"]), 
+                             json.dumps(manufacturerList), json.dumps(dataset["manufacturerCount"]), 
                              json.dumps(dataset["seriesTags"]), 
                              dataset["id"]))
 
     def updateStudyMetadata(self, study):
         self.cursor.execute("""UPDATE study
                                SET age_in_days = %s, sex = %s, body_part = %s, modality = %s, 
-                                   manufacturer = %s, diagnosis = %s, study_date = %s 
+                                   manufacturer = %s, diagnosis = %s, diagnosis_year = %s, study_date = %s 
                                WHERE id = %s;""", 
                             (study['ageInDays'], study['sex'], study['bodyPart'], study['modality'], 
-                             study['manufacturer'], study['diagnosis'], study['studyDate'],
+                             study['manufacturer'], study['diagnosis'], study['diagnosisYear'], study['studyDate'],
                              study['studyId']))
 
     def createDatasetCreationStatus(self, datasetId, status, firstMessage):
@@ -532,8 +555,11 @@ class DB:
                    dataset.age_high_in_days, dataset.age_high_unit, 
                    dataset.age_null_count, 
                    dataset.sex, dataset.sex_count, 
+                   dataset.diagnosis_year_low, dataset.diagnosis_year_high, 
+                   dataset.diagnosis_year_null_count, 
                    dataset.body_part, dataset.body_part_count, 
                    dataset.modality, dataset.modality_count, 
+                   dataset.manufacturer, dataset.manufacturer_count, 
                    dataset.series_tags, 
                    dataset.next_id, dataset.last_integrity_check
             FROM dataset, author 
@@ -544,10 +570,9 @@ class DB:
         if row is None: return None
         creationDate = str(row[6].astimezone())   # row[6] is a datetime without time zone, just add the local tz.
                                                   # If local tz is UTC, the string "+00:00" is added at the end.
-        lastIntegrityCheck = None if row[31] is None else str(row[31].astimezone())
+        lastIntegrityCheck = None if row[36] is None else str(row[36].astimezone())
         if row[18] is None:
-            ageLow = None
-            ageHigh = None
+            ageLow, ageHigh = None, None
             ageUnit = []
         else:
             ageLow, ageLowUnit = output_formats.ageToMiabis(row[18], row[19])
@@ -564,7 +589,7 @@ class DB:
             customPidUrl = row[10]
         
         return dict(id = row[0], name = row[1], 
-                    previousId = row[2], nextId = row[30], 
+                    previousId = row[2], nextId = row[35], 
                     authorId = row[3], authorName = row[4], authorEmail = row[5], 
                     creationDate = creationDate, description = row[7], 
                     license = dict(
@@ -580,9 +605,11 @@ class DB:
                     studiesCount = row[16], subjectsCount = row[17], 
                     ageLow = ageLow, ageHigh = ageHigh, ageUnit = ageUnit, ageNullCount = row[22], 
                     sex = json.loads(row[23]), sexCount = json.loads(row[24]), 
-                    bodyPart = json.loads(row[25]), bodyPartCount = json.loads(row[26]), 
-                    modality = json.loads(row[27]), modalityCount = json.loads(row[28]), 
-                    seriesTags = json.loads(row[29]), lastIntegrityCheck = lastIntegrityCheck)
+                    diagnosisYearLow = row[25], diagnosisYearHigh = row[26], diagnosisYearNullCount = row[27], 
+                    bodyPart = json.loads(row[28]), bodyPartCount = json.loads(row[29]), 
+                    modality = json.loads(row[30]), modalityCount = json.loads(row[31]), 
+                    manufacturer = json.loads(row[32]), manufacturerCount = json.loads(row[33]), 
+                    seriesTags = json.loads(row[34]), lastIntegrityCheck = lastIntegrityCheck)
 
     def getStudiesFromDataset(self, datasetId, limit = 0, skip = 0):
         if limit == 0: limit = 'ALL'
@@ -834,7 +861,7 @@ class DB:
             elif sr['key'] == 'SNOMEDCT439401001':  # diagnosis
                 return DB._searchConditionStringToSQL(sr['type'], sr['value'], 'diagnosis', 'study.diagnosis', eucaim_formats.getDiagnosis)
             elif sr['key'] == 'SNOMEDCT432213005':  # year_of_diagnosis
-                return DB._searchConditionNumToSQL(sr['type'], sr['value'], 'year of diagnosis', 'study.study_date', eucaim_formats.getDateTime)
+                return DB._searchConditionNumToSQL(sr['type'], sr['value'], 'year of diagnosis', 'study.diagnosis_year', eucaim_formats.getYear)
             elif sr['key'] == 'RID10311':  # modality   SNOMEDCT363679005
                 return DB._searchConditionStringToSQL(sr['type'], sr['value'], 'modality', 'study.modality', eucaim_formats.getModality)
             elif sr['key'] == 'SNOMEDCT123037004':  # body part   # mejor SNOMEDCT38866009 ?

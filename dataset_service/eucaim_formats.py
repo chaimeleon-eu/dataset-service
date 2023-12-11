@@ -58,12 +58,17 @@ def getDateTime(eucaimYear):
     day = 1
     return datetime(year, month, day)
 
+def getYear(eucaimYear):
+    return eucaimYear
+
 def getManufacturer(eucaimManufacturer):
     if eucaimManufacturer == "SNOMEDCT261665006": return None
-    if eucaimManufacturer == "C200140": return "SIEMENS"       # Siemens Healthineers
-    if eucaimManufacturer == "birnlex_3066": return "SIEMENS"   # Siemens Medical Solutions
-    if eucaimManufacturer == "birnlex_12833": return "GE MEDICAL SYSTEMS"  # General Electric Medical Systems
-    if eucaimManufacturer == "birnlex_3065": return "Philips" # "Philips Medical Systems" # Philips Medical Systems
+    if eucaimManufacturer == "C200140": return "Siemens"       # Siemens Healthineers
+    if eucaimManufacturer == "birnlex_3066": return "Siemens"   # Siemens Medical Solutions
+    if eucaimManufacturer == "birnlex_12833": return "General Electric"  # General Electric Medical Systems # Other values seen: "GE HEALTHCARE"
+    if eucaimManufacturer == "birnlex_3065": return "Philips" # Philips Medical Systems # Other values seen: "Philips Medical Systems"
     if eucaimManufacturer == "birnlex_3067": return "Toshiba"  # Toshiba Medical Solutions
+                                                            # ESAOTE
+                                                            #IMS # Other values seen: "IMS s.r.l.", "IMS GIOTTO S.p.A."
     raise Exception()
 

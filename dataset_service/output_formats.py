@@ -1,4 +1,7 @@
 
+# MIABIS: https://github.com/BBMRI-ERIC/miabis/blob/master/Data-describing-Sample-Collection.md
+# DICOM extension: https://eurradiolexp.springeropen.com/articles/10.1186/s41747-021-00214-4
+
 def ageToMiabis(ageInDays, unit) -> tuple[int, str]:
     if unit == "Y": return round(ageInDays/365), "years"
     if unit == "M": return round(ageInDays/30.5), "months"
@@ -34,3 +37,10 @@ def modalityToOutputFormat(modality):
     if modality is None: return 'Unknown'
     else: return modality
 
+def manufacturerToOutputFormat(manufacturer):
+    # Manufacturer is not in Miabis and dicom don't specifies the possible values,
+    # we take the possible values from eucaim ontology 
+    # plus the 'Other' value for new manufacturers not included there,
+    # and finally we add the value 'Unknown' to represent the empty value.
+    if manufacturer is None: return 'Unknown'
+    else: return manufacturer

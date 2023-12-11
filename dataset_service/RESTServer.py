@@ -528,7 +528,8 @@ def postDataset_recollectMetadata(id):
             return setErrorResponse(404, "not found")
         datasetStudies, total = db.getStudiesFromDataset(datasetId)
         dataset["studies"] = datasetStudies
-        dataset_file_system.collectMetadata(dataset, CONFIG.self.datalake_mount_path)
+        eformsFilePath = os.path.join(CONFIG.self.datasets_mount_path, datasetId, CONFIG.self.eforms_file_name)
+        dataset_file_system.collectMetadata(dataset, CONFIG.self.datalake_mount_path, eformsFilePath)
         for study in dataset["studies"]:
             db.updateStudyMetadata(study)
         db.updateDatasetMetadata(dataset)

@@ -1,6 +1,8 @@
 import shutil
 import logging
 import pydicom
+import json
+from datetime import datetime
 from dataset_service.POSIX import *
 from dataset_service import dicom
 
@@ -192,13 +194,53 @@ def _readMetadataFromFirstDicomFile(serieDirPath, study):
                 study["diagnosis"] = ' '.join(str(project_name).split(' ')[:2])
             #datasetType = dcm[dicom.DATASET_TYPE_TAG].value    it seems very similar to modality
 
+def _readEformsFile(eformsFilePath):
+    with open(eformsFilePath, 'rb') as f:
+        contentBytes = f.read()
+    subjectsList = json.loads(contentBytes)
+    subjects = dict([ (subject["subjectName"], subject["eForm"]) for subject in subjectsList ])
+    return subjects
+
+def _completeMetadataWithSubjectsInfo(study, subjects):
+    if not "diagnosisYear" in study: study["diagnosisYear"] = None
+    if not "ageInDays" in study: study["ageInDays"] = None
+    if not "sex" in study: study["sex"] = None
+    subject_name = study["subjectName"]
+    eform = subjects[subject_name]
+    if not "pages" in eform or not isinstance(eform["pages"], list): return
+    for page in eform["pages"]:
+        if not "page_name" in page or not "page_data" in page: continue
+        if page["page_name"] == "inclusion_criteria":
+            if "baseline_date" in page["page_data"]:
+                try:
+                    value = page["page_data"]["baseline_date"]["value"]
+                    study["diagnosisYear"] = datetime.fromisoformat(value).year
+                except: pass
+            if "age_at_diagnosis" in page["page_data"]:
+                try:
+                    value = page["page_data"]["age_at_diagnosis"]["value"]
+                    study["ageInDays"] = value * 365
+                    study["ageUnit"] = "Y"
+                except: pass
+        if page["page_name"] == "patient_data":
+            if "gender" in page["page_data"]:
+                try:
+                    value = page["page_data"]["gender"]["value"]
+                    if value == "MALE": sex  = "M"
+                    elif value == "FEMALE": sex  = "F"
+                    else: sex = "O"
+                    study["sex"] = sex
+                except: pass
+
+
 MAX_AGE_VALUE = 500*365
+MAX_YEAR_VALUE = 65536
 
 def _agregateItemToCountDict(countDict: dict, newItem: str|None):
     # if newItem is None, then None is added as a key to the countDict and is managed as any other item
     if newItem in countDict:
         countDict[newItem] += 1
-    else: countDict[newItem] = 0
+    else: countDict[newItem] = 1
 def _getValuesAndCountsFromCountDict(countDict: dict[str|None, int]) -> tuple[list[str|None], list[int]]:
     # remove and reinsert the None key if exists in order to move it to the end
     NoneCount = countDict.pop(None, None)
@@ -208,31 +250,36 @@ def _getValuesAndCountsFromCountDict(countDict: dict[str|None, int]) -> tuple[li
     counts = list(countDict.values())
     return values, counts
 
-def collectMetadata(dataset, datalake_mount_path):
+def collectMetadata(dataset, datalake_mount_path, eformsFilePath):
     differentSubjects = set()
     studiesCount = 0
-    minAgeInDays = MAX_AGE_VALUE
-    minAgeUnit = None
-    maxAgeInDays = 0
-    maxAgeUnit = None
+    minAgeInDays, maxAgeInDays = MAX_AGE_VALUE, 0
+    minAgeUnit, maxAgeUnit = None, None
     ageNullCount = 0
     sexDict = {}
     bodyPartDict = {}
     modalityDict = {}
+    manufacturerDict = {}
+    minDiagnosisYear, maxDiagnosisYear = MAX_YEAR_VALUE, 0
+    diagnosisYearNullCount = 0
     seriesTagsList = set()
+    subjects = _readEformsFile(eformsFilePath)
     for study in dataset["studies"]:
         studiesCount += 1
         if not study["subjectName"] in differentSubjects: 
             differentSubjects.add(study["subjectName"])
         if len(study['series']) == 0: continue
         if datalake_mount_path != '':
+            #Read metadata of this study
             seriePathInDatalake = os.path.join(datalake_mount_path, study['pathInDatalake'], study['series'][0]['folderName'])
             _readMetadataFromFirstDicomFile(seriePathInDatalake, study)
-            if (study["ageInDays"] is None or study["sex"] is None or study["bodyPart"] is None or study["modality"] is None):
-                # sometimes first serie is special, try with the second if exists
-                if len(study['series']) > 1:
-                    seriePathInDatalake = os.path.join(datalake_mount_path, study['pathInDatalake'], study['series'][1]['folderName'])
-                    _readMetadataFromFirstDicomFile(seriePathInDatalake, study)
+            # if (study["ageInDays"] is None or study["sex"] is None or study["bodyPart"] is None or study["modality"] is None):
+            #     # sometimes first serie is special, try with the second if exists
+            #     if len(study['series']) > 1:
+            #         seriePathInDatalake = os.path.join(datalake_mount_path, study['pathInDatalake'], study['series'][1]['folderName'])
+            #         _readMetadataFromFirstDicomFile(seriePathInDatalake, study)
+            _completeMetadataWithSubjectsInfo(study, subjects)
+            #Agregate metadata of this study
             if study["ageInDays"] != None:
                 if study["ageInDays"] < minAgeInDays:
                     minAgeInDays = study["ageInDays"]
@@ -242,8 +289,17 @@ def collectMetadata(dataset, datalake_mount_path):
                     maxAgeUnit = study["ageUnit"]
             else: ageNullCount += 1
             _agregateItemToCountDict(sexDict, study["sex"])
+            if study["diagnosisYear"] != None:
+                if study["diagnosisYear"] < minDiagnosisYear:
+                    minDiagnosisYear = study["diagnosisYear"]
+                if study["diagnosisYear"] > maxDiagnosisYear:
+                    maxDiagnosisYear = study["diagnosisYear"]
+            else: diagnosisYearNullCount += 1
             _agregateItemToCountDict(bodyPartDict, study["bodyPart"])
             _agregateItemToCountDict(modalityDict, study["modality"])
+            _agregateItemToCountDict(manufacturerDict, study["manufacturer"])
+
+
         for series in study["series"]:
             seriesTagsList.update(series["tags"])
             
@@ -253,8 +309,12 @@ def collectMetadata(dataset, datalake_mount_path):
     dataset["ageHighInDays"], dataset["ageHighUnit"] = (maxAgeInDays, maxAgeUnit) if maxAgeInDays != 0 else (None, None)
     dataset["ageNullCount"] = ageNullCount
     dataset["sex"], dataset["sexCount"] = _getValuesAndCountsFromCountDict(sexDict)
+    dataset["diagnosisYearLow"] = minDiagnosisYear if minDiagnosisYear != MAX_YEAR_VALUE else None
+    dataset["diagnosisYearHigh"] = maxDiagnosisYear if maxDiagnosisYear != 0 else None
+    dataset["diagnosisYearNullCount"] = diagnosisYearNullCount
     dataset["bodyPart"], dataset["bodyPartCount"] = _getValuesAndCountsFromCountDict(bodyPartDict)
     dataset["modality"], dataset["modalityCount"] = _getValuesAndCountsFromCountDict(modalityDict)
+    dataset["manufacturer"], dataset["manufacturerCount"] = _getValuesAndCountsFromCountDict(manufacturerDict)
     dataset["seriesTags"] = list(seriesTagsList)
     logging.root.debug("  -studiesCount: %s" % dataset["studiesCount"])
     logging.root.debug("  -subjectsCount: %s" % dataset["subjectsCount"])

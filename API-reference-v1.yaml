@@ -936,13 +936,15 @@ components:
         ageLow:
           type: integer
           description: |
-            [Miabis] Age of youngest subject. Null if metadata still not collected or age data empty for all studies.
-            Collected from Dicom tag (0010,1010) or from the subject clinical data.
+            [Miabis] Age of the youngest subject. Null if metadata still not collected or age data empty for all studies.
+            Collected from Dicom tag (0010,1010) or from the subject clinical data (inclusion_criteria.age_at_diagnosis).
+          example: '54'
         ageHigh:
           type: integer
           description: |
-            [Miabis] Age of oldest subject. Null if metadata still not collected or age data empty for all studies.
-            Collected from Dicom tag (0010,1010) or from the subject clinical data.
+            [Miabis] Age of the oldest subject. Null if metadata still not collected or age data empty for all studies.
+            Collected from Dicom tag (0010,1010) or from the subject clinical data (inclusion_criteria.age_at_diagnosis).
+          example: '82'
         ageUnit:
           type: array
           description: |
@@ -954,11 +956,12 @@ components:
         ageNullCount:
           type: integer
           description: "The number of studies with unknown age data. Null if metadata still not collected."
+          example: '2'
         sex:
           type: array
           description: |
             [Miabis] Array of different sex values in the dataset. Empty if metadata still not collected.
-            Collected from Dicom tag (0010,0040) or from the subject clinical data.
+            Collected from Dicom tag (0010,0040) or from the subject clinical data (patient_data.gender).
             Miabis standard defines the possible values: "Male", "Female", "Undifferentiated", "Unknown".
           example: '["Male", "Female", "Unknown"]'
           items:
@@ -966,6 +969,7 @@ components:
         sexCount:
           type: array
           description: "Array with the number of studies for each item of the previous 'sex' array. Empty if metadata still not collected."
+          example: '[348, 170, 2]'
           items:
             type: integer
         bodyPart:
@@ -981,12 +985,13 @@ components:
         bodyPartCount:
           type: array
           description: "Array with the number of studies for each item of the previous 'bodyPart' array. Empty if metadata still not collected."
+          example: '[348, 170, 2]'
           items:
             type: integer
         modality:
           type: array
           description: |
-            Array of different modalities (Dicom tag) in the dataset. Empty if metadata still not collected.
+            Array of different image modalities in the dataset. Empty if metadata still not collected.
             Collected from Dicom tag (0008,0060).
             Dicom standard defines the posible values.
             Additionally the value 'Unknown' will be added at the end if there is any case with empty modality data.
@@ -996,8 +1001,38 @@ components:
         modalityCount:
           type: array
           description: "Array with the number of studies for each item of the previous 'modality' array. Empty if metadata still not collected."
+          example: '[348, 170, 2]'
           items:
             type: integer
+        manufacturer:
+          type: array
+          description: |
+            Array of different image equipment manufacturers in the dataset. Empty if metadata still not collected.
+            Collected from Dicom tag (0008,0070) and harmonized.
+            Additionally the value 'Unknown' will be added at the end if there is any case with empty manufacturer data.
+          example: '["Philips", "Siemens", "Unknown"]'
+          items:
+            type: string
+        manufacturerCount:
+          type: array
+          description: "Array with the number of studies for each item of the previous 'manufacturer' array. Empty if metadata still not collected."
+          example: '[348, 170, 2]'
+          items:
+            type: integer
+        diagnosisYearLow:
+          type: integer
+          description: |
+            The year of the oldest diagnosis. Null if metadata still not collected or year of diagnosis data empty for all studies.
+            Collected from the subject clinical data (inclusion_criteria.baseline_date).
+        diagnosisYearHigh:
+          type: integer
+          description: |
+            The year of the most recent diagnosis. Null if metadata still not collected or year of diagnosis data empty for all studies.
+            Collected from the subject clinical data (inclusion_criteria.baseline_date).
+        diagnosisYearNullCount:
+          type: integer
+          description: "The number of studies with unknown year of diagnosis. Null if metadata still not collected."
+          example: '2'
         seriesTags:
           type: array
           description: "Array of different tags in series of the studies of the dataset."
