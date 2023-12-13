@@ -1,4 +1,5 @@
 from datetime import datetime
+import pydicom
 
 # List of tags with types (VR):
 #   https://dicom.nema.org/medical/dicom/current/output/chtml/part06/chapter_6.html
@@ -32,58 +33,86 @@ DATASET_TYPE_TAG = 0x0008, 0x0016
 PROJECT_NAME_PRIVATE_TAG = 0x70D1, 0x2000
 # Value examples: "Colon cancer CT_only", "Lung cancer CT_only"
 
-def getAge(dicomAge) -> tuple[int, str]:
-    age = int(dicomAge[:3])
-    unit = dicomAge[-1:]
-    if unit == "Y": return age*365, unit
-    if unit == "M": return int(age*30.5), unit
-    if unit == "W": return age*7, unit
-    if unit == "D": return age, unit
-    raise Exception("Dicom age cannot be parsed.")
+class Dicom:
+    def __init__(self, dicomFilePath):
+        self.dcm = pydicom.dcmread(dicomFilePath, stop_before_pixels=True)
+    
+    def getAge(self) -> tuple[int|None, str|None]:
+        if not AGE_TAG in self.dcm: return None, None
+        value = self.dcm[AGE_TAG].value
+        age = int(value[:3])
+        unit = value[-1:]
+        if unit == "Y": return age*365, unit
+        if unit == "M": return int(age*30.5), unit
+        if unit == "W": return age*7, unit
+        if unit == "D": return age, unit
+        raise Exception("Dicom age cannot be parsed.")
 
-def getDatetime(dicomDate: str) -> datetime:
-    year = int(dicomDate[:4])
-    month = int(dicomDate[4:6])
-    day = int(dicomDate[6:8])
-    return datetime(year, month, day)
+    def getStudyDate(self) -> datetime|None:
+        if not STUDY_DATE_TAG in self.dcm: return None
+        value = self.dcm[STUDY_DATE_TAG].value
+        year = int(value[:4])
+        month = int(value[4:6])
+        day = int(value[6:8])
+        return datetime(year, month, day)
 
-def getBodyPart(dicomBodyPart: str) -> str | None:
-    if dicomBodyPart == "": return None
-    return dicomBodyPart
+    def getBodyPart(self) -> str | None:
+        if not BODY_PART_TAG in self.dcm: return None
+        value = self.dcm[BODY_PART_TAG].value
+        if value == "": return None
+        return value
 
-def getSex(dicomSex: str) -> str | None:
-    if dicomSex == "": return None
-    return dicomSex
+    def getSex(self) -> str | None:
+        if not SEX_TAG in self.dcm: return None
+        value = self.dcm[SEX_TAG].value
+        if value == "": return None
+        return value
 
-def getModality(dicomModality: str) -> str | None:
-    if dicomModality == "": return None
-    return dicomModality
+    def getModality(self) -> str | None:
+        if not MODALITY_TAG in self.dcm: return None
+        value = self.dcm[MODALITY_TAG].value
+        if value == "": return None
+        return value
+    
+    def getDatasetType(self) -> str | None:
+        if not DATASET_TYPE_TAG in self.dcm: return None
+        value = self.dcm[DATASET_TYPE_TAG].value
+        if value == "": return None
+        return value
 
-def getManufacturer(dicomManufacturer: str) -> str | None:
-    # Dicom don't specifies the possible values,
-    # so, in order to harmonize, we take all the possible values from eucaim ontology,
-    # plus the 'Other' value for new manufacturers not included there.
-    if dicomManufacturer == "": return None
-    dicomManufacturer = dicomManufacturer.lower()
-    if dicomManufacturer.find('adac') >= 0: return 'ADAC'
-    elif dicomManufacturer.find('agfa') >= 0: return 'Agfa'
-    elif dicomManufacturer.find('canon') >= 0: return 'Canon'
-    elif dicomManufacturer.find('elscint') >= 0: return 'Elscint'
-    elif dicomManufacturer.find('esaote') >= 0: return 'Esaote'
-    elif dicomManufacturer.find('fujifilm') >= 0: return 'Fujifilm'
-    elif dicomManufacturer.find('general electric') >= 0 \
-        or dicomManufacturer.find('ge ') >= 0: return 'General Electric'
-    elif dicomManufacturer.find('hitachi') >= 0: return 'Hitachi'
-    elif dicomManufacturer.find('hologic') >= 0: return 'Hologic'
-    elif dicomManufacturer.find('i.m.s') >= 0 \
-        or dicomManufacturer.find('ims ') >= 0 \
-        or dicomManufacturer == 'ims': return 'I.M.S'
-    elif dicomManufacturer.find('marconi') >= 0: return 'Marconi'
-    elif dicomManufacturer.find('mediso') >= 0: return 'Mediso'
-    elif dicomManufacturer.find('mie') >= 0: return 'MiE'
-    elif dicomManufacturer.find('philips') >= 0: return 'Philips'
-    elif dicomManufacturer.find('picker') >= 0: return 'Picker International'
-    elif dicomManufacturer.find('shimadzu') >= 0: return 'Shimadzu'
-    elif dicomManufacturer.find('siemens') >= 0: return 'Siemens'
-    elif dicomManufacturer.find('toshiba') >= 0: return 'Toshiba'
-    else: return 'Other'
+    def getManufacturer(self) -> str | None:
+        if not MANUFACTURER_TAG in self.dcm:  return None
+        value = self.dcm[MANUFACTURER_TAG].value
+        # Dicom don't specifies the possible values,
+        # so, in order to harmonize, we take all the possible values from eucaim ontology,
+        # plus the 'Other' value for new manufacturers not included there.
+        if value == "": return None
+        value = value.lower()
+        if value.find('adac') >= 0: return 'ADAC'
+        elif value.find('agfa') >= 0: return 'Agfa'
+        elif value.find('canon') >= 0: return 'Canon'
+        elif value.find('elscint') >= 0: return 'Elscint'
+        elif value.find('esaote') >= 0: return 'Esaote'
+        elif value.find('fujifilm') >= 0: return 'Fujifilm'
+        elif value.find('general electric') >= 0 \
+            or value.find('ge ') >= 0: return 'General Electric'
+        elif value.find('hitachi') >= 0: return 'Hitachi'
+        elif value.find('hologic') >= 0: return 'Hologic'
+        elif value.find('i.m.s') >= 0 \
+            or value.find('ims ') >= 0 \
+            or value == 'ims': return 'I.M.S'
+        elif value.find('marconi') >= 0: return 'Marconi'
+        elif value.find('mediso') >= 0: return 'Mediso'
+        elif value.find('mie') >= 0: return 'MiE'
+        elif value.find('philips') >= 0: return 'Philips'
+        elif value.find('picker') >= 0: return 'Picker International'
+        elif value.find('shimadzu') >= 0: return 'Shimadzu'
+        elif value.find('siemens') >= 0: return 'Siemens'
+        elif value.find('toshiba') >= 0: return 'Toshiba'
+        else: return 'Other'
+
+    def getDiagnosis(self) -> str | None:
+        if not PROJECT_NAME_PRIVATE_TAG in self.dcm: return None
+        project_name = self.dcm[PROJECT_NAME_PRIVATE_TAG].value
+        return ' '.join(str(project_name).split(' ')[:2])
+

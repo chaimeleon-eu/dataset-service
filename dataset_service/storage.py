@@ -28,7 +28,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 21
+    CURRENT_SCHEMA_VERSION = 22
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -60,6 +60,7 @@ class DB:
             if version < 19: self.updateDB_v18To19()
             if version < 20: self.updateDB_v19To20()
             if version < 21: self.updateDB_v20To21()
+            if version < 22: self.updateDB_v21To22()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -141,7 +142,7 @@ class DB:
                 age_high_in_days integer DEFAULT NULL,
                 age_high_unit char(1) DEFAULT NULL,
                 age_null_count integer DEFAULT NULL,
-                sex varchar(16) NOT NULL DEFAULT '[]',
+                sex text NOT NULL DEFAULT '[]',
                 sex_count text NOT NULL DEFAULT '[]',
                 diagnosis_year_low integer DEFAULT NULL,
                 diagnosis_year_high integer DEFAULT NULL,
@@ -352,12 +353,16 @@ class DB:
     
     def updateDB_v20To21(self):
         logging.root.info("Updating database from v20 to v21...")
-        self.cursor.execute("ALTER TABLE study ADD COLUMN diagnosis_year timestamp DEFAULT NULL;")
-        self.cursor.execute("ALTER TABLE dataset ADD COLUMN diagnosis_year_low timestamp DEFAULT NULL;")
-        self.cursor.execute("ALTER TABLE dataset ADD COLUMN diagnosis_year_high timestamp DEFAULT NULL;")
+        self.cursor.execute("ALTER TABLE study ADD COLUMN diagnosis_year integer DEFAULT NULL;")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN diagnosis_year_low integer DEFAULT NULL;")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN diagnosis_year_high integer DEFAULT NULL;")
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN diagnosis_year_null_count integer DEFAULT NULL;")
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN manufacturer text NOT NULL DEFAULT '[]';")
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN manufacturer_count text NOT NULL DEFAULT '[]';")
+
+    def updateDB_v21To22(self):
+        logging.root.info("Updating database from v21 to v22...")
+        self.cursor.execute("ALTER TABLE dataset ALTER COLUMN sex TYPE text;")
 
 
     def createOrUpdateAuthor(self, userId, username, name, email):
@@ -912,8 +917,11 @@ class DB:
                               from dataset_study as ds
                               where ds.study_id = s.id);""")
         row = self.cursor.fetchone()
-        total = row[0] if row != None else 0  
-        logging.root.debug("There are %d studies not included in any dataset, removing..." % total )
+        total = row[0] if row != None else 0
+        if total == 0:
+            logging.root.debug("There are no orphan studies to remove (all of them were included in other datasets).")
+            return
+        logging.root.debug("There are %d orphan studies (not included in any dataset), removing..." % total )
         self.cursor.execute("""
             DELETE FROM study as s
             WHERE not exists (select ds.dataset_id, ds.study_id 

@@ -506,9 +506,29 @@ def postDataset_adjustFilePermissionsInDatalake(id):
     LOG.debug('Dataset files permissions successfully adjusted.')
     bottle.response.status = 204
 
+def _recollectMetadataForDataset(datasetId):
+    if CONFIG is None: raise Exception()
+    with DB(CONFIG.db) as db:
+        dataset = db.getDataset(datasetId)
+        if dataset is None: 
+            return dict(success=False, msg="Not recollected: dataset removed.")
+        if dataset["draft"] and db.getDatasetCreationStatus(datasetId) != None:
+            return dict(success=False, msg="Not recollected: it is still being created.")
+        datasetStudies, total = db.getStudiesFromDataset(datasetId)
+        dataset["studies"] = datasetStudies
+        eformsFilePath = os.path.join(CONFIG.self.datasets_mount_path, datasetId, CONFIG.self.eforms_file_name)
+        try:
+            dataset_file_system.collectMetadata(dataset, CONFIG.self.datalake_mount_path, eformsFilePath)
+        except Exception as e:
+            LOG.exception(e)
+            return dict(success=False, msg="Not recollected: exception catched (corrupt dataset?).")
+        for study in dataset["studies"]:
+            db.updateStudyMetadata(study)
+        db.updateDatasetMetadata(dataset)
+    return dict(success=True, msg="Successfully recollected.")
 
-@app.route('/api/datasets/<id>/recollectMetadata', method='POST')
-def postDataset_recollectMetadata(id):
+@app.route('/api/datasets/recollectMetadata', method='POST')
+def recollectMetadataForAllDatasets():
     '''
     Note: this method is only for admins and for special case when upgrade to a new version which adds new metadata fields.
           So, with this method any previous dataset can be rescan for collecting metadata again and fill all the fields.
@@ -521,21 +541,23 @@ def postDataset_recollectMetadata(id):
     if not user.isSuperAdminDatasets():
         return setErrorResponse(401,"unauthorized user")
 
-    datasetId = id
     with DB(CONFIG.db) as db:
-        dataset = db.getDataset(datasetId)
-        if dataset is None: 
-            return setErrorResponse(404, "not found")
-        datasetStudies, total = db.getStudiesFromDataset(datasetId)
-        dataset["studies"] = datasetStudies
-        eformsFilePath = os.path.join(CONFIG.self.datasets_mount_path, datasetId, CONFIG.self.eforms_file_name)
-        dataset_file_system.collectMetadata(dataset, CONFIG.self.datalake_mount_path, eformsFilePath)
-        for study in dataset["studies"]:
-            db.updateStudyMetadata(study)
-        db.updateDatasetMetadata(dataset)
-    
-    LOG.debug('Dataset metadata successfully collected.')
-    bottle.response.status = 204
+        searchFilter = authorization.Search_filter(draft = None, public = None, invalidated = None)
+        searchFilter.adjustByUser(user)
+        datasets, total =  db.getDatasets(0, 0, '', searchFilter, '', '')
+        LOG.debug("Total datasets to process: %d" % total)
+        results = []
+        i = 0
+        for ds in datasets:
+            i += 1
+            LOG.debug('Collecting metadata for dataset %s [%d/%d]' % (ds['id'], i, total))
+            result = _recollectMetadataForDataset(ds['id'])
+            results.append(dict(id=ds['id'], result=result))
+            LOG.debug('Result: %s' % json.dumps(result))
+    LOG.debug('End of datasets metadata recollection.')
+    bottle.response.status = 200
+    bottle.response.content_type = "application/json"
+    return json.dumps(results)
 
 @app.route('/api/datasets/<id>/relaunchCreationJob', method='POST')
 def postDataset_relaunchCreationJob(id):

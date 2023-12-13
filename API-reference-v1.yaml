@@ -937,7 +937,7 @@ components:
           type: integer
           description: |
             [Miabis] Age of the youngest subject. Null if metadata still not collected or age data empty for all studies.
-            Collected from Dicom tag (0010,1010) or from the subject clinical data (inclusion_criteria.age_at_diagnosis).
+            Collected from Dicom tag (0010,1010) or from the subject clinical data (inclusion_criteria.age_at_diagnosis or .age_at_baseline).
           example: '54'
         ageHigh:
           type: integer
@@ -1023,7 +1023,7 @@ components:
           type: integer
           description: |
             The year of the oldest diagnosis. Null if metadata still not collected or year of diagnosis data empty for all studies.
-            Collected from the subject clinical data (inclusion_criteria.baseline_date).
+            Collected from the subject clinical data (inclusion_criteria.baseline_date or .date_baseline_ct).
         diagnosisYearHigh:
           type: integer
           description: |

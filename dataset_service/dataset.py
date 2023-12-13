@@ -1,10 +1,7 @@
 import shutil
 import logging
-import pydicom
-import json
-from datetime import datetime
 from dataset_service.POSIX import *
-from dataset_service import dicom
+from dataset_service import dicom, eform
 
 class DatasetException(Exception):
     pass
@@ -180,57 +177,28 @@ def _readMetadataFromFirstDicomFile(serieDirPath, study):
     for name in os.listdir(serieDirPath):
         if name.lower().endswith(".dcm"):
             dicomFilePath = os.path.join(serieDirPath, name)
-            dcm = pydicom.dcmread(dicomFilePath)
-            if dicom.AGE_TAG in dcm:
-                dicomAge = dcm[dicom.AGE_TAG].value
-                study["ageInDays"], study["ageUnit"] = dicom.getAge(dicomAge)
-            if dicom.SEX_TAG in dcm:           study["sex"] = dicom.getSex(dcm[dicom.SEX_TAG].value)
-            if dicom.BODY_PART_TAG in dcm:     study["bodyPart"] = dicom.getBodyPart(dcm[dicom.BODY_PART_TAG].value)
-            if dicom.MODALITY_TAG in dcm:      study["modality"] = dicom.getModality(dcm[dicom.MODALITY_TAG].value)
-            if dicom.MANUFACTURER_TAG in dcm:  study["manufacturer"] = dicom.getManufacturer(dcm[dicom.MANUFACTURER_TAG].value)
-            if dicom.STUDY_DATE_TAG in dcm:    study["studyDate"] = dicom.getDatetime(dcm[dicom.STUDY_DATE_TAG].value)
-            if dicom.PROJECT_NAME_PRIVATE_TAG in dcm: 
-                project_name = dcm[dicom.PROJECT_NAME_PRIVATE_TAG].value
-                study["diagnosis"] = ' '.join(str(project_name).split(' ')[:2])
-            #datasetType = dcm[dicom.DATASET_TYPE_TAG].value    it seems very similar to modality
+            dcm = dicom.Dicom(dicomFilePath)
+            study["ageInDays"], study["ageUnit"] = dcm.getAge()
+            study["sex"] = dcm.getSex()
+            study["bodyPart"] = dcm.getBodyPart()
+            study["modality"] = dcm.getModality()
+            study["manufacturer"] = dcm.getManufacturer()
+            study["studyDate"] = dcm.getStudyDate()
+            study["diagnosis"] = dcm.getDiagnosis()
+            #dcm.getDatasetType    it seems very similar to modality
+            return 
 
-def _readEformsFile(eformsFilePath):
-    with open(eformsFilePath, 'rb') as f:
-        contentBytes = f.read()
-    subjectsList = json.loads(contentBytes)
-    subjects = dict([ (subject["subjectName"], subject["eForm"]) for subject in subjectsList ])
-    return subjects
-
-def _completeMetadataWithSubjectsInfo(study, subjects):
+def _completeMetadataWithSubjectsInfo(study, subjects: eform.Eforms):
     if not "diagnosisYear" in study: study["diagnosisYear"] = None
     if not "ageInDays" in study: study["ageInDays"] = None
     if not "sex" in study: study["sex"] = None
     subject_name = study["subjectName"]
-    eform = subjects[subject_name]
-    if not "pages" in eform or not isinstance(eform["pages"], list): return
-    for page in eform["pages"]:
-        if not "page_name" in page or not "page_data" in page: continue
-        if page["page_name"] == "inclusion_criteria":
-            if "baseline_date" in page["page_data"]:
-                try:
-                    value = page["page_data"]["baseline_date"]["value"]
-                    study["diagnosisYear"] = datetime.fromisoformat(value).year
-                except: pass
-            if "age_at_diagnosis" in page["page_data"]:
-                try:
-                    value = page["page_data"]["age_at_diagnosis"]["value"]
-                    study["ageInDays"] = value * 365
-                    study["ageUnit"] = "Y"
-                except: pass
-        if page["page_name"] == "patient_data":
-            if "gender" in page["page_data"]:
-                try:
-                    value = page["page_data"]["gender"]["value"]
-                    if value == "MALE": sex  = "M"
-                    elif value == "FEMALE": sex  = "F"
-                    else: sex = "O"
-                    study["sex"] = sex
-                except: pass
+    eform = subjects.getEform(subject_name)
+    if eform is None: return
+    if eform.diagnosisYear != None: study["diagnosisYear"] = eform.diagnosisYear
+    if eform.ageInDays != None:     study["ageInDays"] = eform.ageInDays
+    if eform.ageUnit != None:       study["ageUnit"] = eform.ageUnit
+    if eform.sex != None:           study["sex"] = eform.sex
 
 
 MAX_AGE_VALUE = 500*365
@@ -263,7 +231,7 @@ def collectMetadata(dataset, datalake_mount_path, eformsFilePath):
     minDiagnosisYear, maxDiagnosisYear = MAX_YEAR_VALUE, 0
     diagnosisYearNullCount = 0
     seriesTagsList = set()
-    subjects = _readEformsFile(eformsFilePath)
+    subjects = eform.Eforms(eformsFilePath)
     for study in dataset["studies"]:
         studiesCount += 1
         if not study["subjectName"] in differentSubjects: 

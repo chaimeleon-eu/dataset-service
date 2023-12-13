@@ -65,7 +65,7 @@ class User:
         return self._token != None and User.roles.admin_datasets in self._token["appRoles"]
 
     def canRelaunchDatasetCreation(self, dataset):
-        return User.roles.superadmin_datasets in self._token["appRoles"] \
+        return self._token != None and User.roles.superadmin_datasets in self._token["appRoles"] \
             and "creating" in dataset and dataset["creating"]
 
     def canDeleteDataset(self, dataset):
