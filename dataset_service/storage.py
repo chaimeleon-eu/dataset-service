@@ -795,11 +795,22 @@ class DB:
     @staticmethod
     def _searchConditionStringValueToSQL(key, type, value) -> sql.SQL:
         if type == "EQUALS":
-            return sql.SQL("{} = {}").format(sql.SQL(key), sql.Literal(value))
+            if value is None:
+                return sql.SQL("{} IS NULL").format(sql.SQL(key))
+            else: return sql.SQL("{} = {}").format(sql.SQL(key), sql.Literal(value))
         elif type == "NOT_EQUALS":
-            return sql.SQL("{} <> {}").format(sql.SQL(key), sql.Literal(value))
+            if value is None:
+                return sql.SQL("NOT {} IS NULL").format(sql.SQL(key), sql.Literal(value))
+            else: return sql.SQL("{} <> {}").format(sql.SQL(key), sql.Literal(value))
         elif type == "IN":
-            return sql.SQL("{} IN ({})").format(sql.SQL(key), sql.SQL(', ').join(sql.Literal(item) for item in value))
+            res = sql.SQL("")
+            if value.count(None) > 0:
+                res += sql.SQL("{} IS NULL").format(sql.SQL(key))
+                value.remove(None)
+                if len(value) == 0: return res
+                res += sql.SQL(" OR ")
+            res += sql.SQL("{} IN ({})").format(sql.SQL(key), sql.SQL(', ').join(sql.Literal(item) for item in value))
+            return res
         elif type == "CONTAINS":
             return sql.SQL("{} ILIKE {}").format(sql.SQL(key), sql.Literal('%'+value+'%'))
         else: 
@@ -815,8 +826,12 @@ class DB:
             return sql.SQL("{} BETWEEN {} AND {}").format(sql.SQL(key), sql.Literal(value["min"]), sql.Literal(value["max"]))
         elif type == "LOWER_THAN":
             return sql.SQL("{} < {}").format(sql.SQL(key), sql.Literal(value))
+        elif type == "LOWER_EQUAL_THAN":
+            return sql.SQL("{} <= {}").format(sql.SQL(key), sql.Literal(value))
         elif type == "GREATER_THAN":
             return sql.SQL("{} > {}").format(sql.SQL(key), sql.Literal(value))
+        elif type == "GREATER_EQUAL_THAN":
+            return sql.SQL("{} >= {}").format(sql.SQL(key), sql.Literal(value))
         else: 
             raise DB.searchValidationException("unknown 'type' in condition for %s" % key)
 
@@ -841,7 +856,20 @@ class DB:
             DB._ensureIsRangeOfNum(value, type, key)
             value["min"] = translate(value["min"])
             value["max"] = translate(value["max"])
-        elif type in ["EQUALS","NOT_EQUALS","LOWER_THAN","GREATER_THAN"]:
+        elif type in ["LOWER_THAN","GREATER_THAN"]:
+            if isinstance(value, dict): 
+                # strange case but accepted if value is a range, just one of the limits will be taken
+                DB._ensureIsRangeOfNum(value, type, key)
+                if type == "LOWER_THAN": 
+                    value = value["max"]  # ignore min
+                    type = "LOWER_EQUAL_THAN"
+                else:  # type == "GREATER_THAN"
+                    value = value["min"]  # ignore max
+                    type = "GREATER_EQUAL_THAN"
+            else:
+                DB._ensureIsNum(value, type, key)
+            value = translate(value)
+        elif type in ["EQUALS","NOT_EQUALS"]:
             DB._ensureIsNum(value, type, key)
             value = translate(value)
         else: raise DB.searchValidationException("unknown 'type' in condition for %s" % key)
@@ -860,20 +888,21 @@ class DB:
             if not 'type' in sr: raise DB.searchValidationException("missing 'type' in condition")
             if not 'value' in sr: raise DB.searchValidationException("missing 'value' in condition")
             if sr['key'] == 'SNOMEDCT263495000':  # gender
-                return DB._searchConditionStringToSQL(sr['type'], sr['value'], 'gender', 'study.sex', eucaim_formats.getGender)
+                res = DB._searchConditionStringToSQL(sr['type'], sr['value'], 'gender', 'study.sex', eucaim_formats.getGender)
             elif sr['key'] == 'SNOMEDCT423493009':  # age at diagnosis
-                return DB._searchConditionNumToSQL(sr['type'], sr['value'], 'age', 'study.age_in_days', eucaim_formats.getAge)
+                res = DB._searchConditionNumToSQL(sr['type'], sr['value'], 'age', 'study.age_in_days', eucaim_formats.getAge)
             elif sr['key'] == 'SNOMEDCT439401001':  # diagnosis
-                return DB._searchConditionStringToSQL(sr['type'], sr['value'], 'diagnosis', 'study.diagnosis', eucaim_formats.getDiagnosis)
+                res = DB._searchConditionStringToSQL(sr['type'], sr['value'], 'diagnosis', 'study.diagnosis', eucaim_formats.getDiagnosis)
             elif sr['key'] == 'SNOMEDCT432213005':  # year_of_diagnosis
-                return DB._searchConditionNumToSQL(sr['type'], sr['value'], 'year of diagnosis', 'study.diagnosis_year', eucaim_formats.getYear)
+                res = DB._searchConditionNumToSQL(sr['type'], sr['value'], 'year of diagnosis', 'study.diagnosis_year', eucaim_formats.getYear)
             elif sr['key'] == 'RID10311':  # modality   SNOMEDCT363679005
-                return DB._searchConditionStringToSQL(sr['type'], sr['value'], 'modality', 'study.modality', eucaim_formats.getModality)
+                res = DB._searchConditionStringToSQL(sr['type'], sr['value'], 'modality', 'study.modality', eucaim_formats.getModality)
             elif sr['key'] == 'SNOMEDCT123037004':  # body part   # mejor SNOMEDCT38866009 ?
-                return DB._searchConditionStringToSQL(sr['type'], sr['value'], 'body part', 'study.body_part', eucaim_formats.getBodyPart)
+                res = DB._searchConditionStringToSQL(sr['type'], sr['value'], 'body part', 'study.body_part', eucaim_formats.getBodyPart)
             elif sr['key'] == 'C25392':  # manufacturer
-                return DB._searchConditionStringToSQL(sr['type'], sr['value'], 'Manufacturer', 'study.manufacturer', eucaim_formats.getManufacturer)
+                res = DB._searchConditionStringToSQL(sr['type'], sr['value'], 'Manufacturer', 'study.manufacturer', eucaim_formats.getManufacturer)
             else: raise DB.searchValidationException("unkown 'key' in condition")
+            return sql.SQL("(")+res+sql.SQL(")")
         else: raise DB.searchValidationException("missing 'operand' or 'key'")
 
     def eucaimSearchDatasets(self, skip, limit, searchRequest):
@@ -899,8 +928,11 @@ class DB:
         for row in self.cursor:
             res.append(dict(id = row[0], name = row[1], 
                             studies_count = row[6], subjects_count = row[7], 
-                            age_range = dict(min = round(row[8]/365), max = round(row[9]/365)),
-                            gender = json.loads(row[10]), modality = json.loads(row[11]), body_parts = json.loads(row[12]),
+                            age_range = dict(min = round(row[8]/365) if row[8] != None else 0, 
+                                             max = round(row[9]/365)) if row[9] != None else 0,
+                            gender = json.loads(row[10]), 
+                            modality = json.loads(row[11]), 
+                            body_parts = json.loads(row[12]),
                             description = row[13]))
         return res
 

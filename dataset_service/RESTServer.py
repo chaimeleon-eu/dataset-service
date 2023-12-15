@@ -979,10 +979,10 @@ def eucaimSearchDatasets():
         with DB(CONFIG.db) as db:
             result = db.eucaimSearchDatasets(0, 0, search_rq['ast'])
             
-            LOG.debug('Dataset successfully created in DB and creation job launched in K8s.')
-            bottle.response.status = 200
-            bottle.response.content_type = "application/json"
-            return json.dumps({'collections': result})
+        LOG.debug('Result: '+json.dumps({'collections': result}))
+        bottle.response.status = 200
+        bottle.response.content_type = "application/json"
+        return json.dumps({'collections': result})
     except (WrongInputException, DB.searchValidationException) as e:
         return setErrorResponse(422, "Request validation error: %s" % e)
     except Exception as e:

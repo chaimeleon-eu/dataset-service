@@ -286,12 +286,9 @@ def collectMetadata(dataset, datalake_mount_path, eformsFilePath):
     dataset["seriesTags"] = list(seriesTagsList)
     logging.root.debug("  -studiesCount: %s" % dataset["studiesCount"])
     logging.root.debug("  -subjectsCount: %s" % dataset["subjectsCount"])
-    logging.root.debug("  -ageLow: %s" % dataset["ageLow"])
-    logging.root.debug("  -ageHigh: %s" % dataset["ageHigh"])
     logging.root.debug("  -sex: %s" % dataset["sex"])
     logging.root.debug("  -bodyPart: %s" % dataset["bodyPart"])
     logging.root.debug("  -modality: %s" % dataset["modality"])
-    logging.root.debug("  -seriesTags: %s" % dataset["seriesTags"])
     
 # def collectMetadata2(self, dataset):
 #     if self.config.self.datalake_mount_path == '': return
