@@ -89,7 +89,16 @@ paths:
           schema:
             type: boolean
         - name: searchString
-          description: "(Optional, default is empty) Pass an optional search string (case-insensitive) for the name or id of dataset, or author of dataset."
+          description: "(Optional, default is empty) Pass an optional search string (or substring)(case-insensitive) for the name or id of dataset, or author of dataset."
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: searchSubject
+          description: |
+            (Optional, default is empty)
+            Pass an optional search string (or substring)(case-insensitive) for the name of a subject (actually the code, cause they are anonymised) which must be contained in the dataset.
+            It can be useful for searching datasets to invalidate in case of a subject that must be taken out of the platform.
           in: query
           required: false
           schema:

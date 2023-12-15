@@ -939,12 +939,13 @@ def getDatasets():
     limit = int(bottle.request.query['limit']) if 'limit' in bottle.request.query else 30
     if skip < 0: skip = 0
     if limit < 0: limit = 0
-    searchString = str(bottle.request.query['searchString']).strip() if 'searchString' in bottle.request.query else ""
-    sortBy = str(bottle.request.query['sortBy']).strip() if 'sortBy' in bottle.request.query else ""
+    searchString =  str(bottle.request.query['searchString']).strip()  if 'searchString' in bottle.request.query else ""
+    searchSubject = str(bottle.request.query['searchSubject']).strip() if 'searchSubject' in bottle.request.query else ""
+    sortBy =        str(bottle.request.query['sortBy']).strip()        if 'sortBy' in bottle.request.query else ""
     sortDirection = str(bottle.request.query['sortDirection']).strip() if 'sortDirection' in bottle.request.query else ""
     
     with DB(CONFIG.db) as db:
-        datasets, total = db.getDatasets(skip, limit, searchString, searchFilter, sortBy, sortDirection)
+        datasets, total = db.getDatasets(skip, limit, searchString, searchFilter, sortBy, sortDirection, searchSubject)
 
     bottle.response.content_type = "application/json"
     if 'v2' in bottle.request.params or 'paginationInfo' in bottle.request.params:

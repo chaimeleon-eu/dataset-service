@@ -651,7 +651,9 @@ class DB:
             res.append(row[1])
         return res
 
-    def getDatasets(self, skip, limit, searchString, searchFilter: authorization.Search_filter, sortBy, sortDirection):
+    def getDatasets(self, skip, limit, searchString, searchFilter: authorization.Search_filter, 
+                    sortBy = 'creationDate', sortDirection = '', searchSubject: str = ''):
+        fromExtra = sql.Composed([])
         whereClause = sql.Composed([])
 
         if searchFilter.public != None:
@@ -692,6 +694,14 @@ class DB:
                     " AND ( dataset.name ILIKE {} OR dataset.id LIKE {} OR author.name ILIKE {})"
                 ).format(s, s, s)
         
+        if searchSubject != '':
+            fromExtra += sql.SQL(", dataset_study, study")
+            s = sql.Literal('%'+searchSubject+'%')
+            whereClause += sql.SQL(
+                    " AND dataset.id = dataset_study.dataset_id AND dataset_study.study_id = study.id"
+                    + " AND study.subject_name ILIKE {}"
+                ).format(s)
+        
         default = 'dataset.creation_date DESC'
         if sortBy == 'name':
             dir = 'DESC' if sortDirection == 'descending' else 'ASC'
@@ -713,8 +723,8 @@ class DB:
 
         # First get total rows without LIMIT and OFFSET
         self.cursor.execute(sql.SQL("""
-            SELECT count(*) FROM dataset, author 
-            WHERE dataset.author_id = author.id """) + whereClause)
+            SELECT count(*) FROM dataset, author{}
+            WHERE dataset.author_id = author.id {}""").format(fromExtra, whereClause))
         row = self.cursor.fetchone()
         total = row[0] if row != None else 0
 
@@ -722,11 +732,11 @@ class DB:
                 SELECT dataset.id, dataset.name, author.name, dataset.creation_date, 
                     dataset.draft, dataset.public, dataset.invalidated, 
                     dataset.studies_count, dataset.subjects_count
-                FROM dataset, author 
+                FROM dataset, author{}
                 WHERE dataset.author_id = author.id {}
                 ORDER BY {} 
                 LIMIT {} OFFSET {};"""
-            ).format(whereClause, sql.SQL(str(sortByClause)), sql.SQL(str(limit)), sql.SQL(str(skip)))
+            ).format(fromExtra, whereClause, sql.SQL(str(sortByClause)), sql.SQL(str(limit)), sql.SQL(str(skip)))
         logging.root.debug("QUERY: " + q.as_string(self.conn))
         self.cursor.execute(q)
         res = []
