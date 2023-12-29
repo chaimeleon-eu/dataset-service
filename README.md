@@ -511,17 +511,21 @@ And these are the properties that can be modified (and when):
 ## Integration with Zenodo
 
 Dataset-service is able to use the Zenodo API to automatically create a deposition of dataset metadata. 
-This will be done for published datasets and optionally for released datasets. 
-
 The publication at Zenodo gives visibility to the dataset and allow us to obtain a DOI, 
 which is a permanent reference (Permanent ID Url) to the dataset that can be included in publications.
+This way the dataset can fulfill the FAIR principles.
 
-Only metadata will be published in Zenodo, never the contents of the dataset (images nor clinical data).
+ - On released datasets, the user can optionally edit the PID. 
+   She/He can... 
+     - set a custom URL, for example a DOI obtained by him/herself, 
+     - or simply select to obtain automatically one from Zenodo.
+ - When a dataset is published, then a PID will be obtainded for it if it still does not have one.
+ - On invalidated datasets, the Zenodo deposition (if exists) will be closed 
+   (not listed in searches on Zenodo and showing the "closed" label for someone who access through an old reference).
 
-On invalidated datasets, the Zenodo deposition will be closed 
-(not listed in searches and showing the “closed” label for someone who access through a reference).
+Only metadata will be published in Zenodo, never the contents of dataset (images nor clinical data).
 
-There is a section in the config file to configure that functionality:
+There is a section in the config file to configure the access to Zenodo:
 ```
 zenodo:
   url: "https://sandbox.zenodo.org/"

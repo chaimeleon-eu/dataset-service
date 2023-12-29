@@ -65,7 +65,7 @@ class dataset_creation_worker:
 
                 stop = self.updateProgress("Scanning dataset for collecting metadata...")
                 if stop: self._cancelProgress(); return
-                eformsFilePath = os.path.join(datasetDirPath, self.config.eforms_file_name)
+                eformsFilePath = os.path.join(datasetDirPath, self.config.self.eforms_file_name)
                 dataset_file_system.collectMetadata(dataset, self.config.self.datalake_mount_path, eformsFilePath)
                 for study in dataset["studies"]:
                     db.updateStudyMetadata(study)

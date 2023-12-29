@@ -26,19 +26,22 @@ RUN apt-get update \
 ARG MAIN_DIR="/dataset-service"
 
 RUN mkdir ${MAIN_DIR} ${MAIN_DIR}/etc ${MAIN_DIR}/log
+WORKDIR ${MAIN_DIR}
+
+# First copy and install requirements to avoid rebuild this layer on any change in source code (only rebuild when requirements change)
+COPY requirements.txt ${MAIN_DIR}/
+RUN pip install --no-cache-dir --upgrade pip \
+ && pip install --no-cache-dir -r requirements.txt
+
+# Copy the rest of files
 COPY start_dataset_service.py start_dataset_creation_job.py requirements.txt API-reference-v1.yaml VERSION README.md LICENSE ${MAIN_DIR}/
-COPY ./dataset_service/ ${MAIN_DIR}/dataset_service
-COPY ./etc/dataset-service.default.yaml ${MAIN_DIR}/etc/
+COPY dataset_service/ ${MAIN_DIR}/dataset_service
+COPY etc/dataset-service.default.yaml ${MAIN_DIR}/etc/
 COPY --from=apidoc /spec/redoc-static.html /var/www/api-doc/index.html
 #COPY setup.py ${MAIN_DIR}/setup.py
 
 # RUN pip install setuptools 
 # RUN cd ${MAIN_DIR} && python3 setup.py install 
-# CMD start_dataset_service.py 
-
-WORKDIR ${MAIN_DIR}
-RUN pip install --no-cache-dir --upgrade pip \
- && pip install --no-cache-dir -r requirements.txt 
 
 #CMD python3 start_dataset_service.py && tail -f /dataset-service/log/dataset-service.log
 #CMD python3 start_dataset_service.py
