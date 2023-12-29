@@ -1,8 +1,8 @@
 # dataset-service
 
 It is a backend service providing a REST API to manage datasets.
-The API is described in detail using OpenAPI v3 specification standad format in the file `API-reference-v1.yaml` 
-(also in swagger: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0).
+The API is described in detail using OpenAPI v3 specification standard format in the file `API-reference-v1.yaml` 
+(rendered by Redoc here: https://chaimeleon-eu.i3m.upv.es/dataset-service/api-doc).
 
 Some operations require authentication using the OpenId-Connect standard protocol. 
 Basically, when the user wants to login, the client application must redirect to the authentication service, to obtain a bearer token. 

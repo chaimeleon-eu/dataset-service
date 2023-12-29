@@ -5,7 +5,7 @@ info:
   description: 'API to manage datasets.'
   version: "1.0.0"
   contact:
-    email: palollo@i3m.upv.es
+    email: ds.chaimeleon-eu@i3m.upv.es
   license:
     name: Apache 2.0
     url: 'http://www.apache.org/licenses/LICENSE-2.0.html'
@@ -21,7 +21,7 @@ servers:
     url: https://virtserver.swaggerhub.com/UPV-CHAIMELEON/Dataset-service/1.0.0
     
 tags:
-  - name: dataset
+  - name: datasets
     description: Operations with datasets
     
 security: 
@@ -33,7 +33,7 @@ paths:
     post:
       tags:
         - datasets
-      summary: creates a new dataset
+      summary: Create a new dataset
       operationId: createDataset
       description: Creates a new dataset into the system.
       requestBody:
@@ -64,7 +64,7 @@ paths:
     get:
       tags:
         - datasets
-      summary: list datasets
+      summary: List datasets
       operationId: listDatasets
       description: |
         You can list all available datasets in the system or search by name. 
@@ -119,11 +119,15 @@ paths:
             type: integer
             format: int32
             minimum: 0
-        - name: paginationInfo:
+        - name: paginationInfo
           description: |
             (Optional, default=false) 
             If true, an object is returned with some extra information useful for pagination UI controls; 
             if false, just the array of datasets is returned.
+          in: query
+          required: false
+          schema:
+            type: boolean
         - name: sortBy
           description: "(Optional, default=creationDate) The list will be sorted by this property."
           in: query
@@ -184,7 +188,7 @@ paths:
     get:
       tags:
         - datasets
-      summary: gets a dataset by its id
+      summary: Get a dataset by its id
       operationId: getDataset
       description: Returns the details of a dataset specified by its id.
       parameters:
@@ -224,7 +228,7 @@ paths:
     patch:
       tags:
         - datasets
-      summary: changes a property of a dataset by its id
+      summary: Change a property of a dataset by its id
       operationId: modifyDataset
       description: "Changes a property of a dataset in the system."
       parameters:
@@ -272,7 +276,7 @@ paths:
     delete:
       tags:
         - datasets
-      summary: deletes a dataset by its id
+      summary: Delete a dataset by its id
       operationId: deleteDataset
       description:  |
         Deletes a dataset in the system. 
@@ -298,7 +302,7 @@ paths:
     get:
       tags:
         - datasets
-      summary: list studies of dataset
+      summary: List studies of a dataset
       operationId: getDatasetStudies
       description: Returns the list of studies in a dataset specified by its id.
       parameters:
@@ -361,7 +365,7 @@ paths:
     get:
       tags:
         - datasets
-      summary: gets the status of creation of the dataset by its id
+      summary: Get the status of creation of a dataset by its id
       operationId: getDatasetCreationStatus
       description: Returns the details of the creation of a dataset specified by its id.
       parameters:
@@ -398,7 +402,7 @@ paths:
     post:
       tags:
         - datasets
-      summary: check the integrity of dataset
+      summary: Check the integrity of a dataset
       operationId: checkDatasetIntegrity
       description: |
         Launch a process to read the entire dataset, calculate the hash and compare with the one stored in the creation.
@@ -431,7 +435,7 @@ paths:
     post:
       tags:
         - datasets
-      summary: relaunch the dataset creation job
+      summary: Relaunch the creation job of a dataset
       operationId: postDataset_relaunchCreationJob
       description: |
         (This operation is intended only for the superadmin_datasets role)
@@ -456,7 +460,7 @@ paths:
     get:
       tags:
         - datasets
-      summary: list datasets that can be upgraded by the user
+      summary: List datasets that can be upgraded by the user
       operationId: listUpgradableDatasets
       description: |
         Lists all datasets that can be upgraded by the authenticated user. 
@@ -487,10 +491,11 @@ paths:
     put:
       tags:
         - users
-      summary: new user
+      summary: Create new user
       operationId: createUser
       description: |
-        Creates a new user if not exists assigning a new unique GID. The user will be able to access dataset files depending on the groups (s)he belongs."
+        Creates a new user if not exists assigning a new unique GID. 
+        The user will be able to access dataset files depending on the groups (s)he belongs.
       parameters:
         - name: userName
           description: the unique userName of the user
@@ -502,7 +507,7 @@ paths:
       requestBody:
         content:
           application/json:
-            example: '{"uid": "d290f1ee-6c54-4b01-90e6-d701748f0851", "groups": ["data-scientists", "dataset-administrator"]}'
+            example: {"uid": "d290f1ee-6c54-4b01-90e6-d701748f0851", "groups": ["data-scientists", "dataset-administrator"]}
             schema:
               type: object
               properties:
@@ -522,7 +527,7 @@ paths:
     get:
       tags:
         - users
-      summary: gets user GID
+      summary: Get user GID
       operationId: getUser
       description: "Returns the gid of a user"
       parameters:
@@ -551,7 +556,7 @@ paths:
     get:
       tags:
         - licenses
-      summary: list licenses
+      summary: List licenses
       operationId: listLicenses
       description: "List all available licenses for datasets."
       responses:
@@ -571,7 +576,7 @@ paths:
     post:
       tags:
         - datasets
-      summary: 'check the access to datasets'
+      summary: Check the access to datasets
       operationId: checkDatasetAccess
       description: |
         It is called when a user wants to access to one or more datasets. The access will be granted or denied according to the groups of the user."
@@ -612,7 +617,7 @@ paths:
     post:
       tags:
         - datasets
-      summary: new access to datasets
+      summary: Create new access to datasets
       operationId: createDatasetAccess
       description: |
         It is called when a user access to one or more datasets. The access will be granted (and annotated in tracer) or denied according to the groups of the user."
@@ -675,7 +680,7 @@ paths:
     delete:
       tags:
         - datasets
-      summary: closes a previous access to datasets
+      summary: Close a previous access to datasets
       operationId: closeDatasetAccess
       description: "It is called when a user ends the work over one o more datasets whose access have been required previously."
       parameters:

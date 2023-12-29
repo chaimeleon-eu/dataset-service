@@ -1,3 +1,16 @@
+FROM redocly/cli as apidoc
+ARG API_REF_FILE="API-reference-v1.yaml"
+COPY $API_REF_FILE /spec/$API_REF_FILE
+# lint command is not required but recommended to validate the spec document before build
+RUN redocly lint $API_REF_FILE && redocly build-docs $API_REF_FILE
+# The result static html file is /spec/redoc-static.html
+
+# To test how docs look like without build and run the entire image just do that: 
+#   docker run --rm -p 8080:80 -e SPEC_URL=API-reference-v1.yaml 
+#              -v .\API-reference-v1.yaml:/usr/share/nginx/html/API-reference-v1.yaml 
+#              redocly/redoc
+
+
 FROM ubuntu:22.04
 LABEL name="dataset-service-backend"
 LABEL description="https://github.com/chaimeleon-eu/dataset-service"
@@ -16,6 +29,7 @@ RUN mkdir ${MAIN_DIR} ${MAIN_DIR}/etc ${MAIN_DIR}/log
 COPY start_dataset_service.py start_dataset_creation_job.py requirements.txt API-reference-v1.yaml VERSION README.md LICENSE ${MAIN_DIR}/
 COPY ./dataset_service/ ${MAIN_DIR}/dataset_service
 COPY ./etc/dataset-service.default.yaml ${MAIN_DIR}/etc/
+COPY --from=apidoc /spec/redoc-static.html /var/www/api-doc/index.html
 #COPY setup.py ${MAIN_DIR}/setup.py
 
 # RUN pip install setuptools 

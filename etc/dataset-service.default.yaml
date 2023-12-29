@@ -71,6 +71,9 @@ self:
         level: "DEBUG"
         file_path_format: "./log/dataset-creation-job-%s.log"
         max_size: 10485760
+  static_api_doc_dir_path: "/var/www/api-doc"
+    # Absolute directory path where the API reference documentation is (an index.html file should be there).
+    # It will be served when a request of path "/api-doc" is received.
   static_files_dir_path: "/var/www/dataset-service-ui"
     # Absolute directory path where the web UI static files are.
     # They will be served when a request of root path ("/") is received.

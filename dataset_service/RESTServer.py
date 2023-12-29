@@ -1288,6 +1288,13 @@ def deleteDatasetAccess(id):
     LOG.debug('Dataset access successfully removed.')
     bottle.response.status = 204
 
+
+@app.route('/api-doc', method='GET')
+def getStaticApiDoc():
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    return bottle.static_file('index.html', CONFIG.self.static_api_doc_dir_path)
+
 # Routes are evaluated in the order they were defined.
 # So this is to send appropiate error to unknown operations but with the /api prefix.
 # Just to not continue evaluating the rest of routes of front-end.
