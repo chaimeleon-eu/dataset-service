@@ -1046,14 +1046,18 @@ def deleteDataset(id):
             ok = k8s.delete_dataset_creation_job(datasetId)
             if not ok: return setErrorResponse(500, "Unexpected error")
         
-        # Now let's remove the dataset from all sites
-        accesses = db.getDatasetAccesses(datasetId)
+        accesses = db.getOpenDatasetAccesses(datasetId)
         if len(accesses) > 0:
             return setErrorResponse(400, "The dataset can't be removed because it is currently accessed by: " + json.dumps(accesses))
 
+        # Now let's remove the dataset from all sites
+        LOG.debug("Removing dataset accesses in the database...")
+        for ac in accesses: 
+            db.deleteDatasetAccess(ac["datasetAccessId"])
         LOG.debug("Removing dataset in the database...")
         db.deleteDataset(datasetId)
-        db.deleteOrphanStudies()   # delete studies not included in other datasets
+        LOG.debug("Removing studies not included in other datasets...")
+        db.deleteOrphanStudies()
 
         if CONFIG.self.datasets_mount_path != '':
             LOG.debug("Removing dataset directory...")
@@ -1098,7 +1102,7 @@ def putUser(userName):
     content_types = get_header_media_types('Content-Type')
     if not 'application/json' in content_types:
         return setErrorResponse(400,"invalid 'Content-Type' header, required 'application/json'")
-
+    read_data = None
     try:
         read_data = bottle.request.body.read().decode('UTF-8')
         LOG.debug("BODY: " + read_data)
@@ -1119,7 +1123,7 @@ def putUser(userName):
 
     except Exception as e:
         LOG.exception(e)
-        LOG.error("May be the body of the request is wrong: %s" % read_data)
+        if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
         return setErrorResponse(500,"Unexpected error, may be the input is wrong")
 
 @app.route('/api/users/<userName>', method='GET')
@@ -1162,6 +1166,9 @@ def checkDatasetListAccess(datasetIDs: list, userName: str):
                 dataset["creating"] = (db.getDatasetCreationStatus(id) != None)
             if not user.canAccessDataset(dataset, authorization.Access_type.USE):
                 badIDs.append(id); continue
+    if user._token != None: LOG.debug("###### User in groups: %s" % json.dumps(user._token["groups"]))
+    if len(badIDs) == 0 and user.isOpenChallenge(): 
+        return 'openchallenge'
     return badIDs
 
 @app.route('/api/datasetAccessCheck', method='POST')
@@ -1176,7 +1183,7 @@ def postDatasetAccessCheck():
     content_types = get_header_media_types('Content-Type')
     if not 'application/json' in content_types:
         return setErrorResponse(400,"invalid 'Content-Type' header, required 'application/json'")
-
+    read_data = None
     try:
         read_data = bottle.request.body.read().decode('UTF-8')
         LOG.debug("BODY: " + read_data)
@@ -1185,6 +1192,12 @@ def postDatasetAccessCheck():
         datasetIDs = datasetAccess["datasets"]
 
         badIds = checkDatasetListAccess(datasetIDs, userName)
+        if badIds == 'openchallenge':  # special response (actually not badId)
+            LOG.debug('Openchallenge dataset access granted. Return: %s' % json.dumps(['openchallenge']))
+            bottle.response.status = 200
+            bottle.response.content_type = "application/json"
+            return json.dumps(['openchallenge'])
+
         if len(badIds) > 0:
             bottle.response.status = 403
             bottle.response.content_type = "application/json"
@@ -1195,7 +1208,7 @@ def postDatasetAccessCheck():
 
     except Exception as e:
         LOG.exception(e)
-        LOG.error("May be the body of the request is wrong: %s" % read_data)
+        if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
         return setErrorResponse(500,"Unexpected error, may be the input is wrong")
 
 @app.route('/api/datasetAccess/<id>', method='POST')
@@ -1212,6 +1225,7 @@ def postDatasetAccess(id):
     if not 'application/json' in content_types:
         return setErrorResponse(400,"invalid 'Content-Type' header, required 'application/json'")
 
+    read_data = None
     try:
         read_data = bottle.request.body.read().decode('UTF-8')
         LOG.debug("BODY: " + read_data)
@@ -1220,23 +1234,47 @@ def postDatasetAccess(id):
         datasetIDs = datasetAccess["datasets"]
         toolName = datasetAccess["toolName"]
         toolVersion = datasetAccess["toolVersion"]
+        image = datasetAccess["image"]
+        commandLine = datasetAccess["commandLine"]
+        isJob = datasetAccess["isJob"]
+        resourcesFlavor = datasetAccess["resourcesFlavor"]
+        openchallengeJobType = datasetAccess["openchallengeJobType"]
         datasetAccessId = id
 
+        toolName = toolName[:256]
+        toolVersion = toolVersion[:256]
+        image = image[:256]
+        commandLine = commandLine[:512]  # cut to max length
+        accessType = 'b' if isJob else 'i'   # 'i' (interactive desktop or web app), 
+                                             # 'b' (batch job)
+
         badIds = checkDatasetListAccess(datasetIDs, userName)
+        if badIds == 'openchallenge':  # special response (actually not badId)
+            badIds = []
+            datasetIDs = ['0c709381-69fd-44fd-8417-26e1a181c1a9','a092a929-ef5b-41f2-93ee-9231c56beeb6','376e4aad-4813-47c7-a73a-f9304b8984b8',
+                          'c3d944ee-45ef-47a5-8968-8ab0673646bf','fbf77161-ed71-4983-a49f-1a22c717f32f']
+            LOG.debug('Openchallenge dataset access granted.')
+            
         if len(badIds) > 0:
             return setErrorResponse(403,"access denied")
 
         with DB(CONFIG.db) as db:
             userId, userGID = db.getUserIDs(userName)
-            if CONFIG.self.datasets_mount_path != '':
+            if CONFIG.self.datasets_mount_path != '' and not isJob:
+                # For jobs is not required to set the ACLs because they are already set for desktop and it's a high-cost operation
                 for id in datasetIDs:
                     pathsOfStudies = db.getPathsOfStudiesFromDataset(id)
                     LOG.debug('Setting ACLs in dataset %s for GID %s ...' % (id, userGID))
                     datasetDirName = id
                     dataset_file_system.give_access_to_dataset(CONFIG.self.datasets_mount_path, datasetDirName, CONFIG.self.datalake_mount_path, pathsOfStudies, userGID)
 
-            db.createDatasetAccess(datasetAccessId, datasetIDs, userGID, toolName, toolVersion)
-            if CONFIG.tracer.url != '':
+            db.createDatasetAccess(datasetAccessId, datasetIDs, userGID, accessType, toolName, toolVersion, image, commandLine, 
+                                   datetime.now(), resourcesFlavor, openchallengeJobType)
+            LOG.debug("############### %s # %s # %s # %s # %s" % (datasetAccessId, datasetIDs, userGID, image, commandLine))
+
+            if CONFIG.tracer.url != '' and not isJob:
+                # The accesses by jobs are stored in db to mantain the access even if the desktop is deleted and to have history of images and command lines
+                # but they are not sent to Tracer because the access by desktop is already traced.
                 # Note this tracer call is inside of "with db" because if tracer fails the database changes will be reverted (transaction rollback).
                 tracer.traceDatasetsAccess(AUTH_CLIENT, CONFIG.tracer.url, datasetIDs, userId, toolName, toolVersion)
         
@@ -1247,11 +1285,11 @@ def postDatasetAccess(id):
         return setErrorResponse(500, "Unexpected, error: "+ str(e))
     except Exception as e:
         LOG.exception(e)
-        LOG.error("May be the body of the request is wrong: %s" % read_data)
+        if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
         return setErrorResponse(500,"Unexpected error, may be the input is wrong")
 
-@app.route('/api/datasetAccess/<id>', method='DELETE')
-def deleteDatasetAccess(id):
+@app.route('/api/datasetAccess/<id>', method='PATCH')
+def endDatasetAccess(id):
     if CONFIG is None: raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ret = getTokenFromAuthorizationHeader(serviceAccount=True)
@@ -1260,34 +1298,51 @@ def deleteDatasetAccess(id):
     if not user.userCanAdminDatasetAccess():
         return setErrorResponse(401,"unauthorized user")
 
-    datasetAccessId = id
-    with DB(CONFIG.db) as db:
-        if not db.existDatasetAccess(datasetAccessId):
-            return setErrorResponse(404, "not found")    
+    content_types = get_header_media_types('Content-Type')
+    if not 'application/json' in content_types:
+        return setErrorResponse(400,"invalid 'Content-Type' header, required 'application/json'")
 
-        if CONFIG.self.datasets_mount_path != '':
-            userGID, datasetIDsCandidatesForRemovePermission = db.getDatasetAccess(datasetAccessId)
-            db.deleteDatasetAccess(datasetAccessId)
-            # collect all the datasets still accessed after the removal of this datasetAccess
-            datasetIDsAccessedAfterRemoval = db.getDatasetsAccessedByUser(userGID)
-            # collect all the studies still accessed after the removal of this datasetAccess
-            pathsOfstudiesAfterRemoval = set()
-            for id in datasetIDsAccessedAfterRemoval:
-                pathsOfstudiesAfterRemoval.update(db.getPathsOfStudiesFromDataset(id))
+    read_data = None
+    try:
+        read_data = bottle.request.body.read().decode('UTF-8')
+        LOG.debug("BODY: " + read_data)
+        DatasetAccessEndData = json.loads(read_data)
+        status = DatasetAccessEndData["status"]
+        startTime = DatasetAccessEndData["startTime"]
+        startTime = datetime.fromisoformat(startTime.removesuffix('Z')) if startTime != '' else None
+        endTime = DatasetAccessEndData["endTime"]
+        endTime = datetime.fromisoformat(endTime.removesuffix('Z')) if endTime != '' else None
+        datasetAccessId = id
+        with DB(CONFIG.db) as db:
+            if not db.existDatasetAccess(datasetAccessId):
+                return setErrorResponse(404, "not found")    
 
-            for id in datasetIDsCandidatesForRemovePermission:
-                if id in datasetIDsAccessedAfterRemoval: continue  # this dataset is still accessed, skip without remove permissions
-                datasetDirName = id
-                LOG.debug('Removing ACLs for GID %s in dataset directory %s not accessed anymore by this user...' % (userGID, datasetDirName))
-                dataset_file_system.remove_access_to_dataset(CONFIG.self.datasets_mount_path, datasetDirName, userGID)
-                pathsOfStudies = set(db.getPathsOfStudiesFromDataset(id))
-                pathsOfStudies.difference_update(pathsOfstudiesAfterRemoval)  # take out the studies still accessed to avoid remove permissions on them
-                LOG.debug('Removing ACLs for GID %s in %d studies no accessed anymore by this user...' % (userGID, len(pathsOfStudies)))
-                dataset_file_system.remove_access_to_studies(CONFIG.self.datalake_mount_path, pathsOfStudies, userGID)
+            if CONFIG.self.datasets_mount_path != '':
+                userGID, datasetIDsCandidatesForRemovePermission = db.getDatasetAccess(datasetAccessId)
+                db.endDatasetAccess(datasetAccessId, startTime, endTime, status)
+                # collect all the datasets still accessed after the end of this datasetAccess
+                datasetIDsStillAccessedAfter = db.getDatasetsCurrentlyAccessedByUser(userGID)
+                # collect all the studies still accessed after the end of this datasetAccess
+                pathsOfstudiesStillAfter = set()
+                for id in datasetIDsStillAccessedAfter:
+                    pathsOfstudiesStillAfter.update(db.getPathsOfStudiesFromDataset(id))
 
-    LOG.debug('Dataset access successfully removed.')
-    bottle.response.status = 204
+                for id in datasetIDsCandidatesForRemovePermission:
+                    if id in datasetIDsStillAccessedAfter: continue  # this dataset is still accessed, skip without remove permissions
+                    datasetDirName = id
+                    LOG.debug('Removing ACLs for GID %s in dataset directory %s not accessed anymore by this user...' % (userGID, datasetDirName))
+                    dataset_file_system.remove_access_to_dataset(CONFIG.self.datasets_mount_path, datasetDirName, userGID)
+                    pathsOfStudies = set(db.getPathsOfStudiesFromDataset(id))
+                    pathsOfStudies.difference_update(pathsOfstudiesStillAfter)  # take out the studies still accessed to avoid remove permissions on them
+                    LOG.debug('Removing ACLs for GID %s in %d studies no accessed anymore by this user...' % (userGID, len(pathsOfStudies)))
+                    dataset_file_system.remove_access_to_studies(CONFIG.self.datalake_mount_path, pathsOfStudies, userGID)
 
+        LOG.debug('Dataset access successfully ended.')
+        bottle.response.status = 204
+    except Exception as e:
+        LOG.exception(e)
+        if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
+        return setErrorResponse(500,"Unexpected error, may be the input is wrong")
 
 @app.route('/api-doc', method='GET')
 def getStaticApiDoc():

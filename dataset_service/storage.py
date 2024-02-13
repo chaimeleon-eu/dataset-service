@@ -28,7 +28,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 22
+    CURRENT_SCHEMA_VERSION = 24
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -61,6 +61,8 @@ class DB:
             if version < 20: self.updateDB_v19To20()
             if version < 21: self.updateDB_v20To21()
             if version < 22: self.updateDB_v21To22()
+            if version < 23: self.updateDB_v22To23()
+            if version < 24: self.updateDB_v23To24()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -185,11 +187,23 @@ class DB:
                 constraint pk_series primary key (study_id, seriesDirName),
                 constraint fk_study foreign key (study_id) references study(id)
             ); */
+            /* Type options: 'i' (interactive desktop or web app), 
+                             'b' (batch job)*/
             CREATE TABLE dataset_access (
                 id varchar(40),
                 user_gid integer,
+                access_type char(1) DEFAULT '',
                 tool_name varchar(256),
                 tool_version varchar(256),
+                image varchar(256) DEFAULT '',
+                cmd_line varchar(512) DEFAULT '',
+                resource_flavor varchar(32) DEFAULT '',
+                openchallenge_job_type varchar(32) DEFAULT '',
+                creation_time timestamp DEFAULT NULL,
+                start_time timestamp DEFAULT NULL,
+                end_time timestamp DEFAULT NULL,
+                end_status varchar(32) DEFAULT '',
+                closed boolean DEFAULT NULL,
                 constraint pk_dataset_access primary key (id),
                 constraint fk_user foreign key (user_gid) references author(gid)
             );
@@ -363,6 +377,22 @@ class DB:
     def updateDB_v21To22(self):
         logging.root.info("Updating database from v21 to v22...")
         self.cursor.execute("ALTER TABLE dataset ALTER COLUMN sex TYPE text;")
+
+    def updateDB_v22To23(self):
+        logging.root.info("Updating database from v22 to v23...")
+        self.cursor.execute("ALTER TABLE dataset_access ADD COLUMN access_type char(1) DEFAULT ''")
+        self.cursor.execute("ALTER TABLE dataset_access ADD COLUMN image varchar(256) DEFAULT ''")
+        self.cursor.execute("ALTER TABLE dataset_access ADD COLUMN cmd_line varchar(512) DEFAULT ''")
+        self.cursor.execute("ALTER TABLE dataset_access ADD COLUMN start_time timestamp DEFAULT NULL")
+        self.cursor.execute("ALTER TABLE dataset_access ADD COLUMN end_time timestamp DEFAULT NULL")
+
+    def updateDB_v23To24(self):
+        logging.root.info("Updating database from v23 to v24...")
+        self.cursor.execute("ALTER TABLE dataset_access ADD COLUMN resource_flavor varchar(32) DEFAULT ''")
+        self.cursor.execute("ALTER TABLE dataset_access ADD COLUMN openchallenge_job_type varchar(32) DEFAULT ''")
+        self.cursor.execute("ALTER TABLE dataset_access ADD COLUMN creation_time timestamp DEFAULT NULL")
+        self.cursor.execute("ALTER TABLE dataset_access ADD COLUMN end_status varchar(32) DEFAULT ''")
+        self.cursor.execute("ALTER TABLE dataset_access ADD COLUMN closed boolean DEFAULT NULL")
 
 
     def createOrUpdateAuthor(self, userId, username, name, email):
@@ -1019,11 +1049,11 @@ class DB:
     def setDatasetLastIntegrityCheck(self, id, newValue):
         self.cursor.execute("UPDATE dataset SET last_integrity_check = %s WHERE id = %s;", (newValue, id))
 
-    def createDatasetAccess(self, datasetAccessId, datasetIDs, userGID, toolName, toolVersion):
+    def createDatasetAccess(self, datasetAccessId, datasetIDs, userGID, accessType, toolName, toolVersion, image, cmdLine, creationTime, resourcesFlavor, openchallengeJobType):
         self.cursor.execute("""
-            INSERT INTO dataset_access (id, user_gid, tool_name, tool_version) 
-            VALUES (%s, %s, %s, %s);""", 
-            (datasetAccessId, userGID, toolName, toolVersion)
+            INSERT INTO dataset_access (id, user_gid, access_type, tool_name, tool_version, image, cmd_line, creation_time, resource_flavor, openchallenge_job_type, closed) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, FALSE);""", 
+            (datasetAccessId, userGID, accessType, toolName, toolVersion, image, cmdLine, creationTime, resourcesFlavor, openchallengeJobType)
         )
         for id in datasetIDs:
             self.cursor.execute("""
@@ -1050,11 +1080,12 @@ class DB:
             datasetIDs.append(row[1])
         return userGID, datasetIDs
 
-    def getDatasetsAccessedByUser(self, userGID):
+    def getDatasetsCurrentlyAccessedByUser(self, userGID):
         self.cursor.execute("""
             SELECT dataset_access_dataset.dataset_id
             FROM dataset_access, dataset_access_dataset
             WHERE dataset_access.user_gid = %s
+                  AND dataset_access.closed IS NOT TRUE
                   AND dataset_access.id = dataset_access_dataset.dataset_access_id;""", 
             (userGID,))
         datasetIDs = []
@@ -1062,21 +1093,27 @@ class DB:
             datasetIDs.append(row[0])
         return datasetIDs
 
-    def getDatasetAccesses(self, datasetId):
+    def getOpenDatasetAccesses(self, datasetId):
         self.cursor.execute("""
-            SELECT author.username, dataset_access.tool_name, dataset_access.tool_version
+            SELECT author.username, dataset_access.tool_name, dataset_access.tool_version, dataset_access.id
             FROM dataset_access, dataset_access_dataset, author
             WHERE dataset_access_dataset.dataset_id = %s
                   AND dataset_access_dataset.dataset_access_id = dataset_access.id 
+                  AND dataset_access.closed IS NOT TRUE
                   AND dataset_access.user_gid = author.gid;""", (datasetId,))
         res = []
         for row in self.cursor:
-            res.append(dict(username = row[0], toolName = row[1], toolVersion = row[2]))
+            res.append(dict(username = row[0], toolName = row[1], toolVersion = row[2], datasetAccessId = row[3]))
         return res
 
     def deleteDatasetAccess(self, datasetAccessId):
         self.cursor.execute("DELETE FROM dataset_access_dataset WHERE dataset_access_id=%s;", (datasetAccessId,))
         self.cursor.execute("DELETE FROM dataset_access WHERE id=%s;", (datasetAccessId,))
         
+    def endDatasetAccess(self, datasetAccessId, startTime, endTime, endStatus):
+        self.cursor.execute("""
+            UPDATE dataset_access set start_time=%s, end_time=%s, end_status=%s, closed=TRUE
+            WHERE id=%s;""",
+            (startTime, endTime, endStatus, datasetAccessId))
 
 

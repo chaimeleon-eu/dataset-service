@@ -60,6 +60,9 @@ class User:
 
     def isSuperAdminDatasets(self):
         return self._token != None and User.roles.superadmin_datasets in self._token["appRoles"]
+    
+    def isOpenChallenge(self):
+        return (self._token != None and "DATASETS-OPENCHALLENGE" in self._token["groups"])
 
     def canCreateDatasets(self):
         return self._token != None and User.roles.admin_datasets in self._token["appRoles"]

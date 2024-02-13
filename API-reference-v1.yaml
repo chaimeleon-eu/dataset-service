@@ -677,7 +677,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-    delete:
+    patch:
       tags:
         - datasets
       summary: Close a previous access to datasets
@@ -690,6 +690,23 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  example: "succeded"
+                startTime:
+                  type: string
+                  description: the time when the access started in iso format
+                  example: "2024-01-12T13:11:48Z"
+                endTime:
+                  type: string
+                  description: the time when the access ended in iso format
+                  example: "2024-01-12T15:31:14Z"
       responses:
         '200':
           description: successful operation
