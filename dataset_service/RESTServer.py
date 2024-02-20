@@ -560,7 +560,7 @@ def recollectMetadataForAllDatasets():
     return json.dumps(results)
 
 @app.route('/api/datasets/<id>/relaunchCreationJob', method='POST')
-def postDataset_relaunchCreationJob(id):
+def relaunchDatasetCreationJob(id):
     '''
     Note: this method is only for admins and for special case when a creation job is interrupted (and fail) for any reason.
           So, when the problem is solved, then the admin can launch another creation job in k8s in order to complete the process of creation.

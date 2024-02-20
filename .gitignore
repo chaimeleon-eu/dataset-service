@@ -3,6 +3,7 @@ etc/*local.yaml
 log/*
 var/*
 setup.py
+api-docs/redoc-static.html
 
 .vscode
 __pycache__

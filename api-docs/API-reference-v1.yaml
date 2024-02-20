@@ -16,19 +16,40 @@ externalDocs:
 
 servers:
   - url: https://chaimeleon-eu.i3m.upv.es/dataset-service/api
-  # Added by API Auto Mocking Plugin
-  - description: SwaggerHub API Auto Mocking
-    url: https://virtserver.swaggerhub.com/UPV-CHAIMELEON/Dataset-service/1.0.0
+  ## Added by API Auto Mocking Plugin
+  #- description: SwaggerHub API Auto Mocking
+  #  url: https://virtserver.swaggerhub.com/UPV-CHAIMELEON/Dataset-service/1.0.0
     
 tags:
   - name: datasets
     description: Operations with datasets
+  - name: users
+    description: Operations with users
+  - name: licenses
+    description: Operations with licenses
+  - name: datasetAccesses
+    description: Operations with datasetAccesses
     
+  - name: datasetDetails_schema
+    x-displayName: DatasetDetails
+    description: <SchemaDefinition schemaRef="#/components/schemas/DatasetDetails" />
+      
+x-tagGroups:
+  - name: OPERATIONS
+    tags:
+      - datasets
+      - users
+      - licenses
+      - datasetAccesses
+  - name: SCHEMAS
+    tags:
+      - datasetDetails_schema
+      
 security: 
   - bearerAuth: []
     
 paths:
-          
+
   /datasets:
     post:
       tags:
@@ -183,7 +204,7 @@ paths:
                           $ref: '#/components/schemas/DatasetListItem'
         '401':
           $ref: '#/components/responses/Unauthorized'
-          
+
   /datasets/{id}:
     get:
       tags:
@@ -436,7 +457,7 @@ paths:
       tags:
         - datasets
       summary: Relaunch the creation job of a dataset
-      operationId: postDataset_relaunchCreationJob
+      operationId: relaunchDatasetCreationJob
       description: |
         (This operation is intended only for the superadmin_datasets role)
         when a creation job is interrupted (and fail) for any reason and the admin fix the problem, 
@@ -485,8 +506,8 @@ paths:
                       example: "Lung cancer v3"
         '401':
           $ref: '#/components/responses/Unauthorized'
-      
-  
+
+
   /users/{userName}:
     put:
       tags:
@@ -552,6 +573,7 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           description: "not found"
+
   /licenses:
     get:
       tags:
@@ -570,12 +592,12 @@ paths:
                   $ref: '#/components/schemas/License'
         '401':
           $ref: '#/components/responses/Unauthorized'
-          
+
 
   /datasetAccessCheck:
     post:
       tags:
-        - datasets
+        - datasetAccesses
       summary: Check the access to datasets
       operationId: checkDatasetAccess
       description: |
@@ -613,10 +635,11 @@ paths:
                   example: "00e821c4-e92b-48f7-a034-ba2df547e2bf"
         '401':
           $ref: '#/components/responses/Unauthorized'
+
   /datasetAccess/{id}:
     post:
       tags:
-        - datasets
+        - datasetAccesses
       summary: Create new access to datasets
       operationId: createDatasetAccess
       description: |
@@ -679,7 +702,7 @@ paths:
 
     patch:
       tags:
-        - datasets
+        - datasetAccesses
       summary: Close a previous access to datasets
       operationId: closeDatasetAccess
       description: "It is called when a user ends the work over one o more datasets whose access have been required previously."
@@ -714,6 +737,7 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           description: "not found"
+
 
 components:
   securitySchemes:
@@ -1144,17 +1168,16 @@ components:
           maxLength: 256
           format: url
           example: "https://creativecommons.org/licenses/by/4.0/"
-          
-      
-    ErrorResponse:
-      type: object
-      properties:
-        error:
-          type: string
-          description: descriptive message
-        status_code:
-          type: string
-          description: HTTP status code
+
+#   ErrorResponse:
+#     type: object
+#     properties:
+#       error:
+#         type: string
+#         description: descriptive message
+#       status_code:
+#         type: string
+#         description: HTTP status code
           
   responses:
     Unauthorized:

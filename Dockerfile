@@ -1,14 +1,21 @@
 FROM redocly/cli as apidoc
 ARG API_REF_FILE="API-reference-v1.yaml"
-COPY $API_REF_FILE /spec/$API_REF_FILE
+ENV REDOCLY_TELEMETRY=off
+COPY api-docs/$API_REF_FILE /spec/$API_REF_FILE
+COPY api-docs/redocly.yaml /redocly.yaml
 # lint command is not required but recommended to validate the spec document before build
-RUN redocly lint $API_REF_FILE && redocly build-docs $API_REF_FILE
+RUN redocly lint $API_REF_FILE \
+ && redocly build-docs $API_REF_FILE --config=/redocly.yaml
 # The result static html file is /spec/redoc-static.html
 
 # To test how docs look like without build and run the entire image just do that: 
-#   docker run --rm -p 8080:80 -e SPEC_URL=API-reference-v1.yaml 
-#              -v .\API-reference-v1.yaml:/usr/share/nginx/html/API-reference-v1.yaml 
-#              redocly/redoc
+#   docker run --rm -v .\api-docs:/spec redocly/cli lint API-reference-v1.yaml --config=/spec/redocly.yaml
+#   docker run --rm -v .\api-docs:/spec redocly/cli build-docs API-reference-v1.yaml --config=/spec/redocly.yaml
+#   docker run --rm -p 8080:80 -v .\api-docs\redoc-static.html:/usr/share/nginx/html/index.html nginx
+# And go to http://localhost:8080
+
+# Alternative: MkDocs (https://squidfunk.github.io/mkdocs-material/publishing-your-site/) can be used
+#              with that plugin: https://github.com/blueswen/mkdocs-swagger-ui-tag#usage
 
 
 FROM ubuntu:22.04
@@ -28,13 +35,13 @@ ARG MAIN_DIR="/dataset-service"
 RUN mkdir ${MAIN_DIR} ${MAIN_DIR}/etc ${MAIN_DIR}/log
 WORKDIR ${MAIN_DIR}
 
-# First copy and install requirements to avoid rebuild this layer on any change in source code (only rebuild when requirements change)
+# First copy and install requirements to avoid rebuild this layer on any change in source code (only rebuild it when requirements change)
 COPY requirements.txt ${MAIN_DIR}/
 RUN pip install --no-cache-dir --upgrade pip \
  && pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of files
-COPY start_dataset_service.py start_dataset_creation_job.py requirements.txt API-reference-v1.yaml VERSION README.md LICENSE ${MAIN_DIR}/
+COPY start_dataset_service.py start_dataset_creation_job.py requirements.txt api-docs/API-reference-v1.yaml VERSION README.md LICENSE ${MAIN_DIR}/
 COPY dataset_service/ ${MAIN_DIR}/dataset_service
 COPY etc/dataset-service.default.yaml ${MAIN_DIR}/etc/
 COPY --from=apidoc /spec/redoc-static.html /var/www/api-doc/index.html

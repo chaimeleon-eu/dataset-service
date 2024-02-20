@@ -1,0 +1,24 @@
+extends:
+  - recommended
+  
+theme:
+  openapi:
+    # DOC: https://redocly.com/docs/redoc/config/
+    # Note this is Redoc (community-edition) not Redocly (see https://github.com/Redocly/redoc/tree/main?tab=readme-ov-file#redoc-vs-redocly-api-reference)
+    # so many options of API-docs config ref (https://redocly.com/docs/api-reference-docs/configuration/functionality/) do NOT work.
+    # If you want to be sure if an option is recognized see the source: https://github.com/Redocly/redoc/blob/main/src/services/RedocNormalizedOptions.ts
+
+    #schemaExpansionLevel: 1
+    pathInMiddlePanel: true
+    sideNavStyle: 'path-only'
+    #sideNavStyle: 'id-only'
+    telemetry: 'off'
+    
+    # Interesting options from API-docs NOT working here, but left because maybe in future are included
+    #sideNavStyle: 'path-first'
+    #schemaDefinitionsTagName: 'SCHEMAS'
+    
+    theme:
+      sidebar:
+        #backgroundColor: '#ffffff'
+        width: '310px'

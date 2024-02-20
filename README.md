@@ -1,7 +1,7 @@
 # dataset-service
 
 It is a backend service providing a REST API to manage datasets.
-The API is described in detail using OpenAPI v3 specification standard format in the file `API-reference-v1.yaml` 
+The API is described in detail using OpenAPI v3 specification standard format in the file `api-docs/API-reference-v1.yaml` 
 (rendered by Redoc here: https://chaimeleon-eu.i3m.upv.es/dataset-service/api-doc).
 
 Some operations require authentication using the OpenId-Connect standard protocol. 
