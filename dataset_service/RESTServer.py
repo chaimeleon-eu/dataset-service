@@ -1096,7 +1096,7 @@ def putUser(userName):
     ret = getTokenFromAuthorizationHeader(serviceAccount=True)
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
-    if not user.userCanAdminUsers():
+    if not user.canAdminUsers():
         return setErrorResponse(401,"unauthorized user")
 
     content_types = get_header_media_types('Content-Type')
@@ -1133,7 +1133,7 @@ def getUser(userName):
     ret = getTokenFromAuthorizationHeader(serviceAccount=True)
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
-    if not user.userCanAdminUsers():
+    if not user.canAdminUsers():
         return setErrorResponse(401,"unauthorized user")
     
     with DB(CONFIG.db) as db:
@@ -1177,7 +1177,7 @@ def postDatasetAccessCheck():
     ret = getTokenFromAuthorizationHeader(serviceAccount=True)
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
-    if not user.userCanAdminDatasetAccess():
+    if not user.canAdminDatasetAccesses():
         return setErrorResponse(401,"unauthorized user")
 
     content_types = get_header_media_types('Content-Type')
@@ -1218,7 +1218,7 @@ def postDatasetAccess(id):
     ret = getTokenFromAuthorizationHeader(serviceAccount=True)
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
-    if not user.userCanAdminDatasetAccess():
+    if not user.canAdminDatasetAccesses():
         return setErrorResponse(401,"unauthorized user")
 
     content_types = get_header_media_types('Content-Type')
@@ -1295,7 +1295,7 @@ def endDatasetAccess(id):
     ret = getTokenFromAuthorizationHeader(serviceAccount=True)
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
-    if not user.userCanAdminDatasetAccess():
+    if not user.canAdminDatasetAccesses():
         return setErrorResponse(401,"unauthorized user")
 
     content_types = get_header_media_types('Content-Type')
@@ -1351,7 +1351,7 @@ def getDatasetAccessHistory(id):
     ret = getTokenFromAuthorizationHeader(serviceAccount=True)
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
-    if not user.userCanAdminDatasetAccess():
+    if not user.canAdminDatasetAccesses():
         return setErrorResponse(401,"unauthorized user")
 
     datasetId = id

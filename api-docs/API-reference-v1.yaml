@@ -483,7 +483,9 @@ paths:
         - datasets
       summary: List accesses of a dataset
       operationId: getDatasetAccessHistory
-      description: Returns the list of accesses to a dataset specified by its id.
+      description: |
+        (This operation is intended only for the admin_datasetAccess role) 
+        Returns the list of accesses to a dataset specified by its id.
       parameters:
         - name: id
           description: the id of the dataset
@@ -1037,6 +1039,7 @@ components:
              * `delete` - To do a DELETE /datasets/{id}.
              * `checkIntegrity` - To do a POST /datasets/{id}/checkIntegrity.
              * `relaunchCreationJob` - To do a POST /datasets/{id}/relaunchCreationJob.
+             * `viewAccessHistory` - To do a GET /datasets/{id}/accessHistory
           example: '["use", "checkIntegrity"]'
           items:
             type: string
@@ -1045,6 +1048,7 @@ components:
              - "delete"
              - "checkIntegrity"
              - "relaunchCreationJob"
+             - "viewAccessHistory"
         studiesCount:
           type: integer
           description: "The number of studies contained in the dataset"

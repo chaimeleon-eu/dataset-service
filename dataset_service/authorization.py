@@ -128,6 +128,8 @@ class User:
             allowedActions.append("checkIntegrity")
         if self.canRelaunchDatasetCreation(dataset):
             allowedActions.append("relaunchCreationJob")
+        if self.canAdminDatasetAccesses():
+            allowedActions.append("viewAccessHistory")
         return allowedActions
 
     def canModifyDataset(self, dataset):
@@ -136,10 +138,10 @@ class User:
         if User.roles.superadmin_datasets in self._token["appRoles"]: return True
         return self._token["sub"] == dataset["authorId"]
 
-    def userCanAdminUsers(self):
+    def canAdminUsers(self):
         return self._token != None and self.roles.admin_users in self._token["appRoles"]
 
-    def userCanAdminDatasetAccess(self):
+    def canAdminDatasetAccesses(self):
         return self._token != None and self.roles.admin_datasetAccess in self._token["appRoles"]
 
 
