@@ -1106,6 +1106,46 @@ class DB:
             res.append(dict(username = row[0], toolName = row[1], toolVersion = row[2], datasetAccessId = row[3]))
         return res
 
+    def getDatasetAccesses(self, datasetId, limit = 0, skip = 0):
+        if limit == 0: limit = 'ALL'
+
+        # First get total rows without LIMIT and OFFSET
+        self.cursor.execute("""SELECT count(*) FROM dataset_access, dataset_access_dataset 
+                               WHERE dataset_access_dataset.dataset_id = %s
+                               AND dataset_access_dataset.dataset_access_id = dataset_access.id """, (datasetId,))
+        row = self.cursor.fetchone()
+        total = row[0] if row != None else 0
+
+        self.cursor.execute(sql.SQL("""
+            SELECT dataset_access.creation_time, author.username, dataset_access.access_type, 
+                   dataset_access.tool_name, dataset_access.tool_version, dataset_access.image, 
+                   dataset_access.resource_flavor, 
+                   dataset_access.start_time, dataset_access.end_time, dataset_access.end_status, 
+                   dataset_access.cmd_line, dataset_access.openchallenge_job_type
+            FROM dataset_access, dataset_access_dataset, author
+            WHERE dataset_access_dataset.dataset_id = %s
+                  AND dataset_access_dataset.dataset_access_id = dataset_access.id 
+                  AND dataset_access.closed IS NOT TRUE
+                  AND dataset_access.user_gid = author.gid
+            ORDER BY dataset_access.creation_time
+            LIMIT {} OFFSET {};""").format(sql.SQL(str(limit)), sql.SQL(str(skip))), 
+            (datasetId,))
+        res = []
+        for row in self.cursor:
+            startTime, endTime, duration = row[7], row[8], None
+            if startTime != None and endTime != None:
+                duration = (endTime - startTime).min
+            creationTime = str(row[0].astimezone())   # row[0] is a datetime without time zone, just add the local tz.
+                                                      # If local tz is UTC, the string "+00:00" is added at the end.
+            startTime = str(startTime.astimezone()) if startTime != None else None
+            endTime = str(endTime.astimezone()) if endTime != None else None
+            res.append(dict(creationTime = creationTime, username = row[1], accessType = row[2], 
+                            toolName = row[3], toolVersion = row[4], image = row[5],
+                            resourcesFlavor = row[6], duration = duration,
+                            startTime = startTime, endTime = endTime, endStatus = row[9],
+                            cmdLine = row[10], openchallengeJobType = row[11]))
+        return res, total
+
     def deleteDatasetAccess(self, datasetAccessId):
         self.cursor.execute("DELETE FROM dataset_access_dataset WHERE dataset_access_id=%s;", (datasetAccessId,))
         self.cursor.execute("DELETE FROM dataset_access WHERE id=%s;", (datasetAccessId,))

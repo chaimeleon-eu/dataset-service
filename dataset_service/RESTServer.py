@@ -1344,6 +1344,39 @@ def endDatasetAccess(id):
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
         return setErrorResponse(500,"Unexpected error, may be the input is wrong")
 
+@app.route('/api/datasets/<id>/accessHistory', method='GET')
+def getDatasetAccessHistory(id):
+    if CONFIG is None or not isinstance(bottle.request.query, bottle.FormsDict): raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    ret = getTokenFromAuthorizationHeader(serviceAccount=True)
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
+    if not user.userCanAdminDatasetAccess():
+        return setErrorResponse(401,"unauthorized user")
+
+    datasetId = id
+    skip = int(bottle.request.query['skip']) if 'skip' in bottle.request.query else 0
+    limit = int(bottle.request.query['limit']) if 'limit' in bottle.request.query else 30
+    if skip < 0: skip = 0
+    if limit < 0: limit = 0
+
+    with DB(CONFIG.db) as db:
+        dataset = db.getDataset(datasetId)
+        if dataset is None:
+            return setErrorResponse(404,"not found")
+        if dataset["draft"]:
+            dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
+        if not user.canAccessDataset(dataset):
+            return setErrorResponse(401,"unauthorized user")
+
+        accesses, total = db.getDatasetAccesses(datasetId, limit, skip)    
+    bottle.response.content_type = "application/json"
+    return json.dumps({ "total": total,
+                        "returned": len(accesses),
+                        "skipped": skip,
+                        "limit": limit,
+                        "list": accesses })
+
 @app.route('/api-doc', method='GET')
 def getStaticApiDoc():
     if CONFIG is None: raise Exception()

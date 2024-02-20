@@ -477,6 +477,69 @@ paths:
         '404':
           description: "not found"
 
+  /datasets/{id}/accessHistory:
+    get:
+      tags:
+        - datasets
+      summary: List accesses of a dataset
+      operationId: getDatasetAccessHistory
+      description: Returns the list of accesses to a dataset specified by its id.
+      parameters:
+        - name: id
+          description: the id of the dataset
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: skip
+          description: "(optional, default=0) number of accesses to skip for pagination"
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+        - name: limit
+          description: "(optional, default=30) maximum number of accesss to return (records per page), value of 0 means no limit"
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+      responses:
+        '200':
+          description: "successful operation"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                    format: int32
+                    description: "Total of records found"
+                  returned:
+                    type: integer
+                    format: int32
+                    description: "Number of records returned (can be lower than total because of skip and limit params)"
+                  skipped:
+                    type: integer
+                    format: int32
+                    description: "Number of records skipped from the beginning (as requested)"
+                  limit:
+                    type: integer
+                    format: int32
+                    description: "Limit of records fixed by the request (usually the page size)"
+                  list:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DatasetAccess'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: "not found"
+
   /upgradableDatasets:
     get:
       tags:
@@ -1168,6 +1231,68 @@ components:
           maxLength: 256
           format: url
           example: "https://creativecommons.org/licenses/by/4.0/"
+
+    DatasetAccess:
+      type: object
+      properties:
+        creationTime:
+          type: string
+          format: date-time
+          description: "Date and time when the dataset access was created (the access was granted)."
+          example: '2023-09-19T09:52:13.001Z'
+        userName:
+          type: string
+          minLength: 3
+          maxLength: 128
+          description: "The name of the user wich accessed the dataset."
+          example: "James Gordon"
+        accessType:
+          type: string
+          enum: ["i", "b"]
+          description: |
+            The type of access: 'i' for interactive (for example: a desktop or web service) and 'b' for batch (a job).
+          example: "b"
+        toolName:
+          type: string
+          description: "The name of application, framework, docker image or helm chart used to analyze or process the datasets"
+          example: "jupyter-tensorflow"
+        toolVersion:
+          type: string
+          description: "The version of application, framework, docker image or helm chart used to analyze or process the datasets"
+          example: "2.2.9"
+        image:
+          type: string
+          description: "The image used for the container."
+          example: "chaimeleon-library/ubuntu-python-tensorflow-desktop-jupyter:3.12"
+        resourcesFlavor:
+          type: string
+          description: "The flavor of resources required by the job or deployment launched."
+          example: "large-gpu"
+        startTime:
+          type: string
+          format: date-time
+          description: |
+            Specified only in jobs, otherwise null.
+            Date and time when the job was started in k8s.
+          example: '2023-09-19T09:52:13.001Z'
+        endTime:
+          type: string
+          format: date-time
+          description: "Specified when the job or deployment has finished, otherwise null."
+          example: '2023-09-19T10:29:19.001Z'
+        endStatus:
+          type: string
+          description: "(Only for jobs) The end status of the job."
+          example: "succeeded"
+        cmdLine:
+          type: string
+          description: "(Only for jobs) The cmdLine used for the container."
+          example: "# ls -lh"
+        openchallengeJobType:
+          type: string
+          description: "The image used for the container."
+          example: "training"
+
 
 #   ErrorResponse:
 #     type: object
