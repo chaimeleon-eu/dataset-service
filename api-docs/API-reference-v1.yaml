@@ -460,7 +460,7 @@ paths:
       operationId: relaunchDatasetCreationJob
       description: |
         (This operation is intended only for the superadmin_datasets role)
-        when a creation job is interrupted (and fail) for any reason and the admin fix the problem, 
+        When a creation job is interrupted (and fail) for any reason and the admin fix the problem,
         then another creation job can be launched in k8s with this operation in order to restart and complete the process of creation.
       parameters:
         - name: id
@@ -484,7 +484,7 @@ paths:
       summary: List accesses of a dataset
       operationId: getDatasetAccessHistory
       description: |
-        (This operation is intended only for the admin_datasetAccess role) 
+        (This operation is intended only for the admin_datasetAccess role)
         Returns the list of accesses to a dataset specified by its id.
       parameters:
         - name: id
@@ -1244,7 +1244,7 @@ components:
           format: date-time
           description: "Date and time when the dataset access was created (the access was granted)."
           example: '2023-09-19T09:52:13.001Z'
-        userName:
+        username:
           type: string
           minLength: 3
           maxLength: 128
@@ -1272,6 +1272,12 @@ components:
           type: string
           description: "The flavor of resources required by the job or deployment launched."
           example: "large-gpu"
+        duration:
+          type: integer
+          description: |
+            Specified only in jobs, and when the job has finished, otherwise null.
+            The total execution time in minutes (from startTime to endTime).
+          example: "23"
         startTime:
           type: string
           format: date-time

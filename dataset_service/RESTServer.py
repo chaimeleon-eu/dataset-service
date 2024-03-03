@@ -919,7 +919,10 @@ def parse_flag_value(s: str) -> bool | None:
 
 @app.route('/api/datasets', method='GET')
 def getDatasets():
-    if CONFIG is None or not isinstance(bottle.request.query, bottle.FormsDict): raise Exception()
+    if CONFIG is None \
+       or not isinstance(bottle.request.query, bottle.FormsDict) \
+       or not isinstance(bottle.request.params, bottle.FormsDict): 
+        raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ret = getTokenFromAuthorizationHeader()
     if isinstance(ret, str): return ret  # return error message

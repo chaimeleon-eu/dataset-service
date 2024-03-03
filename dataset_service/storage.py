@@ -1125,16 +1125,15 @@ class DB:
             FROM dataset_access, dataset_access_dataset, author
             WHERE dataset_access_dataset.dataset_id = %s
                   AND dataset_access_dataset.dataset_access_id = dataset_access.id 
-                  AND dataset_access.closed IS NOT TRUE
                   AND dataset_access.user_gid = author.gid
-            ORDER BY dataset_access.creation_time
+            ORDER BY dataset_access.creation_time DESC
             LIMIT {} OFFSET {};""").format(sql.SQL(str(limit)), sql.SQL(str(skip))), 
             (datasetId,))
         res = []
         for row in self.cursor:
             startTime, endTime, duration = row[7], row[8], None
             if startTime != None and endTime != None:
-                duration = (endTime - startTime).min
+                duration = (endTime - startTime).total_seconds()/60
             creationTime = str(row[0].astimezone())   # row[0] is a datetime without time zone, just add the local tz.
                                                       # If local tz is UTC, the string "+00:00" is added at the end.
             startTime = str(startTime.astimezone()) if startTime != None else None

@@ -69,7 +69,7 @@ With the authorization header and the dataset properties within the body in JSON
 If success, the code 201 will be returned. 
 If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
 
-Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/datasets/createDataset
+Details: https://chaimeleon-eu.i3m.upv.es/dataset-service/api-doc#tag/datasets/operation/createDataset
 
 Example:
 ```
@@ -120,7 +120,7 @@ With the authorization header and some parameters accepted in the URL for pagina
 If success, the code 200 will be returned and a JSON array in the body of the response. 
 If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
 
-Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/datasets/listDatasets
+Details: https://chaimeleon-eu.i3m.upv.es/dataset-service/api-doc#tag/datasets/operation/listDatasets
 
 Example:
 ```
@@ -140,7 +140,7 @@ Content-Length: 728
 
 This is the same operation as the previous example but with the parameter `searchString` (case-insensitive). 
 
-Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/datasets/listDatasets
+Details: https://chaimeleon-eu.i3m.upv.es/dataset-service/api-doc#tag/datasets/operation/listDatasets
 
 Example:
 ```
@@ -162,7 +162,7 @@ With the authorization header and some parameters accepted in the URL for pagina
 Returns a JSON object. 
 If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
 
-Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/datasets/getDataset
+Details: https://chaimeleon-eu.i3m.upv.es/dataset-service/api-doc#tag/datasets/operation/getDataset
 
 Example:
 ```
@@ -192,7 +192,7 @@ With the authorization header.
 If success, the code 200 will be returned. 
 If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
 
-Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/datasets/modifyDataset
+Details: https://chaimeleon-eu.i3m.upv.es/dataset-service/api-doc#tag/datasets/operation/modifyDataset
 
 Example:
 ```
@@ -214,7 +214,7 @@ With the authorization header and the user properties within the body in JSON fo
 If success, the code 201 will be returned. 
 If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
 
-Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/users/createUser
+Details: https://chaimeleon-eu.i3m.upv.es/dataset-service/api-doc#tag/users/operation/createUser
 
 Example authenticating previously with a service account:
 ```
@@ -238,7 +238,7 @@ With the authorization header.
 Returns a JSON object. 
 If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
 
-Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/users/getUser
+Details: https://chaimeleon-eu.i3m.upv.es/dataset-service/api-doc#tag/users/operation/getUser
 
 Example:
 ```
@@ -259,7 +259,7 @@ If success, the code 204 will be returned.
 If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
 In case of fail due to any required dataset which is not available for the user, the code 403 is returned with a JSON array containing not available datasets.
 
-Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/datasets/checkDatasetAccess
+Details: https://chaimeleon-eu.i3m.upv.es/dataset-service/api-doc#tag/datasetAccesses/operation/checkDatasetAccess
 
 Example authenticating previously with a service account:
 ```
@@ -283,7 +283,7 @@ If success, the code 201 will be returned.
 If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
 In case of fail due to any required dataset which is not available for the user, the code 403 is returned.
 
-Details: https://app.swaggerhub.com/apis/UPV-CHAIMELEON/Dataset-service/1.0.0#/datasets/createDatasetAccess
+Details: https://chaimeleon-eu.i3m.upv.es/dataset-service/api-doc#tag/datasetAccesses/operation/createDatasetAccess
 
 Example:
 ```
