@@ -691,18 +691,13 @@ def checkAllDatasetsIntegrity():
 
 @app.route('/api/datasets/<id>', method='GET')
 def getDataset(id):
-    if CONFIG is None or not isinstance(bottle.request.query, bottle.FormsDict): raise Exception()
+    if CONFIG is None: raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ret = getTokenFromAuthorizationHeader()
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
 
     datasetId = id
-    skip = int(bottle.request.query['studiesSkip']) if 'studiesSkip' in bottle.request.query else 0
-    limit = int(bottle.request.query['studiesLimit']) if 'studiesLimit' in bottle.request.query else 30
-    if skip < 0: skip = 0
-    if limit < 0: limit = 0
-
     with DB(CONFIG.db) as db:
         dataset = db.getDataset(datasetId)
         if dataset is None:
@@ -713,24 +708,6 @@ def getDataset(id):
             return setErrorResponse(401,"unauthorized user")
         dataset["editablePropertiesByTheUser"] = user.getEditablePropertiesByTheUser(dataset)
         dataset["allowedActionsForTheUser"] = user.getAllowedActionsForTheUser(dataset)
-
-        studies, total = db.getStudiesFromDataset(datasetId, limit, skip)
-        username = "unregistered" if user.isUnregistered() else user.username
-        for study in studies: 
-            # pathInDatalake is an internal info not interesting for the normal user nor unregistered user
-            del study['pathInDatalake']
-            del study['hash']
-            # QuibimPrecision requires to set the username in the url
-            study['url'] = str(study['url']).replace("<USER>", username, 1)
-        if 'v2' in bottle.request.params or 'paginationInfo' in bottle.request.params:  
-            dataset["studies"] = { "total": total,
-                                   "returned": len(studies),
-                                   "skipped": skip,
-                                   "limit": limit,
-                                   "list": studies }
-        else: 
-            dataset["studies"] = studies
-
     bottle.response.content_type = "application/json"
     return json.dumps(dataset)
 
@@ -918,8 +895,7 @@ def parse_flag_value(s: str) -> bool | None:
 @app.route('/api/datasets', method='GET')
 def getDatasets():
     if CONFIG is None \
-       or not isinstance(bottle.request.query, bottle.FormsDict) \
-       or not isinstance(bottle.request.params, bottle.FormsDict): 
+       or not isinstance(bottle.request.query, bottle.FormsDict): 
         raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ret = getTokenFromAuthorizationHeader()
@@ -947,17 +923,13 @@ def getDatasets():
     
     with DB(CONFIG.db) as db:
         datasets, total = db.getDatasets(skip, limit, searchString, searchFilter, sortBy, sortDirection, searchSubject)
-
     bottle.response.content_type = "application/json"
-    if 'v2' in bottle.request.params or 'paginationInfo' in bottle.request.params:
-        return json.dumps({ "total": total,
-                            "returned": len(datasets),
-                            "skipped": skip,
-                            "limit": limit,
-                            "list": datasets })
-    else:
-        return json.dumps(datasets)
-
+    return json.dumps({ "total": total,
+                        "returned": len(datasets),
+                        "skipped": skip,
+                        "limit": limit,
+                        "list": datasets })
+    
 @app.route('/api/datasets/eucaimSearch', method='POST')
 def eucaimSearchDatasets():
     if CONFIG is None or not isinstance(bottle.request.query, bottle.FormsDict): raise Exception()

@@ -140,15 +140,6 @@ paths:
             type: integer
             format: int32
             minimum: 0
-        - name: paginationInfo
-          description: |
-            (Optional, default=false) 
-            If true, an object is returned with some extra information useful for pagination UI controls; 
-            if false, just the array of datasets is returned.
-          in: query
-          required: false
-          schema:
-            type: boolean
         - name: sortBy
           description: "(Optional, default=creationDate) The list will be sorted by this property."
           in: query
@@ -176,32 +167,28 @@ paths:
           content:
             application/json:
               schema:
-                oneOf:
-                  - type: array
-                    items: 
+                type: object
+                properties:
+                  total:
+                    type: integer
+                    format: int32
+                    description: "Total of records found with the search criteria"
+                  returned:
+                    type: integer
+                    format: int32
+                    description: "Number of records returned (can be lower than total because of skip and limit params)"
+                  skipped:
+                    type: integer
+                    format: int32
+                    description: "Number of records skipped from the beginning (as requested)"
+                  limit:
+                    type: integer
+                    format: int32
+                    description: "Limit of records fixed by the request (usually the page size)"
+                  list:
+                    type: array
+                    items:
                       $ref: '#/components/schemas/DatasetListItem'
-                  - type: object
-                    properties:
-                      total:
-                        type: integer
-                        format: int32
-                        description: "Total of records found with the search criteria"
-                      returned:
-                        type: integer
-                        format: int32
-                        description: "Number of records returned (can be lower than total because of skip and limit params)"
-                      skipped:
-                        type: integer
-                        format: int32
-                        description: "Number of records skipped from the beginning (as requested)"
-                      limit:
-                        type: integer
-                        format: int32
-                        description: "Limit of records fixed by the request (usually the page size)"
-                      list:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/DatasetListItem'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -211,30 +198,14 @@ paths:
         - datasets
       summary: Get a dataset by its id
       operationId: getDataset
-      description: Returns the details of a dataset specified by its id.
+      description: "Returns the details of a dataset specified by its id."
       parameters:
         - name: id
-          description: the id of the dataset
+          description: "The id of the dataset."
           in: path
           required: true
           schema:
             type: string
-        - name: studiesSkip
-          description: "(optional, default=0) number of studies to skip for pagination"
-          in: query
-          required: false
-          schema:
-            type: integer
-            format: int32
-            minimum: 0
-        - name: studiesLimit
-          description: "(optional, default=30) maximum number of studies to return (records per page), value of 0 means no limit"
-          in: query
-          required: false
-          schema:
-            type: integer
-            format: int32
-            minimum: 0
       responses:
         '200':
           description: "successful operation"
@@ -254,7 +225,7 @@ paths:
       description: "Changes a property of a dataset in the system."
       parameters:
         - name: id
-          description: "the id of the dataset to modify"
+          description: "The id of the dataset to modify."
           in: path
           required: true
           schema:
@@ -287,13 +258,13 @@ paths:
                   description: "The new value to assign. The type depends on the property."
       responses:
         '200':
-          description: "successful operation"
+          description: "Successful operation."
         '401':
           $ref: '#/components/responses/Unauthorized'
         '400': 
-          description: "bad request content"
+          description: "Bad request content."
         '404':
-          description: "not found"
+          description: "Not found."
     delete:
       tags:
         - datasets
@@ -304,20 +275,20 @@ paths:
         Normal users only can delete a dataset when it is still being created (or ended with error) (i.e. "creating" flag is true). Once created it can be used, and this usage will be traced, so it cannot be deleted (the deletion would hide the usage), but it can be invalidated instead.
       parameters:
         - name: id
-          description: "the id of the dataset to delete"
+          description: "The id of the dataset to delete."
           in: path
           required: true
           schema:
             type: string
       responses:
         '204':
-          description: "successful operation"
+          description: "Successful operation."
         '401':
           $ref: '#/components/responses/Unauthorized'
         '400': 
-          description: "bad request, it cannot be removed"
+          description: "Bad request, it cannot be removed."
         '404':
-          description: "not found"
+          description: "Not found."
 
   /datasets/{id}/studies:
     get:
@@ -325,16 +296,16 @@ paths:
         - datasets
       summary: List studies of a dataset
       operationId: getDatasetStudies
-      description: Returns the list of studies in a dataset specified by its id.
+      description: "Returns the list of studies in a dataset specified by its id."
       parameters:
         - name: id
-          description: the id of the dataset
+          description: "The id of the dataset."
           in: path
           required: true
           schema:
             type: string
         - name: skip
-          description: "(optional, default=0) number of studies to skip for pagination"
+          description: "(Optional, default=0) number of studies to skip for pagination."
           in: query
           required: false
           schema:
@@ -342,7 +313,7 @@ paths:
             format: int32
             minimum: 0
         - name: limit
-          description: "(optional, default=30) maximum number of studies to return (records per page), value of 0 means no limit"
+          description: "(Optional, default=30) Maximum number of studies to return (records per page), value of 0 means no limit."
           in: query
           required: false
           schema:
@@ -360,19 +331,19 @@ paths:
                   total:
                     type: integer
                     format: int32
-                    description: "Total of records found"
+                    description: "Total of records."
                   returned:
                     type: integer
                     format: int32
-                    description: "Number of records returned (can be lower than total because of skip and limit params)"
+                    description: "Number of records returned (can be lower than total because of skip and limit params)."
                   skipped:
                     type: integer
                     format: int32
-                    description: "Number of records skipped from the beginning (as requested)"
+                    description: "Number of records skipped from the beginning (as requested)."
                   limit:
                     type: integer
                     format: int32
-                    description: "Limit of records fixed by the request (usually the page size)"
+                    description: "Limit of records fixed by the request (usually the page size)."
                   list:
                     type: array
                     items:
@@ -488,13 +459,13 @@ paths:
         Returns the list of accesses to a dataset specified by its id.
       parameters:
         - name: id
-          description: the id of the dataset
+          description: The id of the dataset.
           in: path
           required: true
           schema:
             type: string
         - name: skip
-          description: "(optional, default=0) number of accesses to skip for pagination"
+          description: "(Optional, default=0) Number of accesses to skip for pagination."
           in: query
           required: false
           schema:
@@ -502,7 +473,7 @@ paths:
             format: int32
             minimum: 0
         - name: limit
-          description: "(optional, default=30) maximum number of accesss to return (records per page), value of 0 means no limit"
+          description: "(Optional, default=30) Maximum number of accesss to return (records per page), value of 0 means no limit."
           in: query
           required: false
           schema:
@@ -520,19 +491,19 @@ paths:
                   total:
                     type: integer
                     format: int32
-                    description: "Total of records found"
+                    description: "Total of records."
                   returned:
                     type: integer
                     format: int32
-                    description: "Number of records returned (can be lower than total because of skip and limit params)"
+                    description: "Number of records returned (can be lower than total because of skip and limit params)."
                   skipped:
                     type: integer
                     format: int32
-                    description: "Number of records skipped from the beginning (as requested)"
+                    description: "Number of records skipped from the beginning (as requested)."
                   limit:
                     type: integer
                     format: int32
-                    description: "Limit of records fixed by the request (usually the page size)"
+                    description: "Limit of records fixed by the request (usually the page size)."
                   list:
                     type: array
                     items:
@@ -976,32 +947,6 @@ components:
           maxLength: 256
           description: "(Optional) Contact information of the responsible of the dataset, usually a name and email."
           example: "James Gordon (james@email.com)"
-        studies:
-          type: object
-          properties:
-            total:
-              type: integer
-              format: int32
-              description: "Total of records."
-            returned:
-              type: integer
-              format: int32
-              description: "Number of records returned (can be lower than total because of skip and limit params)."
-            skipped:
-              type: integer
-              format: int32
-              description: "Number of records skipped from the beginning (as requested)."
-            limit:
-              type: integer
-              format: int32
-              description: "Limit of records fixed by the request (usually the page size)."
-            list:
-              type: array
-              items:
-                $ref: '#/components/schemas/Study'
-#       gid:
-#         type: integer
-#         description: group id with the permissions to see the directories of studies selected for this dataset
         draft:
           type: boolean
           description: "If true then the dataset is only accesible by the author and some properties can be modified."
@@ -1077,7 +1022,9 @@ components:
             type: string
         ageNullCount:
           type: integer
-          description: "The number of studies with unknown age data. Null if metadata still not collected."
+          description: |
+            The number of studies with unknown age data. 
+            Null if metadata still not collected.
           example: '2'
         sex:
           type: array
@@ -1090,7 +1037,9 @@ components:
             type: string
         sexCount:
           type: array
-          description: "Array with the number of studies for each item of the previous 'sex' array. Empty if metadata still not collected."
+          description: |
+            Array with the number of studies for each item of the previous 'sex' array. 
+            Empty if metadata still not collected.
           example: '[348, 170, 2]'
           items:
             type: integer
@@ -1106,7 +1055,9 @@ components:
             type: string
         bodyPartCount:
           type: array
-          description: "Array with the number of studies for each item of the previous 'bodyPart' array. Empty if metadata still not collected."
+          description: |
+            Array with the number of studies for each item of the previous 'bodyPart' array. 
+            Empty if metadata still not collected.
           example: '[348, 170, 2]'
           items:
             type: integer
@@ -1122,7 +1073,9 @@ components:
             type: string
         modalityCount:
           type: array
-          description: "Array with the number of studies for each item of the previous 'modality' array. Empty if metadata still not collected."
+          description: |
+            Array with the number of studies for each item of the previous 'modality' array. 
+            Empty if metadata still not collected.
           example: '[348, 170, 2]'
           items:
             type: integer
@@ -1137,7 +1090,9 @@ components:
             type: string
         manufacturerCount:
           type: array
-          description: "Array with the number of studies for each item of the previous 'manufacturer' array. Empty if metadata still not collected."
+          description: |
+            Array with the number of studies for each item of the previous 'manufacturer' array. 
+            Empty if metadata still not collected.
           example: '[348, 170, 2]'
           items:
             type: integer
@@ -1153,7 +1108,9 @@ components:
             Collected from the subject clinical data (inclusion_criteria.baseline_date).
         diagnosisYearNullCount:
           type: integer
-          description: "The number of studies with unknown year of diagnosis. Null if metadata still not collected."
+          description: |
+            The number of studies with unknown year of diagnosis. 
+            Null if metadata still not collected.
           example: '2'
         seriesTags:
           type: array
@@ -1191,14 +1148,16 @@ components:
           example: "blancagomez/17B76FEW_Neuroblastoma/TCPEDITRICOABDOMINOPLVICOCONCONTRASTE20150129/"
         series:
           type: array
-          description: 'Series considered in the dataset. This is needed because new series can be added later in the datalake for this study but the dataset can not change.'
+          description: |
+            Series considered in the dataset. 
+            This is needed because new series can be added later in the datalake for this study but the dataset can not change.
           items:
             $ref: '#/components/schemas/Series'
         url:
           type: string
           maxLength: 256
           format: url
-          description: "link to the study in the case explorer web portal" 
+          description: "Link to the study in the case explorer web portal." 
           example: 'https://www.quibim.com/studies?id=5e5629835938d12160636353'
         sizeInBytes:
           type: integer
