@@ -28,7 +28,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 24
+    CURRENT_SCHEMA_VERSION = 25
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -63,6 +63,7 @@ class DB:
             if version < 22: self.updateDB_v21To22()
             if version < 23: self.updateDB_v22To23()
             if version < 24: self.updateDB_v23To24()
+            if version < 25: self.updateDB_v24To25()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -157,6 +158,7 @@ class DB:
                 manufacturer_count text NOT NULL DEFAULT '[]',
                 series_tags text NOT NULL DEFAULT '[]',
                 last_integrity_check timestamp DEFAULT NULL,
+                size_in_bytes bigint DEFAULT NULL,
                 constraint pk_dataset primary key (id),
                 constraint fk_author foreign key (author_id) references author(id)
             );
@@ -175,6 +177,7 @@ class DB:
                 study_id varchar(40),
                 series text NOT NULL DEFAULT '[]',
                 hash varchar(50) NOT NULL DEFAULT '',
+                size_in_bytes integer DEFAULT NULL,
                 constraint pk_dataset_study primary key (dataset_id, study_id),
                 constraint fk_dataset foreign key (dataset_id) references dataset(id),
                 constraint fk_study foreign key (study_id) references study(id)
@@ -394,6 +397,11 @@ class DB:
         self.cursor.execute("ALTER TABLE dataset_access ADD COLUMN end_status varchar(32) DEFAULT ''")
         self.cursor.execute("ALTER TABLE dataset_access ADD COLUMN closed boolean DEFAULT NULL")
 
+    def updateDB_v24To25(self):
+        logging.root.info("Updating database from v24 to v25...")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN size_in_bytes bigint DEFAULT NULL")
+        self.cursor.execute("ALTER TABLE dataset_study ADD COLUMN size_in_bytes integer DEFAULT NULL")
+
 
     def createOrUpdateAuthor(self, userId, username, name, email):
         self.cursor.execute("SELECT id FROM author WHERE id=%s LIMIT 1;", (userId,))
@@ -467,7 +475,7 @@ class DB:
              dataset["creationDate"], dataset["description"], dataset["public"], 
              dataset["studiesCount"], dataset["subjectsCount"]))
 
-    def updateDatasetMetadata(self, dataset):
+    def updateDatasetAndStudyMetadata(self, dataset):
         # For now let's store directly the final format for each value in the properties of type array of strings,
         # because json don't allow store the None value in a array of strings.
         # In final format the None value is converted to "Unknown" which is compliant with Miabis.
@@ -475,40 +483,45 @@ class DB:
         bodyPartList = [output_formats.bodyPartToOutputFormat(i) for i in dataset["bodyPart"]]
         modalityList = [output_formats.modalityToOutputFormat(i) for i in dataset["modality"]]
         manufacturerList = [output_formats.manufacturerToOutputFormat(i) for i in dataset["manufacturer"]]
-        self.cursor.execute("""UPDATE dataset 
-                               SET studies_count = %s, subjects_count = %s, 
-                                   age_low_in_days = %s, age_low_unit = %s, 
-                                   age_high_in_days = %s, age_high_unit = %s, 
-                                   age_null_count = %s, 
-                                   sex = %s, sex_count = %s, 
-                                   diagnosis_year_low = %s, diagnosis_year_high = %s, 
-                                   diagnosis_year_null_count = %s, 
-                                   body_part = %s, body_part_count = %s, 
-                                   modality = %s, modality_count = %s, 
-                                   manufacturer = %s, manufacturer_count = %s, 
-                                   series_tags = %s
-                               WHERE id = %s;""", 
-                            (dataset["studiesCount"], dataset["subjectsCount"], 
-                             dataset["ageLowInDays"], dataset["ageLowUnit"], 
-                             dataset["ageHighInDays"], dataset["ageHighUnit"], 
-                             dataset["ageNullCount"], 
-                             json.dumps(sexList), json.dumps(dataset["sexCount"]), 
-                             dataset["diagnosisYearLow"], dataset["diagnosisYearHigh"], 
-                             dataset["diagnosisYearNullCount"], 
-                             json.dumps(bodyPartList), json.dumps(dataset["bodyPartCount"]), 
-                             json.dumps(modalityList), json.dumps(dataset["modalityCount"]), 
-                             json.dumps(manufacturerList), json.dumps(dataset["manufacturerCount"]), 
-                             json.dumps(dataset["seriesTags"]), 
-                             dataset["id"]))
-
-    def updateStudyMetadata(self, study):
-        self.cursor.execute("""UPDATE study
-                               SET age_in_days = %s, sex = %s, body_part = %s, modality = %s, 
-                                   manufacturer = %s, diagnosis = %s, diagnosis_year = %s, study_date = %s 
-                               WHERE id = %s;""", 
-                            (study['ageInDays'], study['sex'], study['bodyPart'], study['modality'], 
-                             study['manufacturer'], study['diagnosis'], study['diagnosisYear'], study['studyDate'],
-                             study['studyId']))
+        self.cursor.execute("""
+            UPDATE dataset 
+            SET studies_count = %s, subjects_count = %s, 
+                age_low_in_days = %s, age_low_unit = %s, 
+                age_high_in_days = %s, age_high_unit = %s, 
+                age_null_count = %s, 
+                sex = %s, sex_count = %s, 
+                diagnosis_year_low = %s, diagnosis_year_high = %s, 
+                diagnosis_year_null_count = %s, 
+                body_part = %s, body_part_count = %s, 
+                modality = %s, modality_count = %s, 
+                manufacturer = %s, manufacturer_count = %s, 
+                series_tags = %s, size_in_bytes = %s
+            WHERE id = %s;""", 
+            (dataset["studiesCount"], dataset["subjectsCount"], 
+                dataset["ageLowInDays"], dataset["ageLowUnit"], 
+                dataset["ageHighInDays"], dataset["ageHighUnit"], 
+                dataset["ageNullCount"], 
+                json.dumps(sexList), json.dumps(dataset["sexCount"]), 
+                dataset["diagnosisYearLow"], dataset["diagnosisYearHigh"], 
+                dataset["diagnosisYearNullCount"], 
+                json.dumps(bodyPartList), json.dumps(dataset["bodyPartCount"]), 
+                json.dumps(modalityList), json.dumps(dataset["modalityCount"]), 
+                json.dumps(manufacturerList), json.dumps(dataset["manufacturerCount"]), 
+                json.dumps(dataset["seriesTags"]), dataset["sizeInBytes"],
+                dataset["id"]))
+        for study in dataset["studies"]:
+            self.cursor.execute("""
+                UPDATE dataset_study set size_in_bytes=%s 
+                WHERE dataset_id = %s AND study_id = %s;""",
+                (study['sizeInBytes'], dataset["id"], study['studyId']))
+            self.cursor.execute("""
+                UPDATE study
+                SET age_in_days = %s, sex = %s, body_part = %s, modality = %s, 
+                    manufacturer = %s, diagnosis = %s, diagnosis_year = %s, study_date = %s 
+                WHERE id = %s;""", 
+                (study['ageInDays'], study['sex'], study['bodyPart'], study['modality'], 
+                study['manufacturer'], study['diagnosis'], study['diagnosisYear'], study['studyDate'],
+                study['studyId']))
 
     def createDatasetCreationStatus(self, datasetId, status, firstMessage):
         self.cursor.execute("""
@@ -596,7 +609,7 @@ class DB:
                    dataset.modality, dataset.modality_count, 
                    dataset.manufacturer, dataset.manufacturer_count, 
                    dataset.series_tags, 
-                   dataset.next_id, dataset.last_integrity_check
+                   dataset.next_id, dataset.last_integrity_check, dataset.size_in_bytes
             FROM dataset, author 
             WHERE dataset.id=%s AND author.id = dataset.author_id 
             LIMIT 1;""",
@@ -644,7 +657,8 @@ class DB:
                     bodyPart = json.loads(row[28]), bodyPartCount = json.loads(row[29]), 
                     modality = json.loads(row[30]), modalityCount = json.loads(row[31]), 
                     manufacturer = json.loads(row[32]), manufacturerCount = json.loads(row[33]), 
-                    seriesTags = json.loads(row[34]), lastIntegrityCheck = lastIntegrityCheck)
+                    seriesTags = json.loads(row[34]), lastIntegrityCheck = lastIntegrityCheck, 
+                    sizeInBytes = row[37])
 
     def getStudiesFromDataset(self, datasetId, limit = 0, skip = 0):
         if limit == 0: limit = 'ALL'
@@ -656,7 +670,7 @@ class DB:
 
         self.cursor.execute(sql.SQL("""
             SELECT study.id, study.name, study.subject_name, study.url, study.path_in_datalake, 
-                   dataset_study.series, dataset_study.hash
+                   dataset_study.series, dataset_study.hash, dataset_study.size_in_bytes
             FROM study, dataset_study 
             WHERE dataset_study.dataset_id = %s AND dataset_study.study_id = study.id 
             ORDER BY study.name 
@@ -666,7 +680,7 @@ class DB:
         res = []
         for row in self.cursor:
             res.append(dict(studyId = row[0], studyName = row[1], subjectName = row[2], pathInDatalake = row[4],
-                            series = json.loads(row[5]), url = row[3], hash = row[6]))
+                            series = json.loads(row[5]), url = row[3], hash = row[6], sizeInBytes = row[7]))
         return res, total
 
     def getPathsOfStudiesFromDataset(self, datasetId):

@@ -1161,6 +1161,12 @@ components:
           example: '["Axial", "T2W"]'
           items:
             type: string
+        sizeInBytes:
+          type: integer
+          description: |
+            The total size of files in all the studies and series selected for this dataset plus the eforms file. 
+            Null if metadata still not collected.
+          example: '2834502270'
     Study:
       type: object
       properties:
@@ -1194,6 +1200,12 @@ components:
           format: url
           description: "link to the study in the case explorer web portal" 
           example: 'https://www.quibim.com/studies?id=5e5629835938d12160636353'
+        sizeInBytes:
+          type: integer
+          description: |
+            The total size of files in all the series selected for this study in the dataset. 
+            Null if metadata still not collected.
+          example: '182460520'
           
     Series:
       type: object

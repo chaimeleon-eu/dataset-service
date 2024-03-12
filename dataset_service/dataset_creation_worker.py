@@ -67,9 +67,7 @@ class dataset_creation_worker:
                 if stop: self._cancelProgress(); return
                 eformsFilePath = os.path.join(datasetDirPath, self.config.self.eforms_file_name)
                 dataset_file_system.collectMetadata(dataset, self.config.self.datalake_mount_path, eformsFilePath)
-                for study in dataset["studies"]:
-                    db.updateStudyMetadata(study)
-                db.updateDatasetMetadata(dataset)
+                db.updateDatasetAndStudyMetadata(dataset)
                 
             stop = self.updateProgress("Creating symbolic links...")
             if stop: self._cancelProgress(); return

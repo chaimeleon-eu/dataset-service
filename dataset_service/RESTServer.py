@@ -522,9 +522,7 @@ def _recollectMetadataForDataset(datasetId):
         except Exception as e:
             LOG.exception(e)
             return dict(success=False, msg="Not recollected: exception catched (corrupt dataset?).")
-        for study in dataset["studies"]:
-            db.updateStudyMetadata(study)
-        db.updateDatasetMetadata(dataset)
+        db.updateDatasetAndStudyMetadata(dataset)
     return dict(success=True, msg="Successfully recollected.")
 
 @app.route('/api/datasets/recollectMetadata', method='POST')
