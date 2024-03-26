@@ -102,12 +102,21 @@ class KeycloakAdminAPIClient:
             logging.root.error('KeycloakAdminAPI response unexpected: %s' % (response))
             raise KeycloakAdminAPIException('Internal server error: KeycloakAdminAPI response unexpected.')
 
-    def getGroups(self):
-        logging.root.debug('Getting groups from KeycloakAdminAPI...')
+    def getGroups(self, subgroupsOfTheGroup: str = ''):
+        if subgroupsOfTheGroup == '':
+            logging.root.debug('Getting groups from KeycloakAdminAPI...')
+        else: logging.root.debug('Getting subgroups of "%s" from KeycloakAdminAPI...' % subgroupsOfTheGroup)
         response = self._GET_JSON("groups")
         try:
+            if subgroupsOfTheGroup == '':
+                responseGroups = response 
+            else:
+                responseGroups = []
+                for group in responseGroups:
+                    if group["name"] == subgroupsOfTheGroup:
+                        responseGroups = group["subGroups"]
             groups = []
-            for group in response:
+            for group in responseGroups:
                 groups.append(group["name"])
             return groups
         except (Exception) as e:
