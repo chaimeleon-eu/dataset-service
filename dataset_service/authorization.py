@@ -5,6 +5,8 @@ class Access_type(Enum):
     VIEW_DETAILS = 1
     USE = 2
 
+PROJECT_GROUP_PREFIX = "PROJECT-"
+
 class User:
     roles = None
 
@@ -32,9 +34,9 @@ class User:
         
         # ensure roles included in other roles
         if User.roles.admin_datasets in token["appRoles"]:
-            cls._appendIfNotExists(token["appRoles"], User.roles.access_all_datasets)
+            cls._appendIfNotExists(token["appRoles"], User.roles.use_datasets)
         if User.roles.superadmin_datasets in token["appRoles"]:
-            cls._appendIfNotExists(token["appRoles"], User.roles.access_all_datasets)
+            cls._appendIfNotExists(token["appRoles"], User.roles.use_datasets)
             cls._appendIfNotExists(token["appRoles"], User.roles.admin_datasets)
         return True, None
 
@@ -87,7 +89,7 @@ class User:
         if self._token != None and User.roles.superadmin_datasets in self._token["appRoles"]: return True
         if dataset["draft"] and (self._token is None or self._token["sub"] != dataset["authorId"]): return False
         if dataset["public"]: return True
-        return (self._token != None and User.roles.access_all_datasets in self._token["appRoles"])
+        return (self._token != None and PROJECT_GROUP_PREFIX + dataset["project"] in self._token["groups"])
 
     def canUseDataset(self, dataset):
         if not self.canViewDatasetDetails: return False
@@ -96,7 +98,7 @@ class User:
         if self._token != None and User.roles.superadmin_datasets in self._token["appRoles"]: return True
         if dataset["invalidated"]: return False
         if dataset["public"]: return (self._token != None)
-        return (self._token != None and "data-scientists" in self._token["groups"])
+        return (self._token != None and User.roles.use_datasets in self._token["appRoles"])
 
     def canCheckIntegrityOfDatasets(self):
         return self.isSuperAdminDatasets()
@@ -108,11 +110,13 @@ class User:
                 if not dataset["creating"]:
                     editableProperties.append("draft")
                 editableProperties.append("name")
+                # editableProperties.append("project")
                 editableProperties.append("description")
                 editableProperties.append("previousId")
-#           else:
-#               editableProperties.append("public")
-#               editableProperties.append("pids")
+            else:
+                if self.isSuperAdminDatasets():
+                    editableProperties.append("public")
+                    editableProperties.append("pids")
             editableProperties.append("invalidated")
             editableProperties.append("contactInfo")
             editableProperties.append("license")
@@ -131,6 +135,15 @@ class User:
         if self.canAdminDatasetAccesses():
             allowedActions.append("viewAccessHistory")
         return allowedActions
+    
+    def getProjects(self) -> set[str]:
+        projects = set()
+        if self._token is None: return projects
+        prefix_len = len(PROJECT_GROUP_PREFIX)
+        for g in self._token["groups"]:
+            if g.startswith(PROJECT_GROUP_PREFIX):
+                projects.add(g[prefix_len:])
+        return projects
 
     def canModifyDataset(self, dataset):
         if self._token is None: return False
@@ -146,22 +159,31 @@ class User:
 
 
 class Search_filter():
-    def __init__(self, draft, public, invalidated):
+    def __init__(self, draft: bool | None = None, public: bool | None = None, 
+                 invalidated: bool | None = None, projects: set[str] | None = None):
         self.draft = draft
         self.public = public
         self.invalidated = invalidated
-        self._userId = None   # for filter invalidated and draft datasets,
-                                # if normal user only the author can see them
-
+        self.projects = projects   # For filter datasets,
+                                   # normal user only can see datasets of projects to which he/she is joined
+        self._userId = None   # For filter invalidated and draft datasets,
+                              # normal user only can see them if he/she is the author.
+    
     def getUserId(self):
         return self._userId
 
     def adjustByUser(self, user: User):
-        if user._token is None or not User.roles.access_all_datasets in user._token["appRoles"]:
+        if user._token is None:   # unregistered user
             self.public = True
             self.invalidated = False
             self.draft = False
+            self.projects = set()
             return
+        
+        if not User.roles.superadmin_datasets in user._token["appRoles"]:
+            user_projects = user.getProjects()
+            if self.projects is None: self.projects = user_projects 
+            else: self.projects.intersection_update(user_projects)            
 
         if not User.roles.admin_datasets in user._token["appRoles"]:
             self.invalidated = False
@@ -170,6 +192,7 @@ class Search_filter():
 
         if not User.roles.superadmin_datasets in user._token["appRoles"]:
             self._userId = user._token["sub"]
+
 
 class Upgradables_filter():
     def __init__(self):

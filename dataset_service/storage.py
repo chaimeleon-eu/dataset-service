@@ -28,7 +28,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 25
+    CURRENT_SCHEMA_VERSION = 26
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -64,6 +64,7 @@ class DB:
             if version < 23: self.updateDB_v22To23()
             if version < 24: self.updateDB_v23To24()
             if version < 25: self.updateDB_v24To25()
+            if version < 26: self.updateDB_v25To26()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -125,6 +126,7 @@ class DB:
             CREATE TABLE dataset (
                 id varchar(40),
                 name varchar(256) NOT NULL,
+                project_code varchar(80) NOT NULL,
                 previous_id varchar(40) DEFAULT NULL,
                 next_id varchar(40) DEFAULT NULL,
                 author_id varchar(64) NOT NULL,
@@ -401,6 +403,10 @@ class DB:
         logging.root.info("Updating database from v24 to v25...")
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN size_in_bytes bigint DEFAULT NULL")
         self.cursor.execute("ALTER TABLE dataset_study ADD COLUMN size_in_bytes integer DEFAULT NULL")
+    
+    def updateDB_v25To26(self):
+        logging.root.info("Updating database from v25 to v26...")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN project_code varchar(80) NOT NULL DEFAULT 'unknown'")
 
 
     def createOrUpdateAuthor(self, userId, username, name, email):
@@ -467,11 +473,11 @@ class DB:
 
     def createDataset(self, dataset, userId):
         self.cursor.execute("""
-            INSERT INTO dataset (id, name, previous_id, author_id, 
+            INSERT INTO dataset (id, name, project_code, previous_id, author_id, 
                                  creation_date, description, public,
                                  studies_count, subjects_count)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s);""",
-            (dataset["id"], dataset["name"], dataset["previousId"], userId, 
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s);""",
+            (dataset["id"], dataset["name"], dataset["project"], dataset["previousId"], userId, 
              dataset["creationDate"], dataset["description"], dataset["public"], 
              dataset["studiesCount"], dataset["subjectsCount"]))
 
@@ -609,7 +615,8 @@ class DB:
                    dataset.modality, dataset.modality_count, 
                    dataset.manufacturer, dataset.manufacturer_count, 
                    dataset.series_tags, 
-                   dataset.next_id, dataset.last_integrity_check, dataset.size_in_bytes
+                   dataset.next_id, dataset.last_integrity_check, dataset.size_in_bytes,
+                   dataset.project_code
             FROM dataset, author 
             WHERE dataset.id=%s AND author.id = dataset.author_id 
             LIMIT 1;""",
@@ -636,7 +643,7 @@ class DB:
             prefPid = "custom"
             customPidUrl = row[10]
         
-        return dict(id = row[0], name = row[1], 
+        return dict(id = row[0], name = row[1], project = row[38],
                     previousId = row[2], nextId = row[35], 
                     authorId = row[3], authorName = row[4], authorEmail = row[5], 
                     creationDate = creationDate, description = row[7], 
@@ -700,9 +707,6 @@ class DB:
         fromExtra = sql.Composed([])
         whereClause = sql.Composed([])
 
-        if searchFilter.public != None:
-            whereClause += sql.SQL(" AND dataset.public = ") + sql.Literal(searchFilter.public)
-
         if searchFilter.invalidated == False:
             whereClause += sql.SQL(" AND dataset.invalidated = false")
         elif searchFilter.invalidated == True:
@@ -731,7 +735,24 @@ class DB:
             and searchFilter.getUserId() != None:
             authorId = sql.Literal(str(searchFilter.getUserId()))
             whereClause += sql.SQL(" AND dataset.author_id = ") + authorId
+        
+        projects = sql.Literal('--no---project--')
+        if searchFilter.projects != None and len(searchFilter.projects) > 0:
+            projects = sql.SQL(', ').join(sql.Literal(item) for item in searchFilter.projects)
 
+        if searchFilter.public == True:
+            whereClause += sql.SQL(" AND dataset.public = true")
+        elif searchFilter.public == False:
+            whereClause += sql.SQL(" AND dataset.public = false")
+            if searchFilter.projects != None:
+                whereClause += sql.SQL(" AND dataset.project_code IN ({})").format(projects)
+        else: # searchFilter.public is None:
+            if searchFilter.projects != None:
+                whereClause += sql.SQL(" AND ({} OR {})").format(
+                    sql.SQL("(dataset.public = false AND dataset.project_code IN ({}))").format(projects),
+                    sql.SQL("dataset.public = true")
+                )
+        
         if searchString != '': 
             s = sql.Literal('%'+searchString+'%')
             whereClause += sql.SQL(
@@ -773,7 +794,7 @@ class DB:
         total = row[0] if row != None else 0
 
         q = sql.SQL("""
-                SELECT dataset.id, dataset.name, author.name, dataset.creation_date, 
+                SELECT dataset.id, dataset.name, author.name, dataset.creation_date, dataset.project_code, 
                     dataset.draft, dataset.public, dataset.invalidated, 
                     dataset.studies_count, dataset.subjects_count
                 FROM dataset, author{}
@@ -787,10 +808,43 @@ class DB:
         for row in self.cursor:
             creationDate = str(row[3].astimezone())   # row[3] is a datetime without time zone, just add the local tz.
                                                       # If local tz is UTC, the string "+00:00" is added at the end.
-            res.append(dict(id = row[0], name = row[1], authorName = row[2], creationDate = creationDate, 
-                            draft = row[4], public = row[5], invalidated = row[6],
-                            studiesCount = row[7], subjectsCount = row[8]))
+            res.append(dict(id = row[0], name = row[1], authorName = row[2], creationDate = creationDate, project = row[4],
+                            draft = row[5], public = row[6], invalidated = row[7],
+                            studiesCount = row[8], subjectsCount = row[9]))
         return res, total
+    
+    def getProjects(self, searchFilter: authorization.Search_filter):
+        whereClause = sql.Composed([])
+
+        if searchFilter.getUserId() != None:
+            authorId = sql.Literal(str(searchFilter.getUserId()))
+            whereClause += sql.SQL(" AND ({} OR {})").format(
+                sql.SQL("(dataset.invalidated = true AND dataset.author_id = {})").format(authorId),
+                sql.SQL("dataset.invalidated = false")
+            )
+            whereClause += sql.SQL(" AND ({} OR {})").format(
+                sql.SQL("(dataset.draft = true AND dataset.author_id = {})").format(authorId),
+                sql.SQL("dataset.draft = false")
+            )
+
+        projects = sql.Literal('--no---project--')
+        if searchFilter.projects != None and len(searchFilter.projects) > 0:
+            projects = sql.SQL(', ').join(sql.Literal(item) for item in searchFilter.projects)
+        if searchFilter.projects != None:
+            whereClause += sql.SQL(" AND ({} OR {})").format(
+                sql.SQL("(dataset.public = false AND dataset.project_code IN ({}))").format(projects),
+                sql.SQL("dataset.public = true")
+            )
+
+        self.cursor.execute(sql.SQL("""
+                SELECT DISTINCT dataset.project_code
+                FROM dataset, author
+                WHERE dataset.author_id = author.id {};"""
+            ).format(whereClause))    
+        res = []
+        for row in self.cursor:
+            res.append(row[0])
+        return res
     
     def getUpgradableDatasets(self, filter: authorization.Upgradables_filter):
         whereClause = sql.SQL("")

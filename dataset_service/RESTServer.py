@@ -407,6 +407,13 @@ def postDataset():
             LOG.debug("Updating author: %s, %s, %s, %s" % (user.uid, user.username, user.name, user.email))
             db.createOrUpdateAuthor(user.uid, user.username, user.name, user.email)
 
+            user_projects = user.getProjects()
+            if 'project' in dataset.keys(): 
+                if not dataset["project"] in user_projects:
+                    return setErrorResponse(400,"dataset.project does not exist for the user")
+            else:
+                dataset["project"] = user_projects.pop()  # we take the first project of user
+            
             if 'previousId' in dataset.keys():
                 previousDataset = db.getDataset(dataset["previousId"])
                 if previousDataset is None:
@@ -540,7 +547,7 @@ def recollectMetadataForAllDatasets():
         return setErrorResponse(401,"unauthorized user")
 
     with DB(CONFIG.db) as db:
-        searchFilter = authorization.Search_filter(draft = None, public = None, invalidated = None)
+        searchFilter = authorization.Search_filter()
         searchFilter.adjustByUser(user)
         datasets, total =  db.getDatasets(0, 0, '', searchFilter, '', '')
         LOG.debug("Total datasets to process: %d" % total)
@@ -676,7 +683,7 @@ def checkAllDatasetsIntegrity():
         return setErrorResponse(401,"unauthorized user")
 
     with DB(CONFIG.db) as db:
-        searchFilter = authorization.Search_filter(draft = None, public = None, invalidated = None)
+        searchFilter = authorization.Search_filter()
         searchFilter.adjustByUser(user)
         datasets, total =  db.getDatasets(0, 0, '', searchFilter, '', '')
         LOG.debug("Total datasets to check: %d" % total)
@@ -843,6 +850,12 @@ def patchDataset(id):
         elif property == "description":
             db.setDatasetDescription(datasetId, str(newValue))
             # Don't notify the tracer, this property can be changed only in draft state
+        # elif property == "project":
+        #     newProject = str(newValue)
+        #     if not newProject in user.getProjects():
+        #         return setErrorResponse(400,"invalid value, unknown project code for the user")
+        #     db.setDatasetProject(datasetId, newProject)
+        #     # Don't notify the tracer, this property can be changed only in draft state
         elif property == "previousId":
             if newValue != None:
                 previousDataset = db.getDataset(str(newValue))
@@ -894,9 +907,7 @@ def parse_flag_value(s: str) -> bool | None:
 
 @app.route('/api/datasets', method='GET')
 def getDatasets():
-    if CONFIG is None \
-       or not isinstance(bottle.request.query, bottle.FormsDict): 
-        raise Exception()
+    if CONFIG is None or not isinstance(bottle.request.query, bottle.FormsDict): raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ret = getTokenFromAuthorizationHeader()
     if isinstance(ret, str): return ret  # return error message
@@ -909,7 +920,11 @@ def getDatasets():
         searchFilter.public = parse_flag_value(bottle.request.query['public'])
     if 'invalidated' in bottle.request.query:
         searchFilter.invalidated = parse_flag_value(bottle.request.query['invalidated'])
-    #authorId
+    if 'project' in bottle.request.query:
+        project = str(bottle.request.query['project'])
+        if not project.replace('-','a').isalnum(): 
+            return setErrorResponse(400, "invalid value for parameter 'project', only alphanumeric chars and '-'")
+        searchFilter.projects = set([project])
     searchFilter.adjustByUser(user)
 
     skip = int(bottle.request.query['skip']) if 'skip' in bottle.request.query else 0
@@ -1054,6 +1069,28 @@ def getLicenses():
 
     bottle.response.content_type = "application/json"
     return json.dumps(licenses)
+
+
+@app.route('/api/projects', method='GET')
+def getProjects():
+    if CONFIG is None or not isinstance(bottle.request.query, bottle.FormsDict) or AUTH_ADMIN_CLIENT is None: raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    ret = getTokenFromAuthorizationHeader()
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
+
+    if 'forNewDataset' in bottle.request.query and bottle.request.query['forNewDataset'].lower() == 'true':
+        # New datasets only can be assigned to projects which the user has joined to
+        projects = list(user.getProjects())
+    else:
+        # List all the possible values for "project" filter in GET /datasets
+        searchFilter = authorization.Search_filter()
+        searchFilter.adjustByUser(user)
+        with DB(CONFIG.db) as db:
+            projects = db.getProjects(searchFilter)
+
+    bottle.response.content_type = "application/json"
+    return json.dumps(projects)
 
 
 @app.route('/api/user/<userName>', method='POST')

@@ -25,6 +25,8 @@ tags:
     description: Operations with datasets
   - name: users
     description: Operations with users
+  - name: projects
+    description: Operations with projects
   - name: licenses
     description: Operations with licenses
   - name: datasetAccesses
@@ -39,6 +41,7 @@ x-tagGroups:
     tags:
       - datasets
       - users
+      - projects
       - licenses
       - datasetAccesses
   - name: SCHEMAS
@@ -92,23 +95,44 @@ paths:
         If not searchString or empty, then all datasets are listed.
       parameters:
         - name: draft
-          description: "(Optional filter) If true, only draft datasets will be shown (those created by the user); if false, only not draft datasets will be shown; if not set, both types of dataset will be shown."
+          description: |
+            (Optional filter) 
+            If true, only draft datasets will be shown (those created by the user).
+            If false, only not draft datasets will be shown.
+            If not set, both types of dataset will be shown.
           in: query
           required: false
           schema:
             type: boolean
         - name: public
-          description: "(Optional filter) If true, only public datasets will be shown; if false, only non-public datasets will be shown (depending on the user permissions); if not set, both types of dataset will be shown."
+          description: |
+            (Optional filter)
+            If true, only public datasets will be shown.
+            If false, only non-public datasets will be shown (depending on the user permissions).
+            If not set, both types of dataset will be shown.
           in: query
           required: false
           schema:
             type: boolean
         - name: invalidated
-          description: "(Optional filter) If true, only invalidated datasets will be shown (depending on the user permissions); if false, only not invalidated datasets will be shown; if not set, both types of dataset will be shown."
+          description: |
+            (Optional filter)
+            If true, only invalidated datasets will be shown (depending on the user permissions).
+            If false, only not invalidated datasets will be shown; 
+            If not set, both types of dataset will be shown.
           in: query
           required: false
           schema:
             type: boolean
+        - name: project
+          description: |
+            (Optional filter) If set, only datasets of that project will be shown. 
+            You can do "GET /projects" to obtain all the possible values.
+          in: query
+          required: false
+          schema:
+            type: string
+            example: MY-PROJECT
         - name: searchString
           description: "(Optional, default is empty) Pass an optional search string (or substring)(case-insensitive) for the name or id of dataset, or author of dataset."
           in: query
@@ -610,6 +634,34 @@ paths:
         '404':
           description: "not found"
 
+  /projects:
+    get:
+      tags:
+        - projects
+      summary: List projects
+      operationId: listProjects
+      description: |
+        List all available projects which datasets can belong to.
+        Useful to list the possible values for the param "project" in "GET /datasets"
+        and (using the param "forNewDataset=true") to list the possible values for the property "project" of new dataset (POST /datasets).
+      parameters:
+        - name: forNewDataset
+          description: "(Optional, default=false) List projects which the user has joined to. New datasets only can be assigned to one of them."
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: "successfully retrieved the list of projects"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+                  example: "MY-PROJECT"
+
   /licenses:
     get:
       tags:
@@ -628,7 +680,6 @@ paths:
                   $ref: '#/components/schemas/License'
         '401':
           $ref: '#/components/responses/Unauthorized'
-
 
   /datasetAccessCheck:
     post:
@@ -802,15 +853,21 @@ components:
           type: string
           format: date-time
           example: '2016-08-29T09:12:33.001Z'
+        project:
+          type: string
+          description: "The code of the project which the dataset is assigned to."
+          example: "MY-PROJECT"
         draft:
           type: boolean
-          description: "If true then the dataset is only accesible by the author and some properties can be modified."
+          description: "If true then the dataset is only visible and usable by the author, and some properties can be modified."
         public:
           type: boolean
-          description: "If false then the dataset is only accessible to users with the role access_all_datasets (consortium researchers); if true then the dataset is also accessible to all users, including external researchers and non-registered users."
+          description: |
+            If false then the dataset is only visible and usable to users in the project where the dataset is assigned.
+            If true then the dataset is accessible and usable to all users and visible for non-registered users."
         invalidated:
           type: boolean
-          description: "If true the dataset can not be used and only appears in the list for the author."
+          description: "If true the dataset can not be used and only visible for the author."
         studiesCount:
           type: integer
           description: "The number of studies contained in the dataset."
@@ -827,6 +884,14 @@ components:
           maxLength: 128
           description: "Short descriptive name."
           example: "Lung cancer v3"
+        project:
+          type: string
+          minLength: 1
+          maxLength: 80
+          description: |
+            (Optional) The code of the project which the dataset is assigned to.
+            If not provided, it is assumed there is only one project in the system, so the first project found for the user will be taken.
+          example: "MY-PROJECT"
         previousId:
           type: string
           format: uuid
@@ -858,6 +923,12 @@ components:
           maxLength: 128
           description: "Short descriptive name."
           example: "Lung cancer v3"
+        project:
+          type: string
+          minLength: 1
+          maxLength: 80
+          description: "The code of the project which the dataset is assigned to."
+          example: "MY-PROJECT"
         previousId:
           type: string
           format: uuid
@@ -949,7 +1020,7 @@ components:
           example: "James Gordon (james@email.com)"
         draft:
           type: boolean
-          description: "If true then the dataset is only accesible by the author and some properties can be modified."
+          description: "If true then the dataset is only visible and usable by the author, and some properties can be modified."
         creating:
           type: boolean
           description: |
@@ -959,10 +1030,12 @@ components:
             If false then the creation process has finished and "draft" already can be changed to false when the user want to release de dataset.
         public:
           type: boolean
-          description: "If false then the dataset is only accessible to users with the role access_all_datasets (consortium researchers); if true then the dataset is also accessible to all users, including external researchers and non-registered users."
+          description: |
+            If false then the dataset is only visible and usable to users in the project where the dataset is assigned.
+            If true then the dataset is accessible and usable to all users and visible for non-registered users."
         invalidated:
           type: boolean
-          description: "If true the dataset can not be used and only appears in the list for the author."
+          description: "If true the dataset can not be used and only visible for the author."
         editablePropertiesByTheUser:
           type: array
           description: |

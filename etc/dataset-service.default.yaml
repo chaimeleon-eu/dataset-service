@@ -20,7 +20,7 @@ auth:
     issuer: "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON"
       # The accepted value for the "issuer" claim.
     roles:   # Here you can customize the string that defines every role appearing in the token to allow the user to do things.
-      access_all_datasets: "access_all_datasets"
+      use_datasets: "use_datasets"
       admin_datasets: "admin_datasets"
       superadmin_datasets: "superadmin_datasets"
       admin_users: "admin_users"

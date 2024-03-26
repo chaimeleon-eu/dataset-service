@@ -400,8 +400,11 @@ Please note it is JSON format this time, and takes precedence over all configura
 
 ## Authorization
 
-The capabilities of a user (which operations can do) are defined in the "application roles" included in the 
-token received (i.e. in 'resource_access.dataset-service.roles'). Example:
+The capabilities of a user (which operations can do) are defined by the token received. 
+There are two places in the token to see:
+ - the roles for the application (i.e. in 'resource_access.dataset-service.roles'). 
+ - the groups with prefix 'PROJECT-'
+Example:
 ```
 {
   "exp": ...,
@@ -424,10 +427,15 @@ token received (i.e. in 'resource_access.dataset-service.roles'). Example:
     },
     "dataset-service": {
       "roles": [
-        "access_all_datasets"
+        "use_datasets",
+        "admin_datasets"
       ]
     }
   },
+  "groups": [
+    "data-scientists",
+    "PROJECT-CHAIMELEON"
+  ],
   ...
   "name": ...,
   "preferred_username": ...,
@@ -436,16 +444,18 @@ token received (i.e. in 'resource_access.dataset-service.roles'). Example:
 ```
 
 These are the known roles:
- - __access_all_datasets__ (1): it can list, see details and use all datasets not only the public
- - __admin_datasets__ (2): also can create and modify properties (and the state) of the own datasets
- - __superadmin_datasets__ (3): also can modify any dataset (not owned datasets)
+ - __use_datasets__ (1): The user can use datasets (in addition to only see the metadata).
+ - __admin_datasets__ (2): Also can create datasets and modify properties (and the state) of his/her own datasets.
+ - __superadmin_datasets__ (3): Also can modify any dataset (not only his/her own datasets).
 
 The name of each one can be customized in the configuration file. 
 The number is just a hint, not part of the name: you can see them as permission levels, each level include the previous levels.
 
+The groups with pattern `PROJECT-{project}` indicate the projects which the user has joined to.
+The user will be able to see and use any public dataset and the non-public datasets of the projects which the user has joined to.
 There are other special roles:
- - __admin_users__: required for the operations in '/user'.
- - __admin_datasetAccess__: required for the operations in '/datasetAccess' and '/datasetAccessCheck'.
+ - __admin_users__: required for the operations in path '/user'.
+ - __admin_datasetAccess__: required for the operations in paths '/datasetAccess' and '/datasetAccessCheck'.
 
 ## Dataset states
 
@@ -464,12 +474,12 @@ According to value of the flags a dataset can be in one of these states:
            - Release (_draft_ -> false), goes to Released state.  
            - Invalidate (_invalidated_ -> true), goes to Invalidated state.
  - __Released__: (_draft_ = false, _public_ = false, _invalidated_ = false)  
-           When released, the dataset can't be edited anymore and all the registered users with the rol 'access_all_datasets' can see it and use it.  
+           When released, the dataset can't be edited anymore and all the registered users in the project to which the dataset is assigned can see it and use it.  
            Possible actions:  
             - Publish (_public_ -> true) goes to Published state.  
             - Invalidate (_invalidated_ -> true), goes to Invalidated state.
  - __Published__: (_draft_ = false, _public_ = __true__, _invalidated_ = false)  
-           When published, the dataset can be seen and used by any registered user.  
+           When published, the dataset can be seen and used by any registered user joined to other projects or even not joined to any project.  
            It can be seen (not used) by unregistered users.  
            If there is not a pidUrl yet for the dataset, the metadata and a small index of studies will be deposited publicly in Zenodo.org in order to obtain a DOI for the pidUrl.  
            Possible actions:  
