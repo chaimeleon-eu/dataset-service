@@ -736,21 +736,31 @@ class DB:
             authorId = sql.Literal(str(searchFilter.getUserId()))
             whereClause += sql.SQL(" AND dataset.author_id = ") + authorId
         
-        projects = sql.Literal('--no---project--')
-        if searchFilter.projects != None and len(searchFilter.projects) > 0:
-            projects = sql.SQL(', ').join(sql.Literal(item) for item in searchFilter.projects)
+        nonPublicCondition = sql.SQL("")
+        projectsForNonPublic = searchFilter.getProjectsForNonPublic()
+        if projectsForNonPublic != None:
+            if len(projectsForNonPublic) > 0:
+                projectsForNonPublic = sql.SQL(', ').join(sql.Literal(item) for item in projectsForNonPublic)
+            else: projectsForNonPublic = sql.Literal('--no---project--')
+            nonPublicCondition = sql.SQL(" AND dataset.project_code IN ({})").format(projectsForNonPublic)
 
-        if searchFilter.public == True:
-            whereClause += sql.SQL(" AND dataset.public = true")
-        elif searchFilter.public == False:
-            whereClause += sql.SQL(" AND dataset.public = false")
-            if searchFilter.projects != None:
-                whereClause += sql.SQL(" AND dataset.project_code IN ({})").format(projects)
+        publicCondition = sql.SQL("")
+        projectsForPublic = searchFilter.getProjectsForPublic()
+        if projectsForPublic != None:
+            if len(projectsForPublic) > 0:
+                projectsForPublic = sql.SQL(', ').join(sql.Literal(item) for item in projectsForPublic)
+            else: projectsForPublic = sql.Literal('--no---project--')
+            publicCondition = sql.SQL(" AND dataset.project_code IN ({})").format(projectsForPublic)
+
+        if searchFilter.public == False:
+            whereClause += sql.SQL(" AND dataset.public = false {}").format(nonPublicCondition)
+        elif searchFilter.public == True:
+            whereClause += sql.SQL(" AND dataset.public = true {}").format(publicCondition)
         else: # searchFilter.public is None:
-            if searchFilter.projects != None:
+            if projectsForNonPublic != None or projectsForPublic != None:
                 whereClause += sql.SQL(" AND ({} OR {})").format(
-                    sql.SQL("(dataset.public = false AND dataset.project_code IN ({}))").format(projects),
-                    sql.SQL("dataset.public = true")
+                    sql.SQL("(dataset.public = false {})").format(nonPublicCondition),
+                    sql.SQL("(dataset.public = true {})").format(publicCondition)
                 )
         
         if searchString != '': 
@@ -827,12 +837,14 @@ class DB:
                 sql.SQL("dataset.draft = false")
             )
 
-        projects = sql.Literal('--no---project--')
-        if searchFilter.projects != None and len(searchFilter.projects) > 0:
-            projects = sql.SQL(', ').join(sql.Literal(item) for item in searchFilter.projects)
-        if searchFilter.projects != None:
+        projectsForNonPublic = searchFilter.getProjectsForNonPublic()
+        if projectsForNonPublic != None:
+            if len(projectsForNonPublic) > 0:
+                projectsForNonPublic = sql.SQL(', ').join(sql.Literal(item) for item in projectsForNonPublic)
+            else: projectsForNonPublic = sql.Literal('--no---project--')
+            nonPublicCondition = sql.SQL(" AND dataset.project_code IN ({})").format(projectsForNonPublic)
             whereClause += sql.SQL(" AND ({} OR {})").format(
-                sql.SQL("(dataset.public = false AND dataset.project_code IN ({}))").format(projects),
+                sql.SQL("(dataset.public = false {})").format(nonPublicCondition),
                 sql.SQL("dataset.public = true")
             )
 

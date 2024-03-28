@@ -164,26 +164,42 @@ class Search_filter():
         self.draft = draft
         self.public = public
         self.invalidated = invalidated
-        self.projects = projects   # For filter datasets,
-                                   # normal user only can see datasets of projects to which he/she is joined
+        self._projectsForPublic = projects  # projects for filter public datasets
+        self._projectsForNonPublic = projects  # project for filter non-public datasets
         self._userId = None   # For filter invalidated and draft datasets,
                               # normal user only can see them if he/she is the author.
+    
+    def setSelectedProjects(self, projects: set[str] | None):
+        ''' Set selected projects to filter '''
+        self._projectsForPublic = projects
+        self._projectsForNonPublic = projects
     
     def getUserId(self):
         return self._userId
 
+    def getProjectsForPublic(self):
+        return self._projectsForPublic
+
+    def getProjectsForNonPublic(self):
+        return self._projectsForNonPublic
+
     def adjustByUser(self, user: User):
+        self._userId = None
+
         if user._token is None:   # unregistered user
             self.public = True
             self.invalidated = False
             self.draft = False
-            self.projects = set()
+            self._projectsForNonPublic = set()
             return
         
         if not User.roles.superadmin_datasets in user._token["appRoles"]:
+            # non-superadmin user only can see non-public datasets of projects which he/she is joined to
             user_projects = user.getProjects()
-            if self.projects is None: self.projects = user_projects 
-            else: self.projects.intersection_update(user_projects)            
+            if self._projectsForNonPublic is None: 
+                self._projectsForNonPublic = user_projects 
+            else: 
+                self._projectsForNonPublic.intersection_update(user_projects)
 
         if not User.roles.admin_datasets in user._token["appRoles"]:
             self.invalidated = False

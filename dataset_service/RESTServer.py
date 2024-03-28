@@ -924,7 +924,7 @@ def getDatasets():
         project = str(bottle.request.query['project'])
         if not project.replace('-','a').isalnum(): 
             return setErrorResponse(400, "invalid value for parameter 'project', only alphanumeric chars and '-'")
-        searchFilter.projects = set([project])
+        searchFilter.setSelectedProjects(set([project]))
     searchFilter.adjustByUser(user)
 
     skip = int(bottle.request.query['skip']) if 'skip' in bottle.request.query else 0
