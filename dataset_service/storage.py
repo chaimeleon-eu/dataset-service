@@ -28,7 +28,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 26
+    CURRENT_SCHEMA_VERSION = 27
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -65,6 +65,7 @@ class DB:
             if version < 24: self.updateDB_v23To24()
             if version < 25: self.updateDB_v24To25()
             if version < 26: self.updateDB_v25To26()
+            if version < 27: self.updateDB_v26To27()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -217,6 +218,14 @@ class DB:
                 dataset_id varchar(40),
                 constraint pk_dataset_access_dataset primary key (dataset_access_id, dataset_id),
                 constraint fk_dataset foreign key (dataset_id) references dataset(id)
+            );
+            /* Allowed users to access to a dataset apart from the user joined to the project. */
+            CREATE TABLE dataset_acl (
+                dataset_id varchar(40),
+                user_id varchar(64),
+                constraint pk_dataset_access_control primary key (dataset_id, user_id),
+                constraint fk_dataset foreign key (dataset_id) references dataset(id),
+                constraint fk_user foreign key (user_id) references author(id)
             );
             CREATE TABLE license (
                 id SERIAL,
@@ -407,6 +416,16 @@ class DB:
     def updateDB_v25To26(self):
         logging.root.info("Updating database from v25 to v26...")
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN project_code varchar(80) NOT NULL DEFAULT 'unknown'")
+    
+    def updateDB_v26To27(self):
+        logging.root.info("Updating database from v26 to v27...")
+        self.cursor.execute("""CREATE TABLE dataset_acl (
+                dataset_id varchar(40),
+                user_id varchar(64),
+                constraint pk_dataset_access_control primary key (dataset_id, user_id),
+                constraint fk_dataset foreign key (dataset_id) references dataset(id),
+                constraint fk_user foreign key (user_id) references author(id)
+            );""")
 
 
     def createOrUpdateAuthor(self, userId, username, name, email):
@@ -883,6 +902,41 @@ class DB:
         for row in self.cursor:
             res.append(row[0])
         return res
+    
+    def getDatasetACL(self, datasetId):
+        self.cursor.execute(sql.SQL(
+            "SELECT user_id FROM dataset_acl WHERE dataset_id = %s;"), (datasetId,))
+        return [row[0] for row in self.cursor]
+
+    def getDatasetACL_detailed(self, datasetId):
+        self.cursor.execute(sql.SQL("""
+            SELECT author.id, author.username
+            FROM dataset_acl, author
+            WHERE dataset_acl.dataset_id = %s AND dataset_acl.user_id = author.id
+            ORDER BY author.username;"""),
+            (datasetId,)
+        )
+        res = []
+        for row in self.cursor:
+            res.append(dict(uid = row[0], username = row[1]))
+        return res
+    
+    def addUserToDatasetACL(self, datasetId, newUserId):
+        self.cursor.execute("""
+                INSERT INTO dataset_acl (dataset_id, user_id) 
+                VALUES (%s, %s)
+                ON CONFLICT (dataset_id, user_id) DO NOTHING;""", 
+                (datasetId, newUserId))
+        
+    def deleteUserFromDatasetACL(self, datasetId, userId):
+        self.cursor.execute(
+            "DELETE FROM dataset_acl WHERE dataset_id=%s AND user_id = %s;", 
+            (datasetId, userId))
+
+    def clearDatasetACL(self, datasetId):
+        self.cursor.execute(
+            "DELETE FROM dataset_acl WHERE dataset_id=%s;", (datasetId,))
+    
 
     class searchValidationException(Exception): pass
 

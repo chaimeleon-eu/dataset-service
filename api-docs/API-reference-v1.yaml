@@ -538,6 +538,110 @@ paths:
         '404':
           description: "not found"
 
+  /datasets/{id}/acl:
+    get:
+      tags:
+        - datasets
+      summary: Get the ACL of a dataset by its id
+      operationId: getDatasetACL
+      description: |
+        (This operation is intended only for the admin_datasetAccess role; check if "allowedActionsForTheUser" contains "manageACL".)
+        Returns the access control list (ACL) of a dataset specified by its id. 
+        The ACL is a list of users who can use the dataset (in addition to the users joined to the project of the dataset).
+        IMPORTANT: The ACL can be managed always but it is considered only when the dataset is public.
+                   If the dataset is not public, only users joined to the project can use it.
+      parameters:
+        - name: id
+          description: The id of the dataset.
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: "Successful operation."
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    uid:
+                      type: string
+                      format: uuid
+                      example: "d290f1ee-6c54-4b01-90e6-d701748f0851"
+                    username:
+                      type: string
+                      description: "The username of the user which is also a unique identifier."
+                      example: "user1"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: "Not found."
+
+  /datasets/{id}/acl/{username}:
+    put:
+      tags:
+        - datasets
+      summary: Put a user to the ACL of the dataset
+      operationId: putUserToDatasetACL
+      description: |
+        (This operation is intended only for the admin_datasetAccess role; check if "allowedActionsForTheUser" contains "manageACL".)
+        Add a user to the ACL of the dataset if not exists (else do nothing). 
+        The user will be able to access dataset files.
+        This is only useful for users that are not joined to the project of the dataset (the users in the project will always be able to access).
+      parameters:
+        - name: id
+          description: The id of the dataset.
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: username
+          description: The unique username of the user.
+          example: "user1"
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Item created.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: "Not found."
+    delete:
+      tags:
+        - datasets
+      summary: Delete a user from the ACL of a dataset
+      operationId: deleteUserFromDatasetACL
+      description: |
+        (This operation is intended only for the admin_datasetAccess role; check if "allowedActionsForTheUser" contains "manageACL".)
+        Remove a user to the ACL of the dataset if exists (else do nothing). 
+      parameters:
+        - name: id
+          description: The id of the dataset.
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: username
+          description: The unique username of the user.
+          example: "user1"
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: "Successful operation."
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: "Not found."
+
   /upgradableDatasets:
     get:
       tags:
@@ -1059,6 +1163,7 @@ components:
              * `checkIntegrity` - To do a POST /datasets/{id}/checkIntegrity.
              * `relaunchCreationJob` - To do a POST /datasets/{id}/relaunchCreationJob.
              * `viewAccessHistory` - To do a GET /datasets/{id}/accessHistory
+             * `manageACL` - To do any operation in /datasets/{id}/acl and /datasets/{id}/acl/{username}
           example: '["use", "checkIntegrity"]'
           items:
             type: string
@@ -1068,6 +1173,7 @@ components:
              - "checkIntegrity"
              - "relaunchCreationJob"
              - "viewAccessHistory"
+             - "manageACL"
         studiesCount:
           type: integer
           description: "The number of studies contained in the dataset"

@@ -2,6 +2,7 @@
 
 import os
 import io
+from enum import Enum
 from datetime import datetime
 from pathlib import Path
 import bottle
@@ -613,7 +614,7 @@ def getDatasetCreationStatus(id):
             return setErrorResponse(404,"not found")
 
         # check access permission
-        if not user.canAccessDataset(dataset):
+        if not user.canViewDatasetDetails(dataset):
             return setErrorResponse(401,"unauthorized user")
 
         status = db.getDatasetCreationStatus(datasetId)
@@ -713,10 +714,11 @@ def getDataset(id):
             return setErrorResponse(404,"not found")
         if dataset["draft"]:
             dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
-        if not user.canAccessDataset(dataset):
+        datasetACL = db.getDatasetACL(id)
+        if not user.canViewDatasetDetails(dataset):
             return setErrorResponse(401,"unauthorized user")
         dataset["editablePropertiesByTheUser"] = user.getEditablePropertiesByTheUser(dataset)
-        dataset["allowedActionsForTheUser"] = user.getAllowedActionsForTheUser(dataset)
+        dataset["allowedActionsForTheUser"] = user.getAllowedActionsForTheUser(dataset, datasetACL)
     bottle.response.content_type = "application/json"
     return json.dumps(dataset)
 
@@ -740,7 +742,7 @@ def getDatasetStudies(id):
             return setErrorResponse(404,"not found")
         if dataset["draft"]:
             dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
-        if not user.canAccessDataset(dataset):
+        if not user.canViewDatasetDetails(dataset):
             return setErrorResponse(401,"unauthorized user")
 
         studies, total = db.getStudiesFromDataset(datasetId, limit, skip)
@@ -901,6 +903,67 @@ def patchDataset(id):
             tracer.traceDatasetUpdate(AUTH_CLIENT, CONFIG.tracer.url, datasetId, user.uid, trace_details)
     bottle.response.status = 200
 
+@app.route('/api/datasets/<id>/acl', method='GET')
+def getDatasetACL(id):
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    ret = getTokenFromAuthorizationHeader()
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
+
+    datasetId = id
+    with DB(CONFIG.db) as db:
+        dataset = db.getDataset(datasetId)
+        if dataset is None: return setErrorResponse(404,"not found")
+        if dataset["draft"]:
+            dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
+        if not user.canManageACL(dataset):
+            return setErrorResponse(401,"unauthorized user")
+        acl = db.getDatasetACL_detailed(datasetId)
+    bottle.response.content_type = "application/json"
+    return json.dumps(acl)
+
+class Edit_operation(Enum):
+    ADD = 1
+    DELETE = 2
+
+def changeDatasetACL(datasetId, username, operation):
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    ret = getTokenFromAuthorizationHeader()
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
+    
+    with DB(CONFIG.db) as db:
+        dataset = db.getDataset(datasetId)
+        if dataset is None: return setErrorResponse(404,"dataset not found")
+        if dataset["draft"]:
+            dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
+        if not user.canManageACL(dataset): 
+            return setErrorResponse(401,"unauthorized user")
+        userId, userGid = db.getUserIDs(username)
+        if userId is None: return setErrorResponse(404, "user not found")
+        if operation == Edit_operation.ADD:
+            LOG.debug("Adding user '%s' to the ACL of dataset %s." % (username, datasetId))
+            db.addUserToDatasetACL(datasetId, userId)
+            LOG.debug('User successfully added to the ACL.')
+            bottle.response.status = 201
+        elif operation == Edit_operation.DELETE:
+            LOG.debug("Deleting user '%s' from the ACL of dataset %s." % (username, datasetId))
+            db.deleteUserFromDatasetACL(datasetId, userId)
+            LOG.debug('User successfully deleted from the ACL.')
+            bottle.response.status = 204
+        else: raise Exception()
+
+@app.route('/api/datasets/<id>/acl/<username>', method='PUT')
+def putUserToDatasetACL(id, username):
+    changeDatasetACL(id, username, Edit_operation.ADD)
+
+@app.route('/api/datasets/<id>/acl/<username>', method='DELETE')
+def deleteUserFromDatasetACL(id, username):
+    changeDatasetACL(id, username, Edit_operation.DELETE)
+
+
 def parse_flag_value(s: str) -> bool | None:
     s = s.lower()
     if s == 'true': return True
@@ -1041,6 +1104,8 @@ def deleteDataset(id):
             return setErrorResponse(400, "The dataset can't be removed because it is currently accessed by: " + json.dumps(accesses))
 
         # Now let's remove the dataset from all sites
+        LOG.debug("Removing dataset ACL in the database...")
+        db.clearDatasetACL(datasetId)
         LOG.debug("Removing dataset accesses in the database...")
         for ac in accesses: 
             db.deleteDatasetAccess(ac["datasetAccessId"])
@@ -1176,7 +1241,8 @@ def checkDatasetListAccess(datasetIDs: list, userName: str):
             # if not authorization.tmpUserCanAccessDataset(userId, userGroups, dataset):
             if dataset["draft"]:
                 dataset["creating"] = (db.getDatasetCreationStatus(id) != None)
-            if not user.canAccessDataset(dataset, authorization.Access_type.USE):
+            datasetACL = db.getDatasetACL(id)
+            if not user.canUseDataset(dataset, datasetACL):
                 badIDs.append(id); continue
     if user._token != None: LOG.debug("###### User in groups: %s" % json.dumps(user._token["groups"]))
     if len(badIDs) == 0 and user.isOpenChallenge(): 
@@ -1379,7 +1445,7 @@ def getDatasetAccessHistory(id):
             return setErrorResponse(404,"not found")
         if dataset["draft"]:
             dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
-        if not user.canAccessDataset(dataset):
+        if not user.canViewDatasetDetails(dataset):
             return setErrorResponse(401,"unauthorized user")
 
         accesses, total = db.getDatasetAccesses(datasetId, limit, skip)    

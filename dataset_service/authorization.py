@@ -1,9 +1,4 @@
-from enum import Enum
 from dataset_service.POSIX import *
-
-class Access_type(Enum):
-    VIEW_DETAILS = 1
-    USE = 2
 
 PROJECT_GROUP_PREFIX = "PROJECT-"
 
@@ -79,26 +74,24 @@ class User:
         if User.roles.superadmin_datasets in self._token["appRoles"]: return True
         return "creating" in dataset and dataset["creating"]
 
-    def canAccessDataset(self, dataset, access_type = Access_type.VIEW_DETAILS):
-        if access_type == Access_type.VIEW_DETAILS:
-            return self.canViewDatasetDetails(dataset)
-        else:   # access_type == Access_type.USE
-            return self.canUseDataset(dataset)
-
     def canViewDatasetDetails(self, dataset):
         if self._token != None and User.roles.superadmin_datasets in self._token["appRoles"]: return True
         if dataset["draft"] and (self._token is None or self._token["sub"] != dataset["authorId"]): return False
         if dataset["public"]: return True
         return (self._token != None and PROJECT_GROUP_PREFIX + dataset["project"] in self._token["groups"])
 
-    def canUseDataset(self, dataset):
-        if not self.canViewDatasetDetails: return False
-
+    def canUseDataset(self, dataset, datasetACL):
+        # Essential conditions
+        if self._token is None or not User.roles.use_datasets in self._token["appRoles"]: return False
+        if not self.canViewDatasetDetails(dataset): return False
+        # Special cases
         if dataset["draft"] and dataset["creating"]: return False
-        if self._token != None and User.roles.superadmin_datasets in self._token["appRoles"]: return True
+        if User.roles.superadmin_datasets in self._token["appRoles"]: return True
         if dataset["invalidated"]: return False
-        if dataset["public"]: return (self._token != None)
-        return (self._token != None and User.roles.use_datasets in self._token["appRoles"])
+        # The main rule
+        if PROJECT_GROUP_PREFIX + dataset["project"] in self._token["groups"]: return True
+        if dataset["public"]: return (self.uid in datasetACL)
+        else: return False
 
     def canCheckIntegrityOfDatasets(self):
         return self.isSuperAdminDatasets()
@@ -122,9 +115,9 @@ class User:
             editableProperties.append("license")
         return editableProperties
     
-    def getAllowedActionsForTheUser(self, dataset):
+    def getAllowedActionsForTheUser(self, dataset, datasetACL):
         allowedActions = []
-        if self.canAccessDataset(dataset, Access_type.USE):
+        if self.canUseDataset(dataset, datasetACL):
             allowedActions.append("use")
         if self.canDeleteDataset(dataset):
             allowedActions.append("delete")
@@ -134,6 +127,8 @@ class User:
             allowedActions.append("relaunchCreationJob")
         if self.canAdminDatasetAccesses():
             allowedActions.append("viewAccessHistory")
+        if self.canManageACL(dataset):
+            allowedActions.append("manageACL")
         return allowedActions
     
     def getProjects(self) -> set[str]:
@@ -155,7 +150,12 @@ class User:
         return self._token != None and self.roles.admin_users in self._token["appRoles"]
 
     def canAdminDatasetAccesses(self):
-        return self._token != None and self.roles.admin_datasetAccess in self._token["appRoles"]
+        if self._token is None: return False
+        #if not PROJECT_GROUP_PREFIX + dataset["project"] in self._token["groups"]: return False
+        return self.roles.admin_datasetAccess in self._token["appRoles"]
+    
+    def canManageACL(self, dataset):
+        return self.canModifyDataset(dataset) or self.canAdminDatasetAccesses()
 
 
 class Search_filter():
