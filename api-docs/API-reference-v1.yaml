@@ -297,6 +297,7 @@ paths:
       description:  |
         Deletes a dataset in the system. 
         Normal users only can delete a dataset when it is still being created (or ended with error) (i.e. "creating" flag is true). Once created it can be used, and this usage will be traced, so it cannot be deleted (the deletion would hide the usage), but it can be invalidated instead.
+        Check if "allowedActionsForTheUser" contains "delete" to know if the user can delete.
       parameters:
         - name: id
           description: "The id of the dataset to delete."
@@ -421,8 +422,8 @@ paths:
       summary: Check the integrity of a dataset
       operationId: checkDatasetIntegrity
       description: |
+        (This operation is intended only for the superadmin_datasets role; check if "allowedActionsForTheUser" contains "checkIntegrity".)
         Launch a process to read the entire dataset, calculate the hash and compare with the one stored in the creation.
-        It is intended be called only from the superadmin_datasets role and automated scheduled process.
         The result will be in the property "DatasetDetails.lastIntegrityCheck".
       parameters:
         - name: id
@@ -454,7 +455,7 @@ paths:
       summary: Relaunch the creation job of a dataset
       operationId: relaunchDatasetCreationJob
       description: |
-        (This operation is intended only for the superadmin_datasets role)
+        (This operation is intended only for the superadmin_datasets role; check if "allowedActionsForTheUser" contains "relaunchCreationJob".)
         When a creation job is interrupted (and fail) for any reason and the admin fix the problem,
         then another creation job can be launched in k8s with this operation in order to restart and complete the process of creation.
       parameters:
@@ -479,7 +480,7 @@ paths:
       summary: List accesses of a dataset
       operationId: getDatasetAccessHistory
       description: |
-        (This operation is intended only for the admin_datasetAccess role)
+        (This operation is intended only for the admin_datasetAccess role; check if "allowedActionsForTheUser" contains "viewAccessHistory".)
         Returns the list of accesses to a dataset specified by its id.
       parameters:
         - name: id
@@ -548,7 +549,7 @@ paths:
         Upgrade a dataset means create another dataset that improves or correct this one and thus the previousId property of the new one will be filled with the id of this one.
       responses:
         '200':
-          description: "list successfully retrieved"
+          description: "List successfully retrieved."
           content:
             application/json:
               schema:

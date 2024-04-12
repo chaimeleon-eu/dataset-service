@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 
 import os
+import io
 from datetime import datetime
 from pathlib import Path
 import bottle
@@ -223,7 +224,7 @@ def getAlive():
 
 @app.route('/api/set-ui', method='POST')
 def postSetUI():
-    if CONFIG is None: raise Exception()
+    if CONFIG is None or not isinstance(bottle.request.body, io.IOBase): raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     if CONFIG.self.dev_token == "":
         return setErrorResponse(404, "Not found: '%s'" % bottle.request.path)
@@ -307,7 +308,8 @@ def postDataset():
     if CONFIG is None \
        or not isinstance(bottle.request.query, bottle.FormsDict) \
        or not isinstance(bottle.request.forms, bottle.FormsDict) \
-       or not isinstance(bottle.request.files, bottle.FormsDict): 
+       or not isinstance(bottle.request.files, bottle.FormsDict) \
+       or not isinstance(bottle.request.body, io.IOBase): 
         raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ret = getTokenFromAuthorizationHeader()
@@ -778,7 +780,7 @@ def updateZenodoDeposition(db, dataset):
 
 @app.route('/api/datasets/<id>', method='PATCH')
 def patchDataset(id):
-    if CONFIG is None or AUTH_CLIENT is None: raise Exception()
+    if CONFIG is None or AUTH_CLIENT is None or not isinstance(bottle.request.body, io.IOBase): raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ret = getTokenFromAuthorizationHeader()
     if isinstance(ret, str): return ret  # return error message
@@ -947,7 +949,7 @@ def getDatasets():
     
 @app.route('/api/datasets/eucaimSearch', method='POST')
 def eucaimSearchDatasets():
-    if CONFIG is None or not isinstance(bottle.request.query, bottle.FormsDict): raise Exception()
+    if CONFIG is None or not isinstance(bottle.request.body, io.IOBase): raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     if CONFIG.self.eucaim_search_token == "":
         return setErrorResponse(404, "Not found: '%s'" % bottle.request.path)
@@ -1101,7 +1103,7 @@ def postUser(userName):
 
 @app.route('/api/users/<userName>', method='PUT')
 def putUser(userName):
-    if CONFIG is None or AUTH_ADMIN_CLIENT is None: raise Exception()
+    if CONFIG is None or AUTH_ADMIN_CLIENT is None or not isinstance(bottle.request.body, io.IOBase): raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ret = getTokenFromAuthorizationHeader(serviceAccount=True)
     if isinstance(ret, str): return ret  # return error message
@@ -1183,6 +1185,7 @@ def checkDatasetListAccess(datasetIDs: list, userName: str):
 
 @app.route('/api/datasetAccessCheck', method='POST')
 def postDatasetAccessCheck():
+    if not isinstance(bottle.request.body, io.IOBase): raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ret = getTokenFromAuthorizationHeader(serviceAccount=True)
     if isinstance(ret, str): return ret  # return error message
@@ -1223,7 +1226,7 @@ def postDatasetAccessCheck():
 
 @app.route('/api/datasetAccess/<id>', method='POST')
 def postDatasetAccess(id):
-    if CONFIG is None or AUTH_CLIENT is None: raise Exception()
+    if CONFIG is None or AUTH_CLIENT is None or not isinstance(bottle.request.body, io.IOBase): raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ret = getTokenFromAuthorizationHeader(serviceAccount=True)
     if isinstance(ret, str): return ret  # return error message
@@ -1300,7 +1303,7 @@ def postDatasetAccess(id):
 
 @app.route('/api/datasetAccess/<id>', method='PATCH')
 def endDatasetAccess(id):
-    if CONFIG is None: raise Exception()
+    if CONFIG is None or not isinstance(bottle.request.body, io.IOBase): raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ret = getTokenFromAuthorizationHeader(serviceAccount=True)
     if isinstance(ret, str): return ret  # return error message
