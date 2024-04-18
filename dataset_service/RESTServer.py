@@ -18,7 +18,7 @@ from jwt import PyJWKClient
 import urllib
 import urllib.error
 import uuid
-from dataset_service import authorization, k8s, pid, tracer, keycloak
+from dataset_service import authorization, k8s, pid, tracer, keycloak, config
 from dataset_service.auth import AuthClient, LoginException
 from dataset_service.storage import DB
 import dataset_service.dataset as dataset_file_system
@@ -87,10 +87,10 @@ class RESTServer (bottle.ServerAdapter):
         if self.srv:
             self.srv.stop()
 
-def run(host, port, config):
+def run(host, port, config: config.Config):
     global thisRESTServer, LOG, CONFIG, AUTH_PUBLIC_KEY, AUTH_CLIENT, AUTH_ADMIN_CLIENT
     CONFIG = config
-    authorization.User.roles = CONFIG.auth.token_validation.roles
+    authorization.User.roles = authorization.Roles(CONFIG.auth.token_validation.roles)
     AUTH_CLIENT = AuthClient(CONFIG.auth.client.auth_url, CONFIG.auth.client.client_id, CONFIG.auth.client.client_secret)
     AUTH_ADMIN_CLIENT = keycloak.KeycloakAdminAPIClient(AUTH_CLIENT, CONFIG.auth.admin_api_url, CONFIG.auth.client.client_id)
 

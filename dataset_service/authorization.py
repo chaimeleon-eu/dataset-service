@@ -2,8 +2,17 @@ from dataset_service.POSIX import *
 
 PROJECT_GROUP_PREFIX = "PROJECT-"
 
+class Roles:
+    def __init__(self, roles: dict | None):
+        if roles is None: return
+        self.use_datasets = roles["use_datasets"]
+        self.admin_datasets = roles["admin_datasets"]
+        self.superadmin_datasets = roles["superadmin_datasets"]
+        self.admin_users = roles["admin_users"]
+        self.admin_datasetAccess = roles["admin_datasetAccess"]
+
 class User:
-    roles = None
+    roles = Roles(None)
 
     def __init__(self, token: dict | None):
         self._token = token    # it is None if unregistered user
@@ -14,6 +23,8 @@ class User:
 
     @classmethod
     def validateToken(cls, token, serviceAccount):
+        if getattr(User.roles, 'use_datasets', None) is None: 
+            raise Exception("Please set User.roles before trying to validate a token.")
         if not "sub" in token.keys(): return False, "sub"
         if not serviceAccount:
             if not "preferred_username" in token.keys(): return False, "preferred_username"
