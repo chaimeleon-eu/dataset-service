@@ -26,11 +26,22 @@ import dataset_service.dataset as dataset_file_system
 #LOG = logging.getLogger('module1')
 LOG = logging.root
 
-# The code below is just to translate the body of error responses to JSON format
 class MyBottle(bottle.Bottle):
+    # This method overwrite is just to translate the body of error responses to JSON format
     def default_error_handler(self, res):
         bottle.response.content_type = 'application/json'
         return json.dumps(dict(error = res.body, status_code = res.status_code))
+    # Below method overwrite is not required in fact (all should work if we delete it).
+    # It is a simplified version or the original method (https://github.com/bottlepy/bottle/blob/release-0.12/bottle.py#L788)
+    # just to avoid the pylance warning 'Object of type "ModuleType" is no callable'.
+    # Usefull link to understand the code: https://stackoverflow.com/a/33777519
+    def route(self, path=None, method='GET', **config):
+        def decorator(callback):
+            for rule in bottle.makelist(path) or bottle.yieldroutes(callback):
+                for verb in bottle.makelist(method):
+                    self.add_route(bottle.Route(self, rule, verb.upper(), callback, **config))
+            return callback
+        return decorator
 
 # The code below is just to send the exception trace to the log
 def exception_catch(func):
@@ -216,6 +227,8 @@ def getHello():
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     bottle.response.content_type = "text/plain"
     return "Hello from Dataset Service"
+# Aternative to decorator:
+# app.route('/api/', method='GET', callback=getHello)
 
 @app.route('/health', method='GET')
 def getAlive():
