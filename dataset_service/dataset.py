@@ -188,12 +188,10 @@ def _readStudyMetadataFromFirstDicomFile(serieDirPath, study):
             #dcm.getDatasetType    it seems very similar to modality
             return 
 
-def _completeStudyMetadataWithSubjectsInfo(study, subjects: eform.Eforms):
+def _completeStudyMetadataWithSubjectEform(study, eform: eform.Eform):
     if not "diagnosisYear" in study: study["diagnosisYear"] = None
     if not "ageInDays" in study: study["ageInDays"] = None
     if not "sex" in study: study["sex"] = None
-    subject_name = study["subjectName"]
-    eform = subjects.getEform(subject_name)
     if eform is None: return
     if eform.diagnosisYear != None: study["diagnosisYear"] = eform.diagnosisYear
     if eform.ageInDays != None:     study["ageInDays"] = eform.ageInDays
@@ -258,7 +256,7 @@ def collectMetadata(dataset, datalake_mount_path, eformsFilePath):
         studyPathInDatalake = os.path.join(datalake_mount_path, study['pathInDatalake'])
         seriesDirectoryNames = [s['folderName'] for s in study['series']]
         _getTotalStudySizeInBytes(studyPathInDatalake, seriesDirectoryNames, study)
-        _completeStudyMetadataWithSubjectsInfo(study, subjects)
+        _completeStudyMetadataWithSubjectEform(study, subjects.getEform(study["subjectName"]))
 
         #Agregate metadata of this study
         if study["ageInDays"] != None:

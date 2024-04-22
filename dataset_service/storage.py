@@ -180,7 +180,7 @@ class DB:
                 study_id varchar(40),
                 series text NOT NULL DEFAULT '[]',
                 hash varchar(50) NOT NULL DEFAULT '',
-                size_in_bytes integer DEFAULT NULL,
+                size_in_bytes bigint DEFAULT NULL,
                 constraint pk_dataset_study primary key (dataset_id, study_id),
                 constraint fk_dataset foreign key (dataset_id) references dataset(id),
                 constraint fk_study foreign key (study_id) references study(id)
@@ -411,7 +411,7 @@ class DB:
     def updateDB_v24To25(self):
         logging.root.info("Updating database from v24 to v25...")
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN size_in_bytes bigint DEFAULT NULL")
-        self.cursor.execute("ALTER TABLE dataset_study ADD COLUMN size_in_bytes integer DEFAULT NULL")
+        self.cursor.execute("ALTER TABLE dataset_study ADD COLUMN size_in_bytes bigint DEFAULT NULL")
     
     def updateDB_v25To26(self):
         logging.root.info("Updating database from v25 to v26...")

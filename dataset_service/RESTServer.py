@@ -69,14 +69,13 @@ AUTH_ADMIN_CLIENT = None
 
 class RESTServer (bottle.ServerAdapter):
     def run(self, handler):
-        try:
-            # First try to use the new version
-            from cheroot import wsgi
-            server = wsgi.Server((self.host, self.port), handler, request_queue_size=32)
-        except:
-            from cherrypy import wsgiserver
-            server = wsgiserver.CherryPyWSGIServer((self.host, self.port), handler, request_queue_size=32)
-
+        # https://bottlepy.org/docs/stable/deployment.html#switching-the-server-backend
+        # https://github.com/bottlepy/bottle/blob/release-0.12/bottle.py#L2834
+        from cheroot import wsgi
+        server = wsgi.Server((self.host, self.port), handler, request_queue_size=32)
+        # old version:
+        # from cherrypy import wsgiserver
+        # server = wsgiserver.CherryPyWSGIServer((self.host, self.port), handler, request_queue_size=32)
         self.srv = server
         try:
             server.start()
@@ -392,6 +391,7 @@ def postDataset():
                 if not study["subjectName"] in subjects:
                     raise WrongInputException("The study with id '%s' has a 'subjectName' which is not in the " % study["studyId"]
                                              +"'subjects' array of the dataset." )
+                study['pathInDatalake'] = str(study['pathInDatalake']).removesuffix('/')
                 studyDirName = os.path.basename(study['pathInDatalake'])
                 study_path = os.path.join(study["subjectName"], studyDirName)
                 # example of study_path: 17B76FEW/TCPEDITRICOABDOMINOPLVICO20150129

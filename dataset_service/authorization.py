@@ -175,15 +175,17 @@ class Search_filter():
         self.draft = draft
         self.public = public
         self.invalidated = invalidated
-        self._projectsForPublic = projects  # projects for filter public datasets
-        self._projectsForNonPublic = projects  # project for filter non-public datasets
+        # projects for filter public datasets
+        self._projectsForPublic = projects.copy() if projects != None else None
+        # projects for filter non-public datasets
+        self._projectsForNonPublic = projects.copy() if projects != None else None
         self._userId = None   # For filter invalidated and draft datasets,
                               # normal user only can see them if he/she is the author.
     
     def setSelectedProjects(self, projects: set[str] | None):
         ''' Set selected projects to filter '''
-        self._projectsForPublic = projects
-        self._projectsForNonPublic = projects
+        self._projectsForPublic = projects.copy() if projects != None else None
+        self._projectsForNonPublic = projects.copy() if projects != None else None
     
     def getUserId(self):
         return self._userId

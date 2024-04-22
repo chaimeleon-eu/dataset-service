@@ -1323,9 +1323,9 @@ components:
           type: string
           maxLength: 256
           description: |
-            Path to the folder of the study in the datalake (the structure usually should be: <userName>/<subjectName>_<trial>/<studyName><studyDate>/). 
+            Path to the folder of the study in the datalake (the structure usually should be: \<userName\>/\<subjectName\>_\<trial\>/\<studyName\>\<studyDate\>). 
             It is required in POST /datasets but it will not be included in GET /datasets/{id} for privacy reasons.
-          example: "blancagomez/17B76FEW_Neuroblastoma/TCPEDITRICOABDOMINOPLVICOCONCONTRASTE20150129/"
+          example: "blancagomez/17B76FEW_Neuroblastoma/TCPEDITRICOABDOMINOPLVICOCONCONTRASTE20150129"
         series:
           type: array
           description: |
@@ -1344,6 +1344,7 @@ components:
           description: |
             The total size of files in all the series selected for this study in the dataset. 
             Null if metadata still not collected.
+            This property will be included GET /datasets/{id} but it is not required (will be ignored) in POST /datasets.
           example: '182460520'
           
     Series:
