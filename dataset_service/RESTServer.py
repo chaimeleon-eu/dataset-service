@@ -483,7 +483,8 @@ def postDataset():
             LOG.debug('Creating status in DB...')
             db.createDatasetCreationStatus(datasetId, "pending", "Launching dataset creation job...")
             LOG.debug('Launching dataset creation job...')
-            ok = k8s.add_dataset_creation_job(datasetId)
+            k8sClient = k8s.K8sClient()
+            ok = k8sClient.add_dataset_creation_job(datasetId)
             if not ok: 
                 db.setDatasetCreationStatus(datasetId, "error", "Unexpected error launching dataset creation job.")
                 raise K8sException("Unexpected error launching dataset creation job.")
@@ -602,10 +603,16 @@ def relaunchDatasetCreationJob(id):
             dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
         if not user.canRelaunchDatasetCreation(dataset):
             return setErrorResponse(401,"unauthorized user")
+        k8sClient = k8s.K8sClient()
+        job = k8sClient.exist_dataset_creation_job(datasetId)
+        if job:
+            if k8sClient.is_running_dataset_creation_job(job):
+                return setErrorResponse(400,"there is a creation job running for this dataset, please stop or delete it before relaunch")
+            else: k8sClient.delete_dataset_creation_job(datasetId)
         LOG.debug('Updating status in DB...')
         db.setDatasetCreationStatus(datasetId, "pending", "Relaunching dataset creation job...")
         LOG.debug('Relaunching dataset creation job in k8s...')
-        ok = k8s.add_dataset_creation_job(datasetId)
+        ok = k8sClient.add_dataset_creation_job(datasetId)
         if not ok: 
             db.setDatasetCreationStatus(datasetId, "error", "Unexpected error launching dataset creation job.")
             raise K8sException("Unexpected error launching dataset creation job.")
@@ -1109,7 +1116,8 @@ def deleteDataset(id):
         if "creating" in dataset and dataset["creating"]:
             #First of all stop the job
             LOG.debug('Deleting dataset creation job...')
-            ok = k8s.delete_dataset_creation_job(datasetId)
+            k8sClient = k8s.K8sClient()
+            ok = k8sClient.delete_dataset_creation_job(datasetId)
             if not ok: return setErrorResponse(500, "Unexpected error")
         
         accesses = db.getOpenDatasetAccesses(datasetId)
