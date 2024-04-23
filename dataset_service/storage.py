@@ -841,7 +841,7 @@ class DB:
         q = sql.SQL("""
                 SELECT dataset.id, dataset.name, author.name, dataset.creation_date, dataset.project_code, 
                     dataset.draft, dataset.public, dataset.invalidated, 
-                    dataset.studies_count, dataset.subjects_count
+                    dataset.studies_count, dataset.subjects_count, dataset.version
                 FROM dataset, author{}
                 WHERE dataset.author_id = author.id {}
                 ORDER BY {} 
@@ -853,7 +853,7 @@ class DB:
         for row in self.cursor:
             creationDate = str(row[3].astimezone())   # row[3] is a datetime without time zone, just add the local tz.
                                                       # If local tz is UTC, the string "+00:00" is added at the end.
-            res.append(dict(id = row[0], name = row[1], authorName = row[2], creationDate = creationDate, project = row[4],
+            res.append(dict(id = row[0], name = row[1], version = row[10], authorName = row[2], creationDate = creationDate, project = row[4],
                             draft = row[5], public = row[6], invalidated = row[7],
                             studiesCount = row[8], subjectsCount = row[9]))
         return res, total

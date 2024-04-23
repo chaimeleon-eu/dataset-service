@@ -957,7 +957,10 @@ components:
         name:
           type: string
           description: "Short descriptive name."
-          example: "Lung cancer v3"
+          example: "Lung cancer"
+        version:
+          type: string
+          example: "20240415"
         authorName:
           type: string
           description: "The name of the user wich created the dataset."
@@ -1381,6 +1384,7 @@ components:
       properties:
         studyId:
           type: string
+          maxLength: 40
           example: "5e5629835938d12160636353"
         studyName:
           type: string
