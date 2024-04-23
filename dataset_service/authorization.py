@@ -114,8 +114,12 @@ class User:
                 if not dataset["creating"]:
                     editableProperties.append("draft")
                 editableProperties.append("name")
+                editableProperties.append("version")
                 # editableProperties.append("project")
                 editableProperties.append("description")
+                editableProperties.append("purpose")
+                editableProperties.append("type")
+                editableProperties.append("collectionMethod")
                 editableProperties.append("previousId")
             else:
                 if self.isSuperAdminDatasets():

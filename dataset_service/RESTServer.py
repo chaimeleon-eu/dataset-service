@@ -316,6 +316,19 @@ def completeDatasetFromCSV(dataset, csvdata):
                 'eForm': eform 
             })
 
+def _checkPropertyAsArrayOfStrings(propName: str, value: list[str], item_possible_values: list[str]):
+    if not isinstance(value, list):
+        raise WrongInputException("'%s' must be an array of strings." % propName)
+    for item in value:
+        if not isinstance(item, str): 
+            raise WrongInputException("'%s' must be an array of strings." % propName)
+        if not item in item_possible_values:
+            return setErrorResponse(400, "unknown item value '%s' in '%s', it should be one of {%s}" \
+                                         % (item, propName, ','.join(item_possible_values)))
+
+ITEM_POSSIBLE_VALUES_FOR_TYPE = ['original', 'annotated', 'processed']
+ITEM_POSSIBLE_VALUES_FOR_COLLECTION_METHOD = ['patient-based', 'cohort', 'only-image', 'longitudinal', 'case-control', 'disease-specific']
+
 @app.route('/api/datasets', method='POST')
 def postDataset():
     if CONFIG is None \
@@ -364,6 +377,14 @@ def postDataset():
             #LOG.debug("BODY: " + read_data)
             dataset = json.loads( read_data )
             if not isinstance(dataset, dict): raise WrongInputException("The body must be a json object.")
+            if not 'version' in dataset.keys(): dataset["version"] = ''
+            if not 'purpose' in dataset.keys(): dataset["purpose"] = ''
+            if 'type' in dataset.keys(): 
+                _checkPropertyAsArrayOfStrings('type', dataset["type"], ITEM_POSSIBLE_VALUES_FOR_TYPE)
+            else: dataset["type"] = []
+            if 'collectionMethod' in dataset.keys(): 
+                _checkPropertyAsArrayOfStrings('collectionMethod', dataset["collectionMethod"], ITEM_POSSIBLE_VALUES_FOR_COLLECTION_METHOD)
+            else: dataset["collectionMethod"] = []
             if not 'studies' in dataset.keys() or not isinstance(dataset["studies"], list): 
                 raise WrongInputException("'studies' property is required and must be an array.")
             if not 'subjects' in dataset.keys() or not isinstance(dataset["subjects"], list): 
@@ -735,10 +756,12 @@ def getDataset(id):
         if dataset["draft"]:
             dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
         datasetACL = db.getDatasetACL(id)
-        if not user.canViewDatasetDetails(dataset):
-            return setErrorResponse(401,"unauthorized user")
-        dataset["editablePropertiesByTheUser"] = user.getEditablePropertiesByTheUser(dataset)
-        dataset["allowedActionsForTheUser"] = user.getAllowedActionsForTheUser(dataset, datasetACL)
+    if not user.canViewDatasetDetails(dataset):
+        return setErrorResponse(401,"unauthorized user")
+    dataset["editablePropertiesByTheUser"] = user.getEditablePropertiesByTheUser(dataset)
+    dataset["allowedActionsForTheUser"] = user.getAllowedActionsForTheUser(dataset, datasetACL)
+    if user.isUnregistered():
+        del dataset["authorEmail"]
     bottle.response.content_type = "application/json"
     return json.dumps(dataset)
 
@@ -871,8 +894,22 @@ def patchDataset(id):
         elif property == "name":
             db.setDatasetName(datasetId, str(newValue))
             # Don't notify the tracer, this property can be changed only in draft state
+        elif property == "version":
+            db.setDatasetVersion(datasetId, str(newValue))
+            # Don't notify the tracer, this property can be changed only in draft state
         elif property == "description":
             db.setDatasetDescription(datasetId, str(newValue))
+            # Don't notify the tracer, this property can be changed only in draft state
+        elif property == "purpose":
+            db.setDatasetPurpose(datasetId, str(newValue))
+            # Don't notify the tracer, this property can be changed only in draft state
+        elif property == "type":
+            _checkPropertyAsArrayOfStrings("value", newValue, ITEM_POSSIBLE_VALUES_FOR_TYPE)
+            db.setDatasetType(datasetId, newValue)
+            # Don't notify the tracer, this property can be changed only in draft state
+        elif property == "collectionMethod":
+            _checkPropertyAsArrayOfStrings("value", newValue, ITEM_POSSIBLE_VALUES_FOR_COLLECTION_METHOD)
+            db.setDatasetCollectionMethod(datasetId, newValue)
             # Don't notify the tracer, this property can be changed only in draft state
         # elif property == "project":
         #     newProject = str(newValue)

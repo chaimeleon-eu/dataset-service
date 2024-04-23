@@ -28,7 +28,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 27
+    CURRENT_SCHEMA_VERSION = 28
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -66,6 +66,7 @@ class DB:
             if version < 25: self.updateDB_v24To25()
             if version < 26: self.updateDB_v25To26()
             if version < 27: self.updateDB_v26To27()
+            if version < 28: self.updateDB_v27To28()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -127,12 +128,16 @@ class DB:
             CREATE TABLE dataset (
                 id varchar(40),
                 name varchar(256) NOT NULL,
+                version varchar(16) NOT NULL DEFAULT '',
                 project_code varchar(80) NOT NULL,
                 previous_id varchar(40) DEFAULT NULL,
                 next_id varchar(40) DEFAULT NULL,
                 author_id varchar(64) NOT NULL,
                 creation_date timestamp NOT NULL,
                 description text NOT NULL DEFAULT '',
+                purpose text NOT NULL DEFAULT '',
+                type varchar(16) ARRAY NOT NULL DEFAULT ARRAY[]::varchar[],
+                collection_method varchar(16) ARRAY NOT NULL DEFAULT ARRAY[]::varchar[],
                 license_title varchar(128) NOT NULL DEFAULT '',
                 license_url varchar(256) NOT NULL DEFAULT '',
                 pid_url varchar(256) DEFAULT NULL,
@@ -426,7 +431,14 @@ class DB:
                 constraint fk_dataset foreign key (dataset_id) references dataset(id),
                 constraint fk_user foreign key (user_id) references author(id)
             );""")
-
+    
+    def updateDB_v27To28(self):
+        logging.root.info("Updating database from v27 to v28...")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN version varchar(16) NOT NULL DEFAULT ''")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN purpose text NOT NULL DEFAULT ''")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN type varchar(16) ARRAY NOT NULL DEFAULT ARRAY[]::varchar[]")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN collection_method varchar(16) ARRAY NOT NULL DEFAULT ARRAY[]::varchar[]")
+    
 
     def createOrUpdateAuthor(self, userId, username, name, email):
         self.cursor.execute("SELECT id FROM author WHERE id=%s LIMIT 1;", (userId,))
@@ -492,12 +504,14 @@ class DB:
 
     def createDataset(self, dataset, userId):
         self.cursor.execute("""
-            INSERT INTO dataset (id, name, project_code, previous_id, author_id, 
-                                 creation_date, description, public,
+            INSERT INTO dataset (id, name, version, project_code, previous_id, author_id, 
+                                 creation_date, description, purpose, 
+                                 type, collection_method, public,
                                  studies_count, subjects_count)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s);""",
-            (dataset["id"], dataset["name"], dataset["project"], dataset["previousId"], userId, 
-             dataset["creationDate"], dataset["description"], dataset["public"], 
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s);""",
+            (dataset["id"], dataset["name"], dataset["version"], dataset["project"], dataset["previousId"], userId, 
+             dataset["creationDate"], dataset["description"], dataset["purpose"],
+             dataset["type"], dataset["collectionMethod"], dataset["public"], 
              dataset["studiesCount"], dataset["subjectsCount"]))
 
     def updateDatasetAndStudyMetadata(self, dataset):
@@ -634,8 +648,9 @@ class DB:
                    dataset.modality, dataset.modality_count, 
                    dataset.manufacturer, dataset.manufacturer_count, 
                    dataset.series_tags, 
-                   dataset.next_id, dataset.last_integrity_check, dataset.size_in_bytes,
-                   dataset.project_code
+                   dataset.next_id, dataset.last_integrity_check, dataset.size_in_bytes, 
+                   dataset.project_code, dataset.version, 
+                   dataset.purpose, dataset.type, dataset.collection_method
             FROM dataset, author 
             WHERE dataset.id=%s AND author.id = dataset.author_id 
             LIMIT 1;""",
@@ -662,10 +677,11 @@ class DB:
             prefPid = "custom"
             customPidUrl = row[10]
         
-        return dict(id = row[0], name = row[1], project = row[38],
+        return dict(id = row[0], name = row[1], version = row[39], project = row[38],
                     previousId = row[2], nextId = row[35], 
                     authorId = row[3], authorName = row[4], authorEmail = row[5], 
                     creationDate = creationDate, description = row[7], 
+                    purpose = row[40], type = row[41], collectionMethod = row[42],
                     license = dict(
                         title = row[8], 
                         url = row[9]), 
@@ -883,13 +899,13 @@ class DB:
             authorId = sql.Literal(str(filter.getUserId()))
             whereClause = sql.SQL(" AND author_id = ") + authorId
         self.cursor.execute(sql.SQL("""
-            SELECT id, name
+            SELECT id, name, version
             FROM dataset
             WHERE draft = false AND next_id is NULL {}
             ORDER BY name;""").format(whereClause))
         res = []
         for row in self.cursor:
-            res.append(dict(id = row[0], name = row[1]))
+            res.append(dict(id = row[0], name = row[1], version = row[2]))
         return res
     
     def getDatasetsSharingPreviousId(self, previousId):
@@ -1159,9 +1175,15 @@ class DB:
 
     def setDatasetName(self, id, newValue):
         self.cursor.execute("UPDATE dataset SET name = %s WHERE id = %s;", (newValue, id))
+    
+    def setDatasetVersion(self, id, newValue):
+        self.cursor.execute("UPDATE dataset SET version = %s WHERE id = %s;", (newValue, id))
 
     def setDatasetDescription(self, id, newValue):
         self.cursor.execute("UPDATE dataset SET description = %s WHERE id = %s;", (newValue, id))
+    
+    def setDatasetPurpose(self, id, newValue):
+        self.cursor.execute("UPDATE dataset SET purpose = %s WHERE id = %s;", (newValue, id))
 
     def setDatasetPreviousId(self, id, newValue):
         self.cursor.execute("UPDATE dataset SET previous_id = %s WHERE id = %s;", (newValue, id))
@@ -1169,6 +1191,12 @@ class DB:
     def setDatasetNextId(self, id, newValue):
         self.cursor.execute("UPDATE dataset SET next_id = %s WHERE id = %s;", (newValue, id))
 
+    def setDatasetType(self, id, newValue):
+        self.cursor.execute("UPDATE dataset SET type = %s WHERE id = %s;", (newValue, id))
+    
+    def setDatasetCollectionMethod(self, id, newValue):
+        self.cursor.execute("UPDATE dataset SET collection_method = %s WHERE id = %s;", (newValue, id))
+    
     def setDatasetLicense(self, id, newTitle, newUrl):
         self.cursor.execute("UPDATE dataset SET license_title = %s, license_url = %s WHERE id = %s;", 
                             (newTitle, newUrl, id))

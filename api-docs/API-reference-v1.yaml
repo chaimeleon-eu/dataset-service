@@ -266,13 +266,17 @@ paths:
                   description: |
                     The name of the property to change. 
                     The properies that can be changed depend on the current state of dataset and the current user, see the property "editablePropertiesByTheUser" returned by GET. 
-                    See the DatasetDetails schema to get definitions of each of these properties.
+                    See the DatasetDetails schema to get definition and value type for each of these properties.
                   enum:
                    - "draft"
                    - "public"
                    - "invalidated"
                    - "name"
+                   - "version"
                    - "description"
+                   - "purpose"
+                   - "type"
+                   - "collectionMethod"
                    - "previousId"
                    - "license"
                    - "pids"
@@ -668,7 +672,11 @@ paths:
                     name:
                       type: string
                       description: "Short descriptive name."
-                      example: "Lung cancer v3"
+                      example: "Lung cancer"
+                    version:
+                      type: string
+                      maxLength: 16
+                      example: "20240415"
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -988,7 +996,13 @@ components:
           minLength: 3
           maxLength: 128
           description: "Short descriptive name."
-          example: "Lung cancer v3"
+          example: "Lung cancer"
+        version:
+          type: string
+          minLength: 0
+          maxLength: 16
+          description: "Optional for backward compatibility, but should be included in new implementations."
+          example: "20240415"
         project:
           type: string
           minLength: 1
@@ -1000,11 +1014,39 @@ components:
         previousId:
           type: string
           format: uuid
-          description: "(Optional) Specified when is a new version of a previous dataset."
+          description: "(Optional) Specified when it is a new version of a previous dataset."
           example: "00e821c4-e92b-48f7-a034-ba2df547e2bf"
         description:
           type: string
           description: "Long explanation of dataset details, statistics, links, references, improvements/modifications if it's a new version, etc."
+        purpose:
+          type: string
+          description: |
+            Short text with the intended purpose of the dataset.
+            Optional for backward compatibility, but should be included in new implementations.
+        type:
+          type: array
+          description: "Optional for backward compatibility, but should be included in new implementations."
+          example: '["annotated"]'
+          items:
+            type: string
+            enum:
+             - "original"
+             - "annotated"
+             - "processed"
+        collectionMethod:
+          type: array
+          description: "Optional for backward compatibility, but should be included in new implementations."
+          example: '["only-image","disease-specific"]'
+          items:
+            type: string
+            enum:
+             - "patient-based"
+             - "cohort"
+             - "only-image"
+             - "longitudinal"
+             - "case-control"
+             - "disease-specific"
         studies:
           type: array
           items:
@@ -1028,6 +1070,10 @@ components:
           maxLength: 128
           description: "Short descriptive name."
           example: "Lung cancer v3"
+        version:
+          type: string
+          maxLength: 16
+          example: "20240415"
         project:
           type: string
           minLength: 1
@@ -1062,7 +1108,9 @@ components:
           minLength: 3
           maxLength: 128
           format: email
-          description: "The email of the user wich created the dataset."
+          description: |
+            The email of the user wich created the dataset.
+            It will not be included if unregistered user for privacy reasons.
           example: "james@email.com"
         creationDate:
           type: string
@@ -1078,6 +1126,30 @@ components:
         description:
           type: string
           description: "Long explanation of dataset details, statistics, links, references, improvements/modifications if it's a new version, etc."
+        purpose:
+          type: string
+          description: "Short text with the intended purpose of the dataset."
+        type:
+          type: array
+          example: '["annotated"]'
+          items:
+            type: string
+            enum:
+             - "original"
+             - "annotated"
+             - "processed"
+        collectionMethod:
+          type: array
+          example: '["only-image","disease-specific"]'
+          items:
+            type: string
+            enum:
+             - "patient-based"
+             - "cohort"
+             - "only-image"
+             - "longitudinal"
+             - "case-control"
+             - "disease-specific"
         license:
           type: object
           description: "Name and link to the license document."
