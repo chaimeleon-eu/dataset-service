@@ -55,8 +55,13 @@ zenodo:
     # The access token of the Zenodo account used to publish datasets metada.
   community: ""
     # The community code which the publications will be related to.
+    # Example: "chaimeleon_h2020"
+    # Leave it empty if you don't want to specify one.
+    # But it is recommended to create one for your project as a collection to easily find all the depositions.
   grant: ""
     # The grant code which the publication will be related to.
+    # Example: "10.13039/501100000780::952172"
+    # Leave it empty if you don't want to specify one.
 
 self: 
   name: "dataset-service"
