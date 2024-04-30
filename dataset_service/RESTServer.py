@@ -890,7 +890,12 @@ def patchDataset(id):
                 LOG.debug('Removing ACL entries in dataset %s ...' % (datasetId))
                 datasetDirName = datasetId
                 dataset_file_system.invalidate_dataset(CONFIG.self.datasets_mount_path, datasetDirName)              
+            else:  # reactivated
+                db.setDatasetInvalidationReason(datasetId, None)  # reset invalidation reason
             trace_details = "INVALIDATE" if bool(newValue) else "REACTIVATE"
+        elif property == "invalidationReason":
+            db.setDatasetInvalidationReason(datasetId, str(newValue))
+            # Don't notify the tracer, it is just a note to remember the reason.
         elif property == "name":
             db.setDatasetName(datasetId, str(newValue))
             # Don't notify the tracer, this property can be changed only in draft state

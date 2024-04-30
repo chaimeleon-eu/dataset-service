@@ -126,6 +126,8 @@ class User:
                     editableProperties.append("public")
                     editableProperties.append("pids")
             editableProperties.append("invalidated")
+            if dataset["invalidated"]:
+                editableProperties.append("invalidationReason")
             editableProperties.append("contactInfo")
             editableProperties.append("license")
         return editableProperties

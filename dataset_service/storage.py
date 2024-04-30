@@ -28,7 +28,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 28
+    CURRENT_SCHEMA_VERSION = 29
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -67,6 +67,7 @@ class DB:
             if version < 26: self.updateDB_v25To26()
             if version < 27: self.updateDB_v26To27()
             if version < 28: self.updateDB_v27To28()
+            if version < 29: self.updateDB_v28To29()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -146,6 +147,7 @@ class DB:
                 draft boolean NOT NULL DEFAULT true,
                 public boolean NOT NULL DEFAULT false,
                 invalidated boolean NOT NULL DEFAULT false,
+                invalidation_reason varchar(128) DEFAULT NULL, 
                 studies_count integer NOT NULL,
                 subjects_count integer NOT NULL,
                 age_low_in_days integer DEFAULT NULL,
@@ -438,6 +440,10 @@ class DB:
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN purpose text NOT NULL DEFAULT ''")
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN type varchar(16) ARRAY NOT NULL DEFAULT ARRAY[]::varchar[]")
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN collection_method varchar(16) ARRAY NOT NULL DEFAULT ARRAY[]::varchar[]")
+
+    def updateDB_v28To29(self):
+        logging.root.info("Updating database from v28 to v29...")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN invalidation_reason varchar(128) DEFAULT NULL")
     
 
     def createOrUpdateAuthor(self, userId, username, name, email):
@@ -650,7 +656,8 @@ class DB:
                    dataset.series_tags, 
                    dataset.next_id, dataset.last_integrity_check, dataset.size_in_bytes, 
                    dataset.project_code, dataset.version, 
-                   dataset.purpose, dataset.type, dataset.collection_method
+                   dataset.purpose, dataset.type, dataset.collection_method,
+                   dataset.invalidation_reason
             FROM dataset, author 
             WHERE dataset.id=%s AND author.id = dataset.author_id 
             LIMIT 1;""",
@@ -677,7 +684,7 @@ class DB:
             prefPid = "custom"
             customPidUrl = row[10]
         
-        return dict(id = row[0], name = row[1], version = row[39], project = row[38],
+        ds = dict(id = row[0], name = row[1], version = row[39], project = row[38],
                     previousId = row[2], nextId = row[35], 
                     authorId = row[3], authorName = row[4], authorEmail = row[5], 
                     creationDate = creationDate, description = row[7], 
@@ -701,6 +708,8 @@ class DB:
                     manufacturer = json.loads(row[32]), manufacturerCount = json.loads(row[33]), 
                     seriesTags = json.loads(row[34]), lastIntegrityCheck = lastIntegrityCheck, 
                     sizeInBytes = row[37])
+        if ds["invalidated"]: ds["invalidationReason"] = row[43]
+        return ds
 
     def getStudiesFromDataset(self, datasetId, limit = 0, skip = 0):
         if limit == 0: limit = 'ALL'
@@ -1164,8 +1173,10 @@ class DB:
         self.cursor.execute("UPDATE dataset SET zenodo_doi = %s WHERE id = %s;", (newValue, id))
 
     def setDatasetInvalidated(self, id, newValue):
-        # logging.root.debug(self.cursor.mogrify("UPDATE dataset SET invalidated = true WHERE id = %s;", (id,)))
         self.cursor.execute("UPDATE dataset SET invalidated = %s WHERE id = %s;", (newValue, id))
+
+    def setDatasetInvalidationReason(self, id, newValue):
+        self.cursor.execute("UPDATE dataset SET invalidation_reason = %s WHERE id = %s;", (newValue, id))
 
     def setDatasetPublic(self, id, newValue):
         self.cursor.execute("UPDATE dataset SET public = %s WHERE id = %s;", (newValue, id))

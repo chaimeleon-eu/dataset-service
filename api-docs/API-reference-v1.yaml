@@ -271,6 +271,7 @@ paths:
                    - "draft"
                    - "public"
                    - "invalidated"
+                   - "invalidationReason"
                    - "name"
                    - "version"
                    - "description"
@@ -1215,7 +1216,19 @@ components:
             If true then the dataset is accessible and usable to all users and visible for non-registered users."
         invalidated:
           type: boolean
-          description: "If true the dataset can not be used and only visible for the author."
+          description: |
+            If true the dataset can not be used and only visible for the author.
+            The UI should show a visible warning including the reason, which is in the property "invalidationReason".
+        invalidationReason:
+          type: string
+          maxLength: 128
+          description: |
+            (This property only appears and can be set when "invalidated" is true)
+            When the user invalidates a dataset the UI should show a field to let the user specify the reason.
+            It is recommended to show some predefined reasons like: 
+            "It is a discarded/useless draft", "It contains some rejected subject or study", "It contains corrupted data", "Other".
+            And if "Other" is selected, let the user write the reason.
+          example: "It is a discarded/useless draft"
         editablePropertiesByTheUser:
           type: array
           description: |
