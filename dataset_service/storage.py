@@ -2,6 +2,7 @@ import logging
 import psycopg2
 from psycopg2 import sql
 import json
+from datetime import datetime
 from dataset_service import authorization, eucaim_formats, output_formats
 
 class DB:
@@ -72,11 +73,13 @@ class DB:
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
     def getSchemaVersion(self):
-        self.cursor.execute("SELECT EXISTS ( SELECT FROM information_schema.tables WHERE table_name = 'metadata');")
-        if self.cursor.fetchone()[0] == False: 
-            return 0
+        self.cursor.execute("SELECT FROM information_schema.tables WHERE table_name = 'metadata'")
+        row = self.cursor.fetchone()
+        if row is None: return 0
         self.cursor.execute("SELECT schema_version FROM metadata limit 1")
-        return self.cursor.fetchone()[0]
+        row = self.cursor.fetchone()
+        if row is None: raise Exception()
+        return row[0]
 
     def createSchema(self):
         #with open("schema.sql", 'r') as inputStream:
@@ -992,7 +995,7 @@ class DB:
                 raise DB.searchValidationException("value for type '%s' in condition for %s must be an array of strings" % (conditionType, conditionKey))
 
     @staticmethod
-    def _searchConditionStringValueToSQL(key, type, value) -> sql.SQL:
+    def _searchConditionStringValueToSQL(key, type, value) -> sql.Composed:
         if type == "EQUALS":
             if value is None:
                 return sql.SQL("{} IS NULL").format(sql.SQL(key))
@@ -1016,7 +1019,7 @@ class DB:
             raise DB.searchValidationException("unknown 'type' in condition for %s" % key)
 
     @staticmethod
-    def _searchConditionNumValueToSQL(key, type, value) -> sql.SQL:
+    def _searchConditionNumValueToSQL(key, type, value) -> sql.Composed:
         if type == "EQUALS":
             return sql.SQL("{} = {}").format(sql.SQL(key), sql.Literal(value))
         elif type == "NOT_EQUALS":
@@ -1035,7 +1038,7 @@ class DB:
             raise DB.searchValidationException("unknown 'type' in condition for %s" % key)
 
     @staticmethod
-    def _searchConditionStringToSQL(type, value, key, db_column, translate) -> sql.SQL:
+    def _searchConditionStringToSQL(type, value, key, db_column, translate) -> sql.Composed:
         if type in ["IN"]:
             DB._ensureIsArrayOfString(value, type, key)
             try:
@@ -1050,7 +1053,7 @@ class DB:
         return DB._searchConditionStringValueToSQL(db_column, type, value)
 
     @staticmethod
-    def _searchConditionNumToSQL(type, value, key, db_column, translate) -> sql.SQL:
+    def _searchConditionNumToSQL(type, value, key, db_column, translate) -> sql.Composed:
         if type in ["BETWEEN"]:
             DB._ensureIsRangeOfNum(value, type, key)
             value["min"] = translate(value["min"])
@@ -1075,15 +1078,15 @@ class DB:
         return DB._searchConditionNumValueToSQL(db_column, type, value)
 
     @staticmethod
-    def _searchRequestToSQL(sr) -> sql.SQL | None:
-        if 'operand' in sr:   # is an operation
+    def _searchRequestToSQL(sr) -> sql.Composable:
+        if 'operand' in sr:   # it is an OPERATION: AND/OR of CONDITIONs
             if not sr['operand'] in ['AND', 'OR']: raise DB.searchValidationException("unknown value for 'operand'")
             if not 'children' in sr: raise DB.searchValidationException("missing 'children' in operation")
             if not isinstance(sr['children'], list): raise DB.searchValidationException("'children' in operation must be an array")
-            if len(sr['children']) == 0: return None
+            if len(sr['children']) == 0: return sql.SQL("")
             operation = sql.SQL(' %s ' % sr['operand']).join(DB._searchRequestToSQL(child) for child in sr['children'])
             return sql.SQL("(")+operation+sql.SQL(")")
-        elif 'key' in sr:   # is a condition
+        elif 'key' in sr:   # it is a CONDITION
             if not 'type' in sr: raise DB.searchValidationException("missing 'type' in condition")
             if not 'value' in sr: raise DB.searchValidationException("missing 'value' in condition")
             if sr['key'] == 'SNOMEDCT263495000':  # gender
@@ -1106,7 +1109,8 @@ class DB:
 
     def eucaimSearchDatasets(self, skip, limit, searchRequest):
         whereClause = DB._searchRequestToSQL(searchRequest)
-        whereClause = sql.SQL("") if whereClause is None else sql.SQL("AND ") + whereClause
+        if whereClause != sql.SQL(""):
+            whereClause = sql.SQL("AND ") + whereClause
         if limit == 0: limit = 'ALL'
         q = sql.SQL("""
                 SELECT dataset.id, dataset.name, dataset.creation_date, 
@@ -1169,57 +1173,57 @@ class DB:
             res.append(dict(title = row[0], url = row[1]))
         return res
 
-    def setZenodoDOI(self, id, newValue):
+    def setZenodoDOI(self, id, newValue: str | None):
         self.cursor.execute("UPDATE dataset SET zenodo_doi = %s WHERE id = %s;", (newValue, id))
 
-    def setDatasetInvalidated(self, id, newValue):
+    def setDatasetInvalidated(self, id, newValue: bool):
         self.cursor.execute("UPDATE dataset SET invalidated = %s WHERE id = %s;", (newValue, id))
 
-    def setDatasetInvalidationReason(self, id, newValue):
+    def setDatasetInvalidationReason(self, id, newValue: str | None):
         self.cursor.execute("UPDATE dataset SET invalidation_reason = %s WHERE id = %s;", (newValue, id))
 
-    def setDatasetPublic(self, id, newValue):
+    def setDatasetPublic(self, id, newValue: bool):
         self.cursor.execute("UPDATE dataset SET public = %s WHERE id = %s;", (newValue, id))
         
-    def setDatasetDraft(self, id, newValue):
+    def setDatasetDraft(self, id, newValue: bool):
         self.cursor.execute("UPDATE dataset SET draft = %s WHERE id = %s;", (newValue, id))
 
-    def setDatasetName(self, id, newValue):
+    def setDatasetName(self, id, newValue: str):
         self.cursor.execute("UPDATE dataset SET name = %s WHERE id = %s;", (newValue, id))
     
-    def setDatasetVersion(self, id, newValue):
+    def setDatasetVersion(self, id, newValue: str):
         self.cursor.execute("UPDATE dataset SET version = %s WHERE id = %s;", (newValue, id))
 
-    def setDatasetDescription(self, id, newValue):
+    def setDatasetDescription(self, id, newValue: str):
         self.cursor.execute("UPDATE dataset SET description = %s WHERE id = %s;", (newValue, id))
     
-    def setDatasetPurpose(self, id, newValue):
+    def setDatasetPurpose(self, id, newValue: str):
         self.cursor.execute("UPDATE dataset SET purpose = %s WHERE id = %s;", (newValue, id))
 
-    def setDatasetPreviousId(self, id, newValue):
+    def setDatasetPreviousId(self, id, newValue: str | None):
         self.cursor.execute("UPDATE dataset SET previous_id = %s WHERE id = %s;", (newValue, id))
 
-    def setDatasetNextId(self, id, newValue):
+    def setDatasetNextId(self, id, newValue: str | None):
         self.cursor.execute("UPDATE dataset SET next_id = %s WHERE id = %s;", (newValue, id))
 
-    def setDatasetType(self, id, newValue):
+    def setDatasetType(self, id, newValue: list[str]):
         self.cursor.execute("UPDATE dataset SET type = %s WHERE id = %s;", (newValue, id))
     
-    def setDatasetCollectionMethod(self, id, newValue):
+    def setDatasetCollectionMethod(self, id, newValue: list[str]):
         self.cursor.execute("UPDATE dataset SET collection_method = %s WHERE id = %s;", (newValue, id))
     
-    def setDatasetLicense(self, id, newTitle, newUrl):
+    def setDatasetLicense(self, id, newTitle: str, newUrl: str):
         self.cursor.execute("UPDATE dataset SET license_title = %s, license_url = %s WHERE id = %s;", 
                             (newTitle, newUrl, id))
 
-    def setDatasetPid(self, id, preferred, custom = None):
+    def setDatasetPid(self, id, preferred: str, custom: str | None = None):
         newValue = self.PREFERRED_ZENODO if preferred == "zenodoDoi" else custom
         self.cursor.execute("UPDATE dataset SET pid_url = %s WHERE id = %s;", (newValue, id))
 
-    def setDatasetContactInfo(self, id, newValue):
+    def setDatasetContactInfo(self, id, newValue: str | None):
         self.cursor.execute("UPDATE dataset SET contact_info = %s WHERE id = %s;", (newValue, id))
 
-    def setDatasetLastIntegrityCheck(self, id, newValue):
+    def setDatasetLastIntegrityCheck(self, id, newValue: datetime | None):
         self.cursor.execute("UPDATE dataset SET last_integrity_check = %s WHERE id = %s;", (newValue, id))
 
     def createDatasetAccess(self, datasetAccessId, datasetIDs, userGID, accessType, toolName, toolVersion, image, cmdLine, creationTime, resourcesFlavor, openchallengeJobType):

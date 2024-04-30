@@ -804,7 +804,7 @@ def getDatasetStudies(id):
                         "limit": limit,
                         "list": studies })
 
-def createZenodoDeposition(db, dataset):
+def createZenodoDeposition(db: DB, dataset):
     if CONFIG is None: raise Exception()
     if dataset["pids"]["urls"]["zenodoDoi"] is None: 
         datasetId = dataset["id"]
