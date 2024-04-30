@@ -447,7 +447,7 @@ class DB:
     def updateDB_v28To29(self):
         logging.root.info("Updating database from v28 to v29...")
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN invalidation_reason varchar(128) DEFAULT NULL")
-    
+
 
     def createOrUpdateAuthor(self, userId, username, name, email):
         self.cursor.execute("SELECT id FROM author WHERE id=%s LIMIT 1;", (userId,))
@@ -750,7 +750,8 @@ class DB:
         return res
 
     def getDatasets(self, skip, limit, searchString, searchFilter: authorization.Search_filter, 
-                    sortBy = 'creationDate', sortDirection = '', searchSubject: str = ''):
+                    sortBy = 'creationDate', sortDirection = '', searchSubject: str = '', 
+                    onlyLastVersions: bool = False):
         fromExtra = sql.Composed([])
         whereClause = sql.Composed([])
 
@@ -823,6 +824,9 @@ class DB:
                     " AND dataset.id = dataset_study.dataset_id AND dataset_study.study_id = study.id"
                     + " AND study.subject_name ILIKE {}"
                 ).format(s)
+        
+        if onlyLastVersions:
+            whereClause += sql.SQL(" AND dataset.next_id IS NULL")
         
         default = 'dataset.creation_date DESC'
         if sortBy == 'name':

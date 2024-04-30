@@ -1062,9 +1062,10 @@ def getDatasets():
     searchSubject = str(bottle.request.query['searchSubject']).strip() if 'searchSubject' in bottle.request.query else ""
     sortBy =        str(bottle.request.query['sortBy']).strip()        if 'sortBy' in bottle.request.query else ""
     sortDirection = str(bottle.request.query['sortDirection']).strip() if 'sortDirection' in bottle.request.query else ""
+    onlyLastVersions = ('onlyLastVersions' in bottle.request.query and bool(parse_flag_value(bottle.request.query['onlyLastVersions'])))
     
     with DB(CONFIG.db) as db:
-        datasets, total = db.getDatasets(skip, limit, searchString, searchFilter, sortBy, sortDirection, searchSubject)
+        datasets, total = db.getDatasets(skip, limit, searchString, searchFilter, sortBy, sortDirection, searchSubject, onlyLastVersions)
     bottle.response.content_type = "application/json"
     return json.dumps({ "total": total,
                         "returned": len(datasets),

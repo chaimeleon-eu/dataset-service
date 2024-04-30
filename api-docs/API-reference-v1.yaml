@@ -148,6 +148,15 @@ paths:
           required: false
           schema:
             type: string
+        - name: onlyLastVersions
+          description: |
+            (Optional, default is false)
+            If true, "old" datasets will not be listed. 
+            "old" means a dataset with the property "nextId" not null, i.e. there is another dataset which is the next version.
+          in: query
+          required: false
+          schema:
+            type: string
         - name: skip
           description: "(Optional, default=0) Number of records to skip for pagination."
           in: query
