@@ -570,6 +570,31 @@ def _recollectMetadataForDataset(datasetId):
         db.updateDatasetAndStudyMetadata(dataset)
     return dict(success=True, msg="Successfully recollected.")
 
+@app.route('/api/datasets/<id>/recollectMetadata', method='POST')
+def recollectMetadataForDataset(id):
+    '''
+    Note: this method is only for admins and for special case when upgrade to a new version which adds new metadata fields.
+          So, with this method any previous dataset can be rescan for collecting metadata again and fill all the fields.
+    '''
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    ret = getTokenFromAuthorizationHeader()
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
+    if not user.isSuperAdminDatasets():
+        return setErrorResponse(401,"unauthorized user")
+
+    datasetId = id
+    with DB(CONFIG.db) as db:
+        if not db.existDataset(datasetId):
+            return setErrorResponse(404, "not found")
+        LOG.debug('Collecting metadata for dataset %s' % datasetId)
+        result = _recollectMetadataForDataset(datasetId)
+        LOG.debug('Result: %s' % json.dumps(result))
+    bottle.response.status = 200
+    bottle.response.content_type = "application/json"
+    return json.dumps(result)
+
 @app.route('/api/datasets/recollectMetadata', method='POST')
 def recollectMetadataForAllDatasets():
     '''
