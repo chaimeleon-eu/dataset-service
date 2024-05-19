@@ -242,6 +242,8 @@ def _aggregateItemsToCountDict(countDict: dict, newItems: set[str|None]):
     for item in newItems:
         _aggregateItemToCountDict(countDict, item)
 def _getValuesAndCountsFromCountDict(countDict: dict[str|None, int]) -> tuple[list[str|None], list[int]]:
+    # sort by value (i.e. by count) in descending order
+    countDict = dict(sorted(countDict.items(), key=lambda item: item[1], reverse=True))
     # remove and reinsert the None key if exists in order to move it to the end
     NoneCount = countDict.pop(None, None)
     if NoneCount != None: countDict[None] = NoneCount
