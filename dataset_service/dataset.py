@@ -165,28 +165,54 @@ def invalidate_dataset(datasets_dir_path, dataset_dir_name):
     ## Delete ACLs in directories of studies
     ## It is complex because many datasets can include the same study.
 
+def _getFirstDicomFile(DirPath) -> dicom.Dicom | None:
+    for fileName in os.listdir(DirPath):
+        if fileName.lower().endswith(".dcm"):
+            dicomFilePath = os.path.join(DirPath, fileName)
+            return dicom.Dicom(dicomFilePath)
+    return None
 
-def _readStudyMetadataFromFirstDicomFile(serieDirPath, study):
+def _checkMetadataItemAndSave(study, item, newValue, filename):
+    if newValue is None: return
+    if study[item] is None:  # First series with that item included
+        study[item] = newValue
+    else:   # the item is included in other series, let's check if the value is the same
+        if newValue != study[item]:
+            raise Exception("The %s in that series differs from other series: %s" % (item, filename))
+
+def _addMetadataFromDicomOfASeriesToStudyAndSeries(dcm: dicom.Dicom, study, series):
+    ageInDays, ageUnit = dcm.getAge()
+    if ageInDays != None:
+        if study["ageInDays"] != None:
+            if ageInDays != study["ageInDays"]:
+                raise Exception("The patientAge in that series differs from other series: " + dcm.getFileName())
+        else:
+            study["ageInDays"], study["ageUnit"] = ageInDays, ageUnit
+    
+    _checkMetadataItemAndSave(study, "sex", dcm.getSex(), dcm.getFileName())
+    _checkMetadataItemAndSave(study, "studyDate", dcm.getStudyDate(), dcm.getFileName())
+    _checkMetadataItemAndSave(study, "diagnosis", dcm.getDiagnosis(), dcm.getFileName())
+    #dcm.getDatasetType()    it seems very similar to modality
+
+    series["bodyPart"] = dcm.getBodyPart()
+    series["modality"] = dcm.getModality()
+    series["manufacturer"] = dcm.getManufacturer()
+
+def _readStudyMetadataFromFirstDicomFileOfAllSeries(studyPathInDatalake, study):
     study["ageInDays"] = None
     study["sex"] = None
-    study["bodyPart"] = None
-    study["modality"] = None
-    study["manufacturer"] = None
     study["studyDate"] = None
     study["diagnosis"] = None
-    for name in os.listdir(serieDirPath):
-        if name.lower().endswith(".dcm"):
-            dicomFilePath = os.path.join(serieDirPath, name)
-            dcm = dicom.Dicom(dicomFilePath)
-            study["ageInDays"], study["ageUnit"] = dcm.getAge()
-            study["sex"] = dcm.getSex()
-            study["bodyPart"] = dcm.getBodyPart()
-            study["modality"] = dcm.getModality()
-            study["manufacturer"] = dcm.getManufacturer()
-            study["studyDate"] = dcm.getStudyDate()
-            study["diagnosis"] = dcm.getDiagnosis()
-            #dcm.getDatasetType    it seems very similar to modality
-            return 
+    for series in study['series']:
+        seriesDirName = series['folderName']
+        seriesDirPathInDatalake = os.path.join(studyPathInDatalake, seriesDirName)
+        dcm = _getFirstDicomFile(seriesDirPathInDatalake)
+        if dcm != None:
+            _addMetadataFromDicomOfASeriesToStudyAndSeries(dcm, study, series)
+        else:
+            logging.root.warning("There is a series without any dicom file"
+                + "[studyId: %s, seriesFolderPath: %s]" % (study["studyId"], seriesDirPathInDatalake))
+            series["bodyPart"], series["modality"], series["manufacturer"] = None, None, None
 
 def _completeStudyMetadataWithSubjectEform(study, eform: eform.Eform):
     if not "diagnosisYear" in study: study["diagnosisYear"] = None
@@ -202,11 +228,19 @@ def _completeStudyMetadataWithSubjectEform(study, eform: eform.Eform):
 MAX_AGE_VALUE = 500*365
 MAX_YEAR_VALUE = 65536
 
-def _agregateItemToCountDict(countDict: dict, newItem: str|None):
+def _obtainStudyAggregatedSet(study, property) -> set:
+    aggregatedSet = set()
+    for series in study['series']:
+        aggregatedSet.add(series[property])
+    return aggregatedSet
+def _aggregateItemToCountDict(countDict: dict, newItem: str|None):
     # if newItem is None, then None is added as a key to the countDict and is managed as any other item
     if newItem in countDict:
         countDict[newItem] += 1
     else: countDict[newItem] = 1
+def _aggregateItemsToCountDict(countDict: dict, newItems: set[str|None]):
+    for item in newItems:
+        _aggregateItemToCountDict(countDict, item)
 def _getValuesAndCountsFromCountDict(countDict: dict[str|None, int]) -> tuple[list[str|None], list[int]]:
     # remove and reinsert the None key if exists in order to move it to the end
     NoneCount = countDict.pop(None, None)
@@ -216,12 +250,13 @@ def _getValuesAndCountsFromCountDict(countDict: dict[str|None, int]) -> tuple[li
     counts = list(countDict.values())
     return values, counts
 
-def _getTotalStudySizeInBytes(studyPathInDatalake, seriesDirNames, study):
+def _getTotalStudySizeInBytes(studyPathInDatalake, study):
     studySize = 0
-    for seriesDirName in seriesDirNames:
-        serieDirPath = os.path.join(studyPathInDatalake, seriesDirName)
-        for fileName in os.listdir(serieDirPath):
-            studySize += os.path.getsize(os.path.join(serieDirPath, fileName))
+    for series in study['series']:
+        seriesDirName = series['folderName']
+        seriesDirPathInDatalake = os.path.join(studyPathInDatalake, seriesDirName)
+        for fileName in os.listdir(seriesDirPathInDatalake):
+            studySize += os.path.getsize(os.path.join(seriesDirPathInDatalake, fileName))
     study["sizeInBytes"] = studySize
 
 def collectMetadata(dataset, datalake_mount_path, eformsFilePath):
@@ -245,17 +280,9 @@ def collectMetadata(dataset, datalake_mount_path, eformsFilePath):
             differentSubjects.add(study["subjectName"])
         if len(study['series']) == 0: continue
 
-        #Read metadata of this study
-        seriePathInDatalake = os.path.join(datalake_mount_path, study['pathInDatalake'], study['series'][0]['folderName'])
-        _readStudyMetadataFromFirstDicomFile(seriePathInDatalake, study)
-        # if (study["ageInDays"] is None or study["sex"] is None or study["bodyPart"] is None or study["modality"] is None):
-        #     # sometimes first serie is special, try with the second if exists
-        #     if len(study['series']) > 1:
-        #         seriePathInDatalake = os.path.join(datalake_mount_path, study['pathInDatalake'], study['series'][1]['folderName'])
-        #         _readStudyMetadataFromFirstDicomFile(seriePathInDatalake, study)
         studyPathInDatalake = os.path.join(datalake_mount_path, study['pathInDatalake'])
-        seriesDirectoryNames = [s['folderName'] for s in study['series']]
-        _getTotalStudySizeInBytes(studyPathInDatalake, seriesDirectoryNames, study)
+        _readStudyMetadataFromFirstDicomFileOfAllSeries(studyPathInDatalake, study)
+        _getTotalStudySizeInBytes(studyPathInDatalake, study)
         _completeStudyMetadataWithSubjectEform(study, subjects.getEform(study["subjectName"]))
 
         #Agregate metadata of this study
@@ -267,16 +294,19 @@ def collectMetadata(dataset, datalake_mount_path, eformsFilePath):
                 maxAgeInDays = study["ageInDays"]
                 maxAgeUnit = study["ageUnit"]
         else: ageNullCount += 1
-        _agregateItemToCountDict(sexDict, study["sex"])
+        _aggregateItemToCountDict(sexDict, study["sex"])
         if study["diagnosisYear"] != None:
             if study["diagnosisYear"] < minDiagnosisYear:
                 minDiagnosisYear = study["diagnosisYear"]
             if study["diagnosisYear"] > maxDiagnosisYear:
                 maxDiagnosisYear = study["diagnosisYear"]
         else: diagnosisYearNullCount += 1
-        _agregateItemToCountDict(bodyPartDict, study["bodyPart"])
-        _agregateItemToCountDict(modalityDict, study["modality"])
-        _agregateItemToCountDict(manufacturerDict, study["manufacturer"])
+        studyBodyParts = _obtainStudyAggregatedSet(study, "bodyPart")
+        studyModalities = _obtainStudyAggregatedSet(study, "modality")
+        studyManufacturers = _obtainStudyAggregatedSet(study, "manufacturer")
+        _aggregateItemsToCountDict(bodyPartDict, studyBodyParts)
+        _aggregateItemsToCountDict(modalityDict, studyModalities)
+        _aggregateItemsToCountDict(manufacturerDict, studyManufacturers)
         for series in study["series"]:
             seriesTagsList.update(series["tags"])
         totalSizeInBytes += study["sizeInBytes"]

@@ -2,8 +2,8 @@ bottle==0.12.23      # REST-API framework
 cheroot==8.6.0      # HTTP service
 PyYAML==6.0.1
 kubernetes==26.1.0     # to launch jobs like dataset creation job
-psycopg2-binary==2.9.3         # postgres client
+psycopg2-binary==2.9.9         # postgres client
 pyjwt[crypto]==2.4.0      # to validate authentication tokens (crypto is needed to get RS256 algorithm)
-pydicom==2.2.2        # to collect metadata from dicom tags
+pydicom==2.4.4        # to collect metadata from dicom tags
 # xhtml2pdf==0.2.8      this is the tested version but now throws error when building dependency pycairo, remove that when 0.2.11 is tested
 xhtml2pdf==0.2.11      # to generate pdf to publish in zenodo

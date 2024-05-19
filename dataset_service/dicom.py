@@ -1,5 +1,6 @@
 from datetime import datetime
 import pydicom
+import logging
 
 # List of tags with types (VR):
 #   https://dicom.nema.org/medical/dicom/current/output/chtml/part06/chapter_6.html
@@ -37,16 +38,23 @@ class Dicom:
     def __init__(self, dicomFilePath):
         self.dcm = pydicom.dcmread(dicomFilePath, stop_before_pixels=True)
     
+    def getFileName(self) -> str:
+        return str(self.dcm.filename)
+
     def getAge(self) -> tuple[int|None, str|None]:
         if not AGE_TAG in self.dcm: return None, None
         value = self.dcm[AGE_TAG].value
-        age = int(value[:3])
-        unit = value[-1:]
-        if unit == "Y": return age*365, unit
-        if unit == "M": return int(age*30.5), unit
-        if unit == "W": return age*7, unit
-        if unit == "D": return age, unit
-        raise Exception("Dicom age cannot be parsed.")
+        try:
+            age = int(value[:3])
+            unit = value[-1:]
+            if unit == "Y": return age*365, unit
+            if unit == "M": return int(age*30.5), unit
+            if unit == "W": return age*7, unit
+            if unit == "D": return age, unit
+        except Exception: pass
+        logging.root.warning("Invalid value '%s' for dicom tag patientAge, cannot be parsed (%s)." \
+                             % (value, self.dcm.filename))
+        return None, None
 
     def getStudyDate(self) -> datetime|None:
         if not STUDY_DATE_TAG in self.dcm: return None

@@ -29,7 +29,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 29
+    CURRENT_SCHEMA_VERSION = 30
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -69,6 +69,7 @@ class DB:
             if version < 27: self.updateDB_v26To27()
             if version < 28: self.updateDB_v27To28()
             if version < 29: self.updateDB_v28To29()
+            if version < 30: self.updateDB_v29To30()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -124,9 +125,6 @@ class DB:
                 diagnosis varchar(16) DEFAULT NULL,
                 diagnosis_year integer DEFAULT NULL,
                 study_date timestamp DEFAULT NULL,
-                body_part varchar(16) DEFAULT NULL,
-                modality varchar(16) DEFAULT NULL,
-                manufacturer varchar(64) DEFAULT NULL,
                 constraint pk_study primary key (id)
             );
             CREATE TABLE dataset (
@@ -195,16 +193,28 @@ class DB:
                 constraint fk_dataset foreign key (dataset_id) references dataset(id),
                 constraint fk_study foreign key (study_id) references study(id)
             );
-            /* CREATE TABLE series (
+            /* hash varchar(50) NOT NULL DEFAULT '',
+               hash_last_check timestamp DEFAULT NULL, */
+            CREATE TABLE series (
                 study_id varchar(40),
-                seriesDirName varchar(128)
-                hash varchar(50) NOT NULL DEFAULT '',
-                hash_last_check timestamp DEFAULT NULL,
-                constraint pk_series primary key (study_id, seriesDirName),
+                folder_name varchar(128),
+                body_part varchar(16) DEFAULT NULL,
+                modality varchar(16) DEFAULT NULL,
+                manufacturer varchar(64) DEFAULT NULL,
+                constraint pk_series primary key (study_id, folder_name),
                 constraint fk_study foreign key (study_id) references study(id)
-            ); */
-            /* Type options: 'i' (interactive desktop or web app), 
-                             'b' (batch job)*/
+            );
+            CREATE TABLE dataset_study_series (
+                dataset_id varchar(40),
+                study_id varchar(40),
+                series_folder_name varchar(128),
+                constraint pk_dataset_study_series primary key (dataset_id, study_id, series_folder_name),
+                constraint fk_dataset foreign key (dataset_id) references dataset(id),
+                constraint fk_study foreign key (study_id) references study(id),
+                constraint fk_series foreign key (study_id, series_folder_name) references series(study_id, folder_name)
+            );
+            /* access_type options: 'i' (interactive desktop or web app), 
+                                    'b' (batch job) */
             CREATE TABLE dataset_access (
                 id varchar(40),
                 user_gid integer,
@@ -448,6 +458,36 @@ class DB:
         logging.root.info("Updating database from v28 to v29...")
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN invalidation_reason varchar(128) DEFAULT NULL")
 
+    def updateDB_v29To30(self):
+        logging.root.info("Updating database from v29 to v30...")
+        self.cursor.execute("ALTER TABLE study DROP COLUMN body_part;")
+        self.cursor.execute("ALTER TABLE study DROP COLUMN modality;")
+        self.cursor.execute("ALTER TABLE study DROP COLUMN manufacturer;")
+        self.cursor.execute("""CREATE TABLE series (
+                study_id varchar(40),
+                folder_name varchar(128),
+                body_part varchar(16) DEFAULT NULL,
+                modality varchar(16) DEFAULT NULL,
+                manufacturer varchar(64) DEFAULT NULL,
+                constraint pk_series primary key (study_id, folder_name),
+                constraint fk_study foreign key (study_id) references study(id) );""")
+        self.cursor.execute("""CREATE TABLE dataset_study_series (
+                dataset_id varchar(40),
+                study_id varchar(40),
+                series_folder_name varchar(128),
+                constraint pk_dataset_study_series primary key (dataset_id, study_id, series_folder_name),
+                constraint fk_dataset foreign key (dataset_id) references dataset(id),
+                constraint fk_study foreign key (study_id) references study(id),
+                constraint fk_series foreign key (study_id, series_folder_name) references series(study_id, folder_name) );""")
+        # Let's fill in the new tables with the contents of dataset_study
+        self.cursor.execute("SELECT dataset_id, study_id, series FROM dataset_study;")
+        rows = self.cursor.fetchall()
+        logging.root.info("Creating series for %d studies..." % len(rows))
+        for row in rows:
+            datasetId, studyId = row[0], row[1]
+            series = json.loads(row[2])
+            self.createSeries(datasetId, studyId, series)
+
 
     def createOrUpdateAuthor(self, userId, username, name, email):
         self.cursor.execute("SELECT id FROM author WHERE id=%s LIMIT 1;", (userId,))
@@ -564,12 +604,19 @@ class DB:
                 (study['sizeInBytes'], dataset["id"], study['studyId']))
             self.cursor.execute("""
                 UPDATE study
-                SET age_in_days = %s, sex = %s, body_part = %s, modality = %s, 
-                    manufacturer = %s, diagnosis = %s, diagnosis_year = %s, study_date = %s 
+                SET age_in_days = %s, sex = %s, 
+                    diagnosis = %s, diagnosis_year = %s, study_date = %s 
                 WHERE id = %s;""", 
-                (study['ageInDays'], study['sex'], study['bodyPart'], study['modality'], 
-                study['manufacturer'], study['diagnosis'], study['diagnosisYear'], study['studyDate'],
-                study['studyId']))
+                (study['ageInDays'], study['sex'], 
+                 study['diagnosis'], study['diagnosisYear'], study['studyDate'],
+                 study['studyId']))
+            for series in study['series']:
+                self.cursor.execute("""
+                    UPDATE series
+                    SET body_part = %s, modality = %s, manufacturer = %s
+                    WHERE study_id = %s AND folder_name = %s;""", 
+                    (series['bodyPart'], series['modality'], series['manufacturer'], 
+                     study['studyId'], series['folderName']))
 
     def createDatasetCreationStatus(self, datasetId, status, firstMessage):
         self.cursor.execute("""
@@ -612,6 +659,25 @@ class DB:
             INSERT INTO dataset_study (dataset_id, study_id, series)
             VALUES (%s,%s,%s);""",
             (datasetId, study["studyId"], json.dumps(study["series"])))
+        self.createSeries(datasetId, study["studyId"], study['series'])
+
+    def createSeries(self, datasetId, studyId, studySeries):
+        createdSeries = set()
+        for series in studySeries:
+            if series["folderName"] in createdSeries:
+                logging.root.error("There are two series in the same folder name "
+                    +"[datasetId: %s, studyId: %s, folder: %s]" % (datasetId, studyId, series["folderName"]))
+                continue
+            createdSeries.add(series["folderName"])
+            self.cursor.execute("""
+                INSERT INTO series (study_id, folder_name)
+                VALUES (%s,%s)
+                ON CONFLICT (study_id, folder_name) DO NOTHING;""",
+                (studyId, series["folderName"]))
+            self.cursor.execute("""
+                INSERT INTO dataset_study_series (dataset_id, study_id, series_folder_name)
+                VALUES (%s,%s,%s);""",
+                (datasetId, studyId, series["folderName"]))
 
     def setDatasetStudyHash(self, datasetId, studyId, hash):
         self.cursor.execute("""
@@ -1082,14 +1148,40 @@ class DB:
         return DB._searchConditionNumValueToSQL(db_column, type, value)
 
     @staticmethod
-    def _searchRequestToSQL(sr) -> sql.Composable:
+    def _sqlSeriesConditionsToSqlStudiesCondition(sqlSeriesCondition: sql.Composable) -> sql.Composable:
+        return sql.SQL("""EXISTS (
+                            SELECT series.folder_name FROM dataset_study_series, series 
+                            WHERE dataset_study_series.dataset_id = dataset_study.dataset_id
+                              AND dataset_study_series.study_id = dataset_study.study_id
+                              AND series.study_id = dataset_study_series.study_id
+                              AND series.folder_name = dataset_study_series.series_folder_name
+                              AND {}
+                          )""").format(sqlSeriesCondition)
+
+    @staticmethod
+    def _searchRequestToSQL(sr) -> tuple[sql.Composable, bool]:
         if 'operand' in sr:   # it is an OPERATION: AND/OR of CONDITIONs
             if not sr['operand'] in ['AND', 'OR']: raise DB.searchValidationException("unknown value for 'operand'")
-            if not 'children' in sr: raise DB.searchValidationException("missing 'children' in operation")
+            if not 'children' in sr:                raise DB.searchValidationException("missing 'children' in operation")
             if not isinstance(sr['children'], list): raise DB.searchValidationException("'children' in operation must be an array")
-            if len(sr['children']) == 0: return sql.SQL("")
-            operation = sql.SQL(' %s ' % sr['operand']).join(DB._searchRequestToSQL(child) for child in sr['children'])
-            return sql.SQL("(")+operation+sql.SQL(")")
+            if len(sr['children']) == 0: return sql.SQL(""), False
+            sqlStudiesConditions = []
+            sqlSeriesConditions = []
+            for child in sr['children']:
+                sqlCondition, isSeriesCondition = DB._searchRequestToSQL(child)
+                if isSeriesCondition: sqlSeriesConditions.append(sqlCondition)
+                else:                 sqlStudiesConditions.append(sqlCondition)
+            if len(sqlStudiesConditions) > 0:
+                if len(sqlSeriesConditions) > 0:  # both studies and series conditions
+                    seriesOperation = sql.SQL(' %s ' % sr['operand']).join(sqlSeriesConditions)
+                    seriesOperation = sql.SQL("(")+seriesOperation+sql.SQL(")")
+                    seriesOperation = DB._sqlSeriesConditionsToSqlStudiesCondition(seriesOperation)
+                    sqlStudiesConditions.append(seriesOperation)
+                operation = sql.SQL(' %s ' % sr['operand']).join(sqlStudiesConditions)
+                return sql.SQL("(")+operation+sql.SQL(")"), False
+            else: # only series conditions
+                operation = sql.SQL(' %s ' % sr['operand']).join(sqlSeriesConditions)
+                return sql.SQL("(")+operation+sql.SQL(")"), True
         elif 'key' in sr:   # it is a CONDITION
             if not 'type' in sr: raise DB.searchValidationException("missing 'type' in condition")
             if not 'value' in sr: raise DB.searchValidationException("missing 'value' in condition")
@@ -1102,17 +1194,21 @@ class DB:
             elif sr['key'] == 'SNOMEDCT432213005':  # year_of_diagnosis
                 res = DB._searchConditionNumToSQL(sr['type'], sr['value'], 'year of diagnosis', 'study.diagnosis_year', eucaim_formats.getYear)
             elif sr['key'] == 'RID10311':  # modality   SNOMEDCT363679005
-                res = DB._searchConditionStringToSQL(sr['type'], sr['value'], 'modality', 'study.modality', eucaim_formats.getModality)
+                res = DB._searchConditionStringToSQL(sr['type'], sr['value'], 'modality', 'series.modality', eucaim_formats.getModality)
             elif sr['key'] == 'SNOMEDCT123037004':  # body part   # mejor SNOMEDCT38866009 ?
-                res = DB._searchConditionStringToSQL(sr['type'], sr['value'], 'body part', 'study.body_part', eucaim_formats.getBodyPart)
+                res = DB._searchConditionStringToSQL(sr['type'], sr['value'], 'body part', 'series.body_part', eucaim_formats.getBodyPart)
             elif sr['key'] == 'C25392':  # manufacturer
-                res = DB._searchConditionStringToSQL(sr['type'], sr['value'], 'Manufacturer', 'study.manufacturer', eucaim_formats.getManufacturer)
+                res = DB._searchConditionStringToSQL(sr['type'], sr['value'], 'Manufacturer', 'series.manufacturer', eucaim_formats.getManufacturer)
             else: raise DB.searchValidationException("unkown 'key' in condition")
-            return sql.SQL("(")+res+sql.SQL(")")
+            # Modality, body part and manufacturer are properties of series
+            isSeriesCondition = (sr['key'] in ['RID10311', 'SNOMEDCT123037004', 'C25392'])
+            return sql.SQL("(") + res + sql.SQL(")"), isSeriesCondition
         else: raise DB.searchValidationException("missing 'operand' or 'key'")
 
     def eucaimSearchDatasets(self, skip, limit, searchRequest):
-        whereClause = DB._searchRequestToSQL(searchRequest)
+        whereClause, isSeriesCondition = DB._searchRequestToSQL(searchRequest)
+        if isSeriesCondition:
+            whereClause = DB._sqlSeriesConditionsToSqlStudiesCondition(whereClause)
         if whereClause != sql.SQL(""):
             whereClause = sql.SQL("AND ") + whereClause
         if limit == 0: limit = 'ALL'
