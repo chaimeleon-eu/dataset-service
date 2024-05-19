@@ -206,10 +206,10 @@ class Search_filter():
         self._userId = None
 
         if user._token is None:   # unregistered user
-            self.public = True
+            # self.public = True
             self.invalidated = False
             self.draft = False
-            self._projectsForNonPublic = set()
+            self._projectsForNonPublic = set()  # empty: that user can't see non-public datasets
             return
         
         if not User.roles.superadmin_datasets in user._token["appRoles"]:
