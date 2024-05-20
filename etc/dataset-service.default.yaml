@@ -105,3 +105,7 @@ self:
   eucaim_search_token: ""
     # Secret token for the POST "/datasets/eucaimSearch" operation (custom search for EUCAIM project).
     # If empty token, that operation is not allowed (404 returned), this way you can disable it.
+  default_license_id: ""
+    # The default license assigned to new datasets. The user can change it later.
+    # Example: "1"
+    # Leave it empty if you don't want to specify one license as default.

@@ -253,6 +253,8 @@ class DB:
                 url varchar(256),
                 constraint pk_license primary key (id)
             );
+            INSERT INTO license (name, url) 
+                VALUES ('CC BY 4.0', 'https://creativecommons.org/licenses/by/4.0/');
         """ % self.CURRENT_SCHEMA_VERSION)
     
     def updateDB_v1To2(self):
@@ -1272,6 +1274,13 @@ class DB:
         for row in self.cursor:
             res.append(dict(title = row[0], url = row[1]))
         return res
+    
+    def getLicense(self, id):
+        self.cursor.execute("""
+            SELECT name, url FROM license WHERE id=%s LIMIT 1;""", (id,))
+        row = self.cursor.fetchone()
+        if row is None: return None
+        return dict(title = row[0], url = row[1])
 
     def setZenodoDOI(self, id, newValue: str | None):
         self.cursor.execute("UPDATE dataset SET zenodo_doi = %s WHERE id = %s;", (newValue, id))
@@ -1312,9 +1321,9 @@ class DB:
     def setDatasetCollectionMethod(self, id, newValue: list[str]):
         self.cursor.execute("UPDATE dataset SET collection_method = %s WHERE id = %s;", (newValue, id))
     
-    def setDatasetLicense(self, id, newTitle: str, newUrl: str):
+    def setDatasetLicense(self, datasetId, newTitle: str, newUrl: str):
         self.cursor.execute("UPDATE dataset SET license_title = %s, license_url = %s WHERE id = %s;", 
-                            (newTitle, newUrl, id))
+                            (newTitle, newUrl, datasetId))
 
     def setDatasetPid(self, id, preferred: str, custom: str | None = None):
         newValue = self.PREFERRED_ZENODO if preferred == "zenodoDoi" else custom

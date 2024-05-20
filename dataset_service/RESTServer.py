@@ -474,6 +474,10 @@ def postDataset():
             
             LOG.debug('Creating dataset in DB...')
             db.createDataset(dataset, user.uid)
+            if CONFIG.self.default_license_id != '':
+                license = db.getLicense(int(CONFIG.self.default_license_id))
+                if license != None:
+                    db.setDatasetLicense(datasetId, license["title"], license["url"])
 
             LOG.debug('Creating studies in DB...')
             for study in dataset["studies"]:

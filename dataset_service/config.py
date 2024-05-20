@@ -131,6 +131,7 @@ class Config:
             self.index_file_name = config["index_file_name"]
             self.dataset_link_format = config["dataset_link_format"]
             self.eucaim_search_token = config["eucaim_search_token"]
+            self.default_license_id = config["default_license_id"]
 
         class Log:
             def __init__(self, log: dict):
