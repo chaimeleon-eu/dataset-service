@@ -111,6 +111,7 @@ class Config:
         def __init__(self, zenodo: dict):
             self.url = zenodo["url"]
             self.access_token = zenodo["access_token"]
+            self.author = zenodo["author"]
             self.community = zenodo["community"]
             self.grant = zenodo["grant"]
 

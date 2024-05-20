@@ -838,7 +838,8 @@ def createZenodoDeposition(db: DB, dataset):
     if dataset["pids"]["urls"]["zenodoDoi"] is None: 
         datasetId = dataset["id"]
         studies, total = db.getStudiesFromDataset(datasetId)
-        newValue = pid.getZenodoDOI(CONFIG.zenodo.url, CONFIG.zenodo.access_token, dataset, studies, 
+        author = CONFIG.zenodo.author if CONFIG.zenodo.author != '' else dataset["authorName"]
+        newValue = pid.getZenodoDOI(CONFIG.zenodo.url, CONFIG.zenodo.access_token, dataset, studies, author,
                                     CONFIG.self.dataset_link_format, CONFIG.zenodo.community, CONFIG.zenodo.grant)
         db.setZenodoDOI(datasetId, newValue)
 
@@ -848,7 +849,8 @@ def updateZenodoDeposition(db, dataset):
     if pidUrl != None: 
         i = pidUrl.rfind('.') + 1
         depositionId = pidUrl[i:]
-        pid.updateZenodoDeposition(CONFIG.zenodo.url, CONFIG.zenodo.access_token, dataset, 
+        author = CONFIG.zenodo.author if CONFIG.zenodo.author != '' else dataset["authorName"]
+        pid.updateZenodoDeposition(CONFIG.zenodo.url, CONFIG.zenodo.access_token, dataset, author,
                                    CONFIG.self.dataset_link_format, CONFIG.zenodo.community, CONFIG.zenodo.grant, 
                                    depositionId)
 

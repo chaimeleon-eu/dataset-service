@@ -11,7 +11,7 @@ from xhtml2pdf import pisa
 class PidException(Exception):
     pass
     
-def _getDepositionMetadata(dataset, dataset_link_format, community: str = '', grant: str = ''):
+def _getDepositionMetadata(dataset, creator, dataset_link_format, community: str = '', grant: str = ''):
     dataset_link = dataset_link_format % dataset["id"]
     communities = []
     if community != '': communities.append({'identifier': community})
@@ -26,7 +26,7 @@ def _getDepositionMetadata(dataset, dataset_link_format, community: str = '', gr
                 Use the link on the dataset ID to access the full contents in a computation platform.
                 </p>
                 ''' % (dataset_link, dataset["id"]),
-            'creators': [{'name': dataset["authorName"]}],
+            'creators': [{'name': creator}], 
             'access_right': 'open' if dataset["public"] else 'closed',
             'license': 'cc-by',
             'related_identifiers': [
@@ -38,11 +38,11 @@ def _getDepositionMetadata(dataset, dataset_link_format, community: str = '', gr
         }
     }
 
-def _createDeposition(connection, url_path, accessToken, dataset, dataset_link_format, community, grant):
+def _createDeposition(connection, url_path, accessToken, dataset, creator, dataset_link_format, community, grant):
     headers = {}
     headers['Authorization'] = 'Bearer ' + accessToken
     headers['Content-Type'] = 'application/json'  # 'application/json;charset=UTF-8'
-    body = _getDepositionMetadata(dataset, dataset_link_format, community, grant)
+    body = _getDepositionMetadata(dataset, creator, dataset_link_format, community, grant)
     payload = json.dumps(body)
     logging.root.debug("BODY: " + payload)
     connection.request("POST", url_path + "api/deposit/depositions", payload, headers)
@@ -59,11 +59,11 @@ def _createDeposition(connection, url_path, accessToken, dataset, dataset_link_f
     deposition_id = str(response["id"])
     return bucket_url, deposition_id
 
-def _updateDeposition(connection, url_path, accessToken, dataset, dataset_link_format, community, grant, depositionId):
+def _updateDeposition(connection, url_path, accessToken, dataset, creator, dataset_link_format, community, grant, depositionId):
     headers = {}
     headers['Authorization'] = 'Bearer ' + accessToken
     headers['Content-Type'] = 'application/json'  # 'application/json;charset=UTF-8'
-    body = _getDepositionMetadata(dataset, dataset_link_format, community, grant)
+    body = _getDepositionMetadata(dataset, creator, dataset_link_format, community, grant)
     payload = json.dumps(body)
     logging.root.debug("BODY: " + payload)
     connection.request("PUT", url_path + "api/deposit/depositions/"+depositionId, payload, headers)
@@ -179,14 +179,14 @@ def _generateIndexJson(studies):
     # And dump to the outputString
     return json.dumps(index)
 
-def getZenodoDOI(url, accessToken, dataset, studies, dataset_link_format, community, grant):
+def getZenodoDOI(url, accessToken, dataset, studies, author, dataset_link_format, community, grant):
     zenodo = urllib.parse.urlparse(url)
     if zenodo.hostname is None: raise PidException('Wrong url.')
     connection = http.client.HTTPSConnection(zenodo.hostname, zenodo.port)
     try:
         logging.root.debug('Creating deposition in Zenodo...')
-        bucket_url, deposition_id = _createDeposition(connection, zenodo.path, accessToken, dataset, 
-                                                    dataset_link_format, community, grant)
+        bucket_url, deposition_id = _createDeposition(connection, zenodo.path, accessToken, dataset, author,
+                                                      dataset_link_format, community, grant)
         # bucket_url example: "https://zenodo.org/api/files/568377dd-daf8-4235-85e1-a56011ad454b"
         logging.root.debug('Zenodo creation of deposition success.')
         bucket = urllib.parse.urlparse(bucket_url)
@@ -210,7 +210,7 @@ def getZenodoDOI(url, accessToken, dataset, studies, dataset_link_format, commun
         connection.close()
     return doi_url
 
-def updateZenodoDeposition(url, accessToken, dataset, dataset_link_format, community, grant, deposition_id):
+def updateZenodoDeposition(url, accessToken, dataset, author, dataset_link_format, community, grant, deposition_id):
     zenodo = urllib.parse.urlparse(url)
     if zenodo.hostname is None: raise PidException('Wrong url.')
     connection = http.client.HTTPSConnection(zenodo.hostname, zenodo.port)
@@ -220,7 +220,7 @@ def updateZenodoDeposition(url, accessToken, dataset, dataset_link_format, commu
         logging.root.debug('Zenodo unlock of deposition success.')
 
         logging.root.debug('Updating deposition in Zenodo...')
-        _updateDeposition(connection, zenodo.path, accessToken, dataset, 
+        _updateDeposition(connection, zenodo.path, accessToken, dataset, author,
                         dataset_link_format, community, grant, deposition_id)
         logging.root.debug('Zenodo updating of deposition success.')
         

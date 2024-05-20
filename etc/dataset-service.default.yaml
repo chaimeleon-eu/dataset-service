@@ -53,6 +53,11 @@ zenodo:
     # Usually "https://sandbox.zenodo.org/" for testing, and "https://zenodo.org/" for production.
   access_token: "XXXXXXXXXXXXXXXXXXXXXXX"
     # The access token of the Zenodo account used to publish datasets metada.
+  author: ""
+    # The text that will appear as the author in publications.
+    # Example: "CHAIMELEON consortium"
+    # This way you can set a collective authorship, taking into account the data is provided by several sources. 
+    # If you leave it empty, the name of the user who created the dataset will appear as the author of publication.
   community: ""
     # The community code which the publications will be related to.
     # Example: "chaimeleon_h2020"
