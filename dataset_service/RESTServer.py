@@ -987,6 +987,15 @@ def patchDataset(id):
             # dataset["contactInfo"] = str(newValue)       contactInfo is written in a PDF file
             # updateZenodoDeposition(db, dataset)          and deposition files cannot be changed once published
             trace_details = "CONTACT_INFORMATION_UPDATED"
+        elif property == "authorId":
+            # This is a special operation only allowed for the role "superadmin_datasets",
+            # (s)he can create a dataset for another user and then transfer the authorship to the user.
+            if not db.existsUserID(str(newValue)):
+                return setErrorResponse(400, "invalid value, the user id does not exist")
+            db.setDatasetAuthor(datasetId, str(newValue))
+            # dataset = db.getDataset(datasetId)
+            # updateZenodoDeposition(db, dataset)
+            trace_details = "AUTHOR_CHANGED"
         else:
             return setErrorResponse(400, "invalid property")
 

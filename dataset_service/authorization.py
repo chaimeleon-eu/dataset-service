@@ -130,6 +130,8 @@ class User:
                 editableProperties.append("invalidationReason")
             editableProperties.append("contactInfo")
             editableProperties.append("license")
+            if self.isSuperAdminDatasets():
+                editableProperties.append("authorId")
         return editableProperties
     
     def getAllowedActionsForTheUser(self, dataset, datasetACL):

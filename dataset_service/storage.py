@@ -536,6 +536,10 @@ class DB:
                 ON CONFLICT (user_id, group_name) DO NOTHING;""", 
                 (userId, group))
 
+    def existsUserID(self, id):
+        self.cursor.execute("SELECT id FROM author WHERE id=%s", (id,))
+        return self.cursor.rowcount > 0
+
     def getUserIDs(self, userName):
         self.cursor.execute("SELECT id, gid FROM author WHERE username=%s LIMIT 1;", (userName,))
         row = self.cursor.fetchone()
@@ -1331,6 +1335,9 @@ class DB:
 
     def setDatasetContactInfo(self, id, newValue: str | None):
         self.cursor.execute("UPDATE dataset SET contact_info = %s WHERE id = %s;", (newValue, id))
+    
+    def setDatasetAuthor(self, id, newValue: str):
+        self.cursor.execute("UPDATE dataset SET author_id = %s WHERE id = %s;", (newValue, id))
 
     def setDatasetLastIntegrityCheck(self, id, newValue: datetime | None):
         self.cursor.execute("UPDATE dataset SET last_integrity_check = %s WHERE id = %s;", (newValue, id))

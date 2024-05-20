@@ -291,6 +291,7 @@ paths:
                    - "license"
                    - "pids"
                    - "contactInfo"
+                   - "authorId"
                 value:
                   type: object
                   description: "The new value to assign. The type depends on the property."
