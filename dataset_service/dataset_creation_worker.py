@@ -4,6 +4,7 @@ from dataset_service.auth import AuthClient, LoginException
 from dataset_service.storage import DB
 import dataset_service.dataset as dataset_file_system
 import dataset_service.tracer as tracer
+import time
 
 class dataset_creation_worker:
 
@@ -39,6 +40,19 @@ class dataset_creation_worker:
         with DB(self.config.db) as db:
             db.setDatasetCreationStatus(self.datasetId, "running", "Canceling...")
 
+    WAIT_FOR_DATASET_INTERVAL_SECONDS = 5
+    WAIT_FOR_DATASET_MAX_SECONDS = 120
+
+    def _getDataset(self, db):
+        dataset = None
+        seconds_waiting = 0
+        while dataset is None and seconds_waiting <= self.WAIT_FOR_DATASET_MAX_SECONDS:
+            logging.root.info("Waiting %d seconds for the dataset appearing in DB..." % self.WAIT_FOR_DATASET_INTERVAL_SECONDS)
+            time.sleep(self.WAIT_FOR_DATASET_INTERVAL_SECONDS)
+            seconds_waiting += self.WAIT_FOR_DATASET_INTERVAL_SECONDS
+            dataset = db.getDataset(self.datasetId)
+        return dataset
+
     def run(self):
         auth_client = AuthClient(self.config.auth.client.auth_url, self.config.auth.client.client_id, self.config.auth.client.client_secret)
         try:
@@ -58,7 +72,7 @@ class dataset_creation_worker:
             datasetDirPath = os.path.join(self.config.self.datasets_mount_path, datasetDirName)
 
             with DB(self.config.db) as db:
-                dataset = db.getDataset(self.datasetId)
+                dataset = self._getDataset(db)
                 if dataset is None: raise Exception("dataset not found in database")
                 datasetStudies, total = db.getStudiesFromDataset(self.datasetId)
                 dataset["studies"] = datasetStudies
