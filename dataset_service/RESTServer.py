@@ -722,11 +722,12 @@ def _checkDatasetIntegrity(datasetId):
     wrongHash = tracer.checkDatasetIntegrity(AUTH_CLIENT, CONFIG.tracer.url, datasetId, datasetDirPath,
                                                 CONFIG.self.index_file_name, CONFIG.self.eforms_file_name,
                                                 studiesHashes)
+    corrupted = (wrongHash != None)
     with DB(CONFIG.db) as db:
-        db.setDatasetLastIntegrityCheck(datasetId, datetime.now())
-    if wrongHash is None:
-        return dict(success=True, msg="Integrity OK.")
-    else: return dict(success=False, msg="Resource hash mismatch: %s" % wrongHash)
+        db.setDatasetLastIntegrityCheck(datasetId, corrupted, datetime.now())
+    if corrupted:
+        return dict(success=False, msg="Resource hash mismatch: %s" % wrongHash)
+    else: return dict(success=True, msg="Integrity OK.")
 
 @app.route('/api/datasets/<id>/checkIntegrity', method='POST')
 def checkDatasetIntegrity(id):

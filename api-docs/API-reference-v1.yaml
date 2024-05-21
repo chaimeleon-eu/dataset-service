@@ -996,6 +996,9 @@ components:
         invalidated:
           type: boolean
           description: "If true the dataset can not be used and only visible for the author."
+        corrupted:
+          type: boolean
+          description: "It is true when the integrity check has failed (files modified or even deleted). In that case, the dataset should be invalidated."
         studiesCount:
           type: integer
           description: "The number of studies contained in the dataset."
@@ -1131,13 +1134,6 @@ components:
           type: string
           format: date-time
           example: '2016-08-29T09:12:33.001Z'
-        lastIntegrityCheck:
-          type: string
-          format: date-time
-          description: |
-            The last time the integrity of dataset has been checked calculating the hash and comparing with the original saved in Tracer.
-            It is null in newly created datasets and while not checked.
-          example: '2016-08-29T09:12:33.001Z'
         description:
           type: string
           description: "Long explanation of dataset details, statistics, links, references, improvements/modifications if it's a new version, etc."
@@ -1241,6 +1237,19 @@ components:
             "It is a discarded/useless draft", "It contains some rejected subject or study", "It contains corrupted data", "Other".
             And if "Other" is selected, let the user write the reason.
           example: "It is a discarded/useless draft"
+        corrupted:
+          type: boolean
+          description: |
+            It is true when the integrity check has failed (files modified or even deleted). In that case, the dataset should be invalidated.
+            You can see the date of the last check in "lastIntegrityCheck". The admin can see the details in the log of that date.
+        lastIntegrityCheck:
+          type: string
+          format: date-time
+          description: |
+            The last time the integrity of dataset has been checked calculating the hash and comparing with the original saved in Tracer.
+            It is null in newly created datasets and while not checked.
+            If the check fails, the flag "corrupted" will be true.
+          example: '2016-08-29T09:12:33.001Z'
         editablePropertiesByTheUser:
           type: array
           description: |

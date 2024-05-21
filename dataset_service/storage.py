@@ -29,7 +29,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 30
+    CURRENT_SCHEMA_VERSION = 31
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -70,6 +70,7 @@ class DB:
             if version < 28: self.updateDB_v27To28()
             if version < 29: self.updateDB_v28To29()
             if version < 30: self.updateDB_v29To30()
+            if version < 31: self.updateDB_v30To31()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -149,6 +150,7 @@ class DB:
                 public boolean NOT NULL DEFAULT false,
                 invalidated boolean NOT NULL DEFAULT false,
                 invalidation_reason varchar(128) DEFAULT NULL, 
+                corrupted boolean NOT NULL DEFAULT false,
                 studies_count integer NOT NULL,
                 subjects_count integer NOT NULL,
                 age_low_in_days integer DEFAULT NULL,
@@ -490,6 +492,10 @@ class DB:
             series = json.loads(row[2])
             self.createSeries(datasetId, studyId, series)
 
+    def updateDB_v30To31(self):
+        logging.root.info("Updating database from v30 to v31...")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN corrupted boolean NOT NULL DEFAULT false")
+
 
     def createOrUpdateAuthor(self, userId, username, name, email):
         self.cursor.execute("SELECT id FROM author WHERE id=%s LIMIT 1;", (userId,))
@@ -732,7 +738,7 @@ class DB:
                    dataset.next_id, dataset.last_integrity_check, dataset.size_in_bytes, 
                    dataset.project_code, dataset.version, 
                    dataset.purpose, dataset.type, dataset.collection_method,
-                   dataset.invalidation_reason
+                   dataset.invalidation_reason, dataset.corrupted
             FROM dataset, author 
             WHERE dataset.id=%s AND author.id = dataset.author_id 
             LIMIT 1;""",
@@ -774,6 +780,7 @@ class DB:
                             zenodoDoi = row[11], 
                             custom = customPidUrl)), 
                     draft = row[13], public = row[14], invalidated = row[15], 
+                    corrupted = row[44], lastIntegrityCheck = lastIntegrityCheck, 
                     studiesCount = row[16], subjectsCount = row[17], 
                     ageLow = ageLow, ageHigh = ageHigh, ageUnit = ageUnit, ageNullCount = row[22], 
                     sex = json.loads(row[23]), sexCount = json.loads(row[24]), 
@@ -781,7 +788,7 @@ class DB:
                     bodyPart = json.loads(row[28]), bodyPartCount = json.loads(row[29]), 
                     modality = json.loads(row[30]), modalityCount = json.loads(row[31]), 
                     manufacturer = json.loads(row[32]), manufacturerCount = json.loads(row[33]), 
-                    seriesTags = json.loads(row[34]), lastIntegrityCheck = lastIntegrityCheck, 
+                    seriesTags = json.loads(row[34]), 
                     sizeInBytes = row[37])
         if ds["invalidated"]: ds["invalidationReason"] = row[43]
         return ds
@@ -928,7 +935,7 @@ class DB:
 
         q = sql.SQL("""
                 SELECT dataset.id, dataset.name, author.name, dataset.creation_date, dataset.project_code, 
-                    dataset.draft, dataset.public, dataset.invalidated, 
+                    dataset.draft, dataset.public, dataset.invalidated, dataset.corrupted, 
                     dataset.studies_count, dataset.subjects_count, dataset.version
                 FROM dataset, author{}
                 WHERE dataset.author_id = author.id {}
@@ -941,9 +948,9 @@ class DB:
         for row in self.cursor:
             creationDate = str(row[3].astimezone())   # row[3] is a datetime without time zone, just add the local tz.
                                                       # If local tz is UTC, the string "+00:00" is added at the end.
-            res.append(dict(id = row[0], name = row[1], version = row[10], authorName = row[2], creationDate = creationDate, project = row[4],
-                            draft = row[5], public = row[6], invalidated = row[7],
-                            studiesCount = row[8], subjectsCount = row[9]))
+            res.append(dict(id = row[0], name = row[1], version = row[11], authorName = row[2], creationDate = creationDate, project = row[4],
+                            draft = row[5], public = row[6], invalidated = row[7], corrupted = row[8],
+                            studiesCount = row[9], subjectsCount = row[10]))
         return res, total
     
     def getProjects(self, searchFilter: authorization.Search_filter):
@@ -1339,8 +1346,9 @@ class DB:
     def setDatasetAuthor(self, id, newValue: str):
         self.cursor.execute("UPDATE dataset SET author_id = %s WHERE id = %s;", (newValue, id))
 
-    def setDatasetLastIntegrityCheck(self, id, newValue: datetime | None):
-        self.cursor.execute("UPDATE dataset SET last_integrity_check = %s WHERE id = %s;", (newValue, id))
+    def setDatasetLastIntegrityCheck(self, id, newStatusCorrupted: bool, newDate: datetime | None):
+        self.cursor.execute("UPDATE dataset SET corrupted = %s, last_integrity_check = %s WHERE id = %s;", 
+                            (newStatusCorrupted, newDate, id))
 
     def createDatasetAccess(self, datasetAccessId, datasetIDs, userGID, accessType, toolName, toolVersion, image, cmdLine, creationTime, resourcesFlavor, openchallengeJobType):
         self.cursor.execute("""
