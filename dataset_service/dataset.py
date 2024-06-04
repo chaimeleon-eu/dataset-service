@@ -40,8 +40,10 @@ def adjust_file_permissions_in_datalake(datalake_dir_path, studies):
     for study in studies:
         study_dir_path = os.path.join(datalake_dir_path, study['pathInDatalake'])
         # Ensure only root have access at level of study. 
-        # The access to normal users will be granted later with ACLs.
-        chmod(study_dir_path, 0o700)
+        # The owner is root and group also root, and we set the permissions to 750 (rwxr-x---).
+        # So the access to normal users will be granted later with groups (GIDs) added to ACL with the same permission r-x (read-only).
+        # Each user will have a unique group ID (GID) in the platform (in all the enviroments where the datalake is mounted).
+        chmod(study_dir_path, 0o750)
 
         # Ensure all the people have read access at the lower levels (series dirs and dicom files).
         # The access control with ACLs is done at the study level, not required also in lower levels.

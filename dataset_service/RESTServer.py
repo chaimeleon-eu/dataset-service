@@ -551,6 +551,18 @@ def postDataset_adjustFilePermissionsInDatalake(id):
             return setErrorResponse(404, "not found")
         datasetStudies, total = db.getStudiesFromDataset(datasetId)
         dataset_file_system.adjust_file_permissions_in_datalake(CONFIG.self.datalake_mount_path, datasetStudies)
+
+        # # After adjust the file permissions with chmod 700, the ACL in studies dirs is still there but it has not effect, so we have to readjust them also
+        # pathsOfStudies = db.getPathsOfStudiesFromDataset(id)
+        # datasetAccesses = db.getOpenDatasetAccesses(datasetId)
+        # usernames = set()
+        # for datasetAccess in datasetAccesses:
+        #     username = datasetAccess["username"]
+        #     if username in usernames: continue
+        #     userId, userGID = db.getUserIDs(datasetAccess["username"])
+        #     LOG.debug('Setting ACLs in dataset %s for GID %s ...' % (id, userGID))
+        #     datasetDirName = id
+        #     dataset_file_system.give_access_to_dataset(CONFIG.self.datasets_mount_path, datasetDirName, CONFIG.self.datalake_mount_path, pathsOfStudies, userGID)
     
     LOG.debug('Dataset files permissions successfully adjusted.')
     bottle.response.status = 204
