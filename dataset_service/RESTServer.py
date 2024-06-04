@@ -1350,8 +1350,6 @@ def checkDatasetListAccess(datasetIDs: list, userName: str):
             if not user.canUseDataset(dataset, datasetACL):
                 badIDs.append(id); continue
     if user._token != None: LOG.debug("###### User in groups: %s" % json.dumps(user._token["groups"]))
-    if len(badIDs) == 0 and user.isOpenChallenge(): 
-        return 'openchallenge'
     return badIDs
 
 @app.route('/api/datasetAccessCheck', method='POST')
@@ -1376,12 +1374,6 @@ def postDatasetAccessCheck():
         datasetIDs = datasetAccess["datasets"]
 
         badIds = checkDatasetListAccess(datasetIDs, userName)
-        if badIds == 'openchallenge':  # special response (actually not badId)
-            LOG.debug('Openchallenge dataset access granted. Return: %s' % json.dumps(['openchallenge']))
-            bottle.response.status = 200
-            bottle.response.content_type = "application/json"
-            return json.dumps(['openchallenge'])
-
         if len(badIds) > 0:
             bottle.response.status = 403
             bottle.response.content_type = "application/json"
@@ -1433,12 +1425,6 @@ def postDatasetAccess(id):
                                              # 'b' (batch job)
 
         badIds = checkDatasetListAccess(datasetIDs, userName)
-        if badIds == 'openchallenge':  # special response (actually not badId)
-            badIds = []
-            datasetIDs = ['0c709381-69fd-44fd-8417-26e1a181c1a9','a092a929-ef5b-41f2-93ee-9231c56beeb6','376e4aad-4813-47c7-a73a-f9304b8984b8',
-                          'c3d944ee-45ef-47a5-8968-8ab0673646bf','fbf77161-ed71-4983-a49f-1a22c717f32f']
-            LOG.debug('Openchallenge dataset access granted.')
-            
         if len(badIds) > 0:
             return setErrorResponse(403,"access denied")
 
