@@ -1233,7 +1233,7 @@ class DB:
                     dataset.modality, dataset.body_part, dataset.description
                 FROM dataset, dataset_study, study
                 WHERE dataset.id = dataset_study.dataset_id AND dataset_study.study_id = study.id
-                      AND dataset.draft = false AND dataset.invalidated = false {}
+                      AND dataset.public = true AND dataset.draft = false AND dataset.invalidated = false {}
                 GROUP BY dataset.id
                 ORDER BY dataset.creation_date DESC
                 LIMIT {} OFFSET {};"""
