@@ -1228,7 +1228,9 @@ def deleteDataset(id):
             db.deleteDatasetAccess(ac["datasetAccessId"])
         LOG.debug("Removing dataset in the database...")
         db.deleteDataset(datasetId)
-        LOG.debug("Removing studies not included in other datasets...")
+        LOG.debug("Removing series not included in any dataset...")
+        db.deleteOrphanSeries()
+        LOG.debug("Removing studies not included in any dataset...")
         db.deleteOrphanStudies()
 
         if CONFIG.self.datasets_mount_path != '':

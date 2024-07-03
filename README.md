@@ -551,7 +551,7 @@ zenodo:
 That service provides a POST /datasets/eucaimSearch operation which fulfills the [requirements](http://eucaim.ics.forth.gr/docs#/default/search_search_post) 
 of the [Federated Search](https://explorer.eucaim.cancerimage.eu/) 
 of the [EUCAIM project](https://cancerimage.eu/) and currently is integrated. 
-So any released or published dataset (not draft, nor invalidated) will be included in the results of that Federated Search.
+So any published dataset (not invalidated) will be included in the results of that Federated Search.
 
 
 

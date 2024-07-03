@@ -1255,26 +1255,46 @@ class DB:
     def deleteDataset(self, datasetId):
         self.cursor.execute("DELETE FROM dataset_creation_status WHERE dataset_id=%s;", (datasetId,))
         self.cursor.execute("DELETE FROM dataset_study WHERE dataset_id=%s;", (datasetId,))
+        self.cursor.execute("DELETE FROM dataset_study_series WHERE dataset_id=%s;", (datasetId,))
         self.cursor.execute("DELETE FROM dataset WHERE id=%s;", (datasetId,))
 
     def deleteOrphanStudies(self):
         '''This is a kind of garbage-collection that deletes all the studies not included in any dataset_study.'''
         self.cursor.execute("""
             SELECT COUNT(*) FROM study as s
-            WHERE not exists (select ds.dataset_id, ds.study_id 
+            WHERE not exists (select ds.study_id 
                               from dataset_study as ds
                               where ds.study_id = s.id);""")
         row = self.cursor.fetchone()
         total = row[0] if row != None else 0
         if total == 0:
-            logging.root.debug("There are no orphan studies to remove (all of them were included in other datasets).")
+            logging.root.debug("There are no orphan studies to remove (all of them were included in datasets).")
             return
         logging.root.debug("There are %d orphan studies (not included in any dataset), removing..." % total )
         self.cursor.execute("""
             DELETE FROM study as s
-            WHERE not exists (select ds.dataset_id, ds.study_id 
+            WHERE not exists (select ds.study_id 
                               from dataset_study as ds
                               where ds.study_id = s.id);""")
+
+    def deleteOrphanSeries(self):
+        '''This is a kind of garbage-collection that deletes all the series not included in any dataset_study_series.'''
+        self.cursor.execute("""
+            SELECT COUNT(*) FROM series as s
+            WHERE not exists (select dss.study_id, dss.series_folder_name 
+                              from dataset_study_series as dss
+                              where dss.study_id = s.study_id and dss.series_folder_name = s.folder_name );""")
+        row = self.cursor.fetchone()
+        total = row[0] if row != None else 0
+        if total == 0:
+            logging.root.debug("There are no orphan series to remove (all of them were included in datasets).")
+            return
+        logging.root.debug("There are %d orphan series (not included in any dataset), removing..." % total )
+        self.cursor.execute("""
+            DELETE FROM series as s
+            WHERE not exists (select dss.study_id, dss.series_folder_name 
+                              from dataset_study_series as dss
+                              where dss.study_id = s.study_id and dss.series_folder_name = s.folder_name );""")
 
     def getLicenses(self):
         self.cursor.execute("""
