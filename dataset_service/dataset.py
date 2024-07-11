@@ -171,7 +171,11 @@ def _getFirstDicomFile(DirPath) -> dicom.Dicom | None:
     for fileName in os.listdir(DirPath):
         if fileName.lower().endswith(".dcm"):
             dicomFilePath = os.path.join(DirPath, fileName)
-            return dicom.Dicom(dicomFilePath)
+            try:
+                return dicom.Dicom(dicomFilePath)
+            except Exception as ex:
+                logging.root.error("Error reading DICOM file: " + dicomFilePath)
+                raise ex
     return None
 
 def _checkMetadataItemAndSave(study, item, newValue, filename):

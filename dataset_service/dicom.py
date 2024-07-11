@@ -36,7 +36,7 @@ PROJECT_NAME_PRIVATE_TAG = 0x70D1, 0x2000
 
 class Dicom:
     def __init__(self, dicomFilePath):
-        self.dcm = pydicom.dcmread(dicomFilePath, stop_before_pixels=True)
+        self.dcm = pydicom.dcmread(dicomFilePath, stop_before_pixels=True, force=True)
     
     def getFileName(self) -> str:
         return str(self.dcm.filename)
