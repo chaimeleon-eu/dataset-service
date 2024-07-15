@@ -30,7 +30,7 @@ class User:
             if not "preferred_username" in token.keys(): return False, "preferred_username"
             if not "name" in token.keys(): return False, "name"
             if not "email" in token.keys(): return False, "email"
-            if not "groups" in token.keys(): return False, "groups"
+            #if not "groups" in token.keys(): return False, "groups"   keycloak does not include groups if empty, but still valid token
         try:
             token["appRoles"] = token["resource_access"]["dataset-service"]["roles"]
         except:
@@ -86,7 +86,7 @@ class User:
         if self._token != None and User.roles.superadmin_datasets in self._token["appRoles"]: return True
         if dataset["draft"] and (self._token is None or self._token["sub"] != dataset["authorId"]): return False
         if dataset["public"]: return True
-        return (self._token != None and PROJECT_GROUP_PREFIX + dataset["project"] in self._token["groups"])
+        return (dataset["project"] in self.getProjects())
 
     def canUseDataset(self, dataset, datasetACL):
         # Essential conditions
@@ -97,7 +97,7 @@ class User:
         if User.roles.superadmin_datasets in self._token["appRoles"]: return True
         if dataset["invalidated"]: return False
         # The main rule
-        if PROJECT_GROUP_PREFIX + dataset["project"] in self._token["groups"]: return True
+        if dataset["project"] in self.getProjects(): return True
         if dataset["public"]: return (self.uid in datasetACL)
         else: return False
 
@@ -149,7 +149,7 @@ class User:
     
     def getProjects(self) -> set[str]:
         projects = set()
-        if self._token is None: return projects
+        if self._token is None or not "groups" in self._token.keys(): return projects
         prefix_len = len(PROJECT_GROUP_PREFIX)
         for g in self._token["groups"]:
             if g.startswith(PROJECT_GROUP_PREFIX):

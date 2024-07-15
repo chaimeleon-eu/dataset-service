@@ -1350,20 +1350,16 @@ def checkDatasetListAccess(datasetIDs: list, userName: str):
         ret = getTokenOfAUserFromAuthAdminClient(userId)
         if isinstance(ret, str): return ret  # return error message
         user = authorization.User(ret)
-        #userGroups = db.getUserGroups(userName)
-        #userGroups = AUTH_ADMIN_CLIENT.getUserGroups(userId)
         for id in datasetIDs:
             dataset = db.getDataset(id)
             if dataset is None:
                 # invalidated or not exists
                 badIDs.append(id); continue
-            # if not authorization.tmpUserCanAccessDataset(userId, userGroups, dataset):
             if dataset["draft"]:
                 dataset["creating"] = (db.getDatasetCreationStatus(id) != None)
             datasetACL = db.getDatasetACL(id)
             if not user.canUseDataset(dataset, datasetACL):
                 badIDs.append(id); continue
-    if user._token != None: LOG.debug("###### User in groups: %s" % json.dumps(user._token["groups"]))
     return badIDs
 
 @app.route('/api/datasetAccessCheck', method='POST')
