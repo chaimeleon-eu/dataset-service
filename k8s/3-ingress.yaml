@@ -8,7 +8,7 @@ metadata:
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
 #   nginx.ingress.kubernetes.io/ssl-redirect: "false"
     # Timeout (in seconds) to wait for the service response (default 60)
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "180"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
 spec:
 # tls:
 #   - hosts:
