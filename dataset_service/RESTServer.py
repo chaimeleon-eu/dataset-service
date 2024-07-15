@@ -1304,15 +1304,15 @@ def putUser(userName):
         LOG.debug("BODY: " + read_data)
         userData = json.loads(read_data)
         userId = userData["uid"] if "uid" in userData.keys() else None
-        userGroups = userData["groups"]
+        #userGroups = userData["groups"]
         userGid = int(userData["gid"]) if "gid" in userData.keys() else None
         if userId is None:
             userId = AUTH_ADMIN_CLIENT.getUserId(userName)
             if userId is None: raise Exception("username '%s' not found in auth service" % userName)
 
         with DB(CONFIG.db) as db:
-            LOG.debug("Creating or updating user: %s, %s, %s, %s" % (userId, userName, userGid, userGroups))
-            db.createOrUpdateUser(userId, userName, userGroups, userGid)
+            LOG.debug("Creating or updating user: %s, %s, %s" % (userId, userName, userGid))
+            db.createOrUpdateUser(userId, userName, userGid)
                         
         LOG.debug('User successfully created or updated.')
         bottle.response.status = 201

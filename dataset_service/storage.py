@@ -29,7 +29,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 31
+    CURRENT_SCHEMA_VERSION = 32
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -71,6 +71,7 @@ class DB:
             if version < 29: self.updateDB_v28To29()
             if version < 30: self.updateDB_v29To30()
             if version < 31: self.updateDB_v30To31()
+            if version < 32: self.updateDB_v31To32()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -108,12 +109,6 @@ class DB:
                 constraint pk_user primary key (id),
                 constraint un_user unique (username),
                 constraint un_gid unique (gid)
-            );
-            CREATE TABLE user_group (
-                user_id varchar(64),
-                group_name varchar(128),
-                constraint pk_user_group primary key (user_id, group_name),
-                constraint fk_user foreign key (user_id) references author(id)
             );
             CREATE TABLE study (
                 id varchar(40),
@@ -253,7 +248,8 @@ class DB:
                 id SERIAL,
                 name varchar(128) NOT NULL,
                 url varchar(256),
-                constraint pk_license primary key (id)
+                constraint pk_license primary key (id),
+                constraint un_name unique (name)
             );
             INSERT INTO license (name, url) 
                 VALUES ('CC BY 4.0', 'https://creativecommons.org/licenses/by/4.0/');
@@ -496,6 +492,10 @@ class DB:
         logging.root.info("Updating database from v30 to v31...")
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN corrupted boolean NOT NULL DEFAULT false")
 
+    def updateDB_v31To32(self):
+        logging.root.info("Updating database from v31 to v32...")
+        self.cursor.execute("DROP TABLE user_group;")
+        self.cursor.execute("ALTER TABLE license ADD constraint un_name unique (name);")
 
     def createOrUpdateAuthor(self, userId, username, name, email):
         self.cursor.execute("SELECT id FROM author WHERE id=%s LIMIT 1;", (userId,))
@@ -513,7 +513,7 @@ class DB:
                 WHERE id = %s;""", 
                 (username, name, email, userId))
     
-    def createOrUpdateUser(self, userId, username, groups, gid = None):
+    def createOrUpdateUser(self, userId, username, gid = None):
         self.cursor.execute("SELECT id FROM author WHERE id=%s LIMIT 1;", (userId,))
         row = self.cursor.fetchone()
         if row is None: 
@@ -533,14 +533,6 @@ class DB:
                 WHERE id = {};"""
             ).format(sql.Literal(str(username)), gidstr, 
                      sql.Literal(str(userId))))
-            # delete and reintroduce the groups because they could be changed
-            self.cursor.execute("DELETE FROM user_group WHERE user_id=%s;", (userId,))
-        for group in groups:
-            self.cursor.execute("""
-                INSERT INTO user_group (user_id, group_name) 
-                VALUES (%s, %s)
-                ON CONFLICT (user_id, group_name) DO NOTHING;""", 
-                (userId, group))
 
     def existsUserID(self, id):
         self.cursor.execute("SELECT id FROM author WHERE id=%s", (id,))
@@ -551,17 +543,6 @@ class DB:
         row = self.cursor.fetchone()
         if row is None: return None, None
         return row[0], row[1]
-
-    def getUserGroups(self, userName):
-        self.cursor.execute("""
-            SELECT user_group.group_name 
-            FROM author, user_group 
-            WHERE author.username=%s AND author.id = user_group.user_id;""", 
-            (userName,))
-        res = []
-        for row in self.cursor:
-            res.append(row[0])
-        return res
 
     def createDataset(self, dataset, userId):
         self.cursor.execute("""
