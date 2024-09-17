@@ -1,10 +1,12 @@
 from sempyro.dcat import DCATDataset
 import pandas as pd
 import pprint
-
+from rdflib import URIRef
 
 # def toDCAT(dataset):
 def toDCAT(dataset):# Transformaciones de los campos a sus correspondientes datatypes
+
+   serialized_graphs = []
 
    df = pd.json_normalize(dataset)
 # ->> 'access_rights': debe ser un valor de tipo 'AccessRights' en formato URI ((NO TENEMOS URI SIMILAR EN EL DATASET)) EL CAMPO PUBLIC ES BOOLEANO
@@ -103,10 +105,17 @@ def toDCAT(dataset):# Transformaciones de los campos a sus correspondientes data
 
    df["was_generated_by"] = 'An activity that generated, or provides the business context for, the creation of the dataset.'
 
-
    # Eliminación de columnas innecesarias y renombrado de columnas
    df.drop(columns=["authorName", "authorId", "public", "pids", "previousId", "nextId", "contactInfo", "license"], inplace=True)
-
+   
+   datasets = df.to_dict('records')   
+   dcat_datasets = [DCATDataset(**x) for x in datasets]   
+   for item in dcat_datasets:
+      serialized_graph = item.to_graph(URIRef(item.identifier[0])).serialize()
+      print(serialized_graph)
+      serialized_graphs.append(serialized_graph)
+   
+   
    dcat_fields = DCATDataset.annotate_model()
    pprint.pprint(dcat_fields.fields_description())
-   return 0
+   return serialized_graphs
