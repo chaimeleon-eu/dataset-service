@@ -5,5 +5,6 @@ kubernetes==26.1.0     # to launch jobs like dataset creation job
 psycopg2-binary==2.9.9         # postgres client
 pyjwt[crypto]==2.8.0      # to validate authentication tokens (crypto is needed to get RS256 algorithm)
 pydicom==2.4.4        # to collect metadata from dicom tags
+sempyro==1.4.0       
 # xhtml2pdf==0.2.8      this is the tested version but now throws error when building dependency pycairo, remove that when 0.2.11 is tested
 xhtml2pdf==0.2.11      # to generate pdf to publish in zenodo

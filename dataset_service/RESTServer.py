@@ -22,7 +22,7 @@ from dataset_service import authorization, k8s, pid, tracer, keycloak, config
 from dataset_service.auth import AuthClient, LoginException
 from dataset_service.storage import DB
 import dataset_service.dataset as dataset_file_system
-
+from dataset_service.fdp import *
 #LOG = logging.getLogger('module1')
 LOG = logging.root
 
@@ -1556,6 +1556,28 @@ def getDatasetAccessHistory(id):
                         "skipped": skip,
                         "limit": limit,
                         "list": accesses })
+
+@app.route('/api/fdp/datasets/<id>', method='GET')
+def getDataset(id):
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    ret = getTokenFromAuthorizationHeader()
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
+
+    datasetId = id
+    with DB(CONFIG.db) as db:
+        dataset = db.getDataset(datasetId)
+        if dataset is None:
+            return setErrorResponse(404,"not found")
+    if not user.canViewDatasetDetails(dataset):
+        return setErrorResponse(401,"unauthorized user")
+    if user.isUnregistered():
+        del dataset["authorEmail"]
+    rdformat = toDCAT(dataset)
+    bottle.response.content_type = "text/turtle"
+    return (rdformat)
+
 
 @app.route('/api-doc', method='GET')
 def getStaticApiDoc():
