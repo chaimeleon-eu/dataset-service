@@ -305,6 +305,12 @@ Example:
 $ curl -i -H "devToken: SECRET-TOKEN" -d "http://158.42.154.23:19000/build.zip" "https://chaimeleon-eu.i3m.upv.es/dataset-service/api/set-ui"
 ```
 
+There is a second method uploading directly the ZIP file in the body.  
+Example:
+```
+$ curl -i -H "devToken: SECRET-TOKEN" -F zip=@"build.zip" "https://chaimeleon-eu.i3m.upv.es/dataset-service/api/set-ui?method=fileInBody"
+```
+
 ## Deployment
 
 ```

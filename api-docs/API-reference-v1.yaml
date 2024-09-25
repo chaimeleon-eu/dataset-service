@@ -296,7 +296,7 @@ paths:
                   type: object
                   description: "The new value to assign. The type depends on the property."
       responses:
-        '200':
+        '204':
           description: "Successful operation."
         '401':
           $ref: '#/components/responses/Unauthorized'

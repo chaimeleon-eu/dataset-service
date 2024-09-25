@@ -237,17 +237,33 @@ def getAlive():
 
 @app.route('/api/set-ui', method='POST')
 def postSetUI():
-    if CONFIG is None or not isinstance(bottle.request.body, io.IOBase): raise Exception()
+    if CONFIG is None \
+       or not isinstance(bottle.request.query, bottle.FormsDict) \
+       or not isinstance(bottle.request.files, bottle.FormsDict) \
+       or not isinstance(bottle.request.body, io.IOBase): 
+        raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     if CONFIG.self.dev_token == "":
         return setErrorResponse(404, "Not found: '%s'" % bottle.request.path)
     if bottle.request.get_header("devToken") != CONFIG.self.dev_token:
         return setErrorResponse(401,"unauthorized user")
-    sourceUrl = bottle.request.body.read().decode('UTF-8')
-    LOG.debug("BODY: " + sourceUrl )
     from dataset_service.utils import execute_cmd
-    output, status = execute_cmd("wget -O \"" + CONFIG.self.static_files_dir_path + "/build.zip\" '" + sourceUrl + "'")
-    output, status = execute_cmd("unzip -uo \"" + CONFIG.self.static_files_dir_path + "/build.zip\" -d \"" + CONFIG.self.static_files_dir_path + "/\"")
+    destinationZipPath = CONFIG.self.static_files_dir_path + "/build.zip"
+    if "method" in bottle.request.query and bottle.request.query["method"] == "fileInBody":
+        LOG.debug("Method: fileInBody.")
+        zipFile = bottle.request.files["zip"]
+        name, ext = os.path.splitext(zipFile.filename)
+        if ext != '.zip':
+            return setErrorResponse(400,'File extension not allowed, only zip is supported.')
+        if os.path.exists(destinationZipPath): os.remove(destinationZipPath)
+        zipFile.save(destinationZipPath)
+    else:
+        sourceUrl = bottle.request.body.read().decode('UTF-8')
+        LOG.debug("URL in body: " + sourceUrl )
+        output, status = execute_cmd("wget -O \"" + destinationZipPath + "\" '" + sourceUrl + "'")
+
+    output, status = execute_cmd("unzip -uo \"" + destinationZipPath + "\" -d \"" + CONFIG.self.static_files_dir_path + "/\"")
+    LOG.debug("UI package successfully updated.")
     return output
 
 @app.route('/datalakeinfo/<file_path:re:.*\.(json)>', method='GET')
@@ -1016,7 +1032,7 @@ def patchDataset(id):
             LOG.debug('Notifying to tracer-service...')
             # Note this tracer call is inside of "with db" because if tracer fails the database changes will be reverted (transaction rollback).
             tracer.traceDatasetUpdate(AUTH_CLIENT, CONFIG.tracer.url, datasetId, user.uid, trace_details)
-    bottle.response.status = 200
+    bottle.response.status = 204
 
 @app.route('/api/datasets/<id>/acl', method='GET')
 def getDatasetACL(id):
