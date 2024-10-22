@@ -7,8 +7,9 @@ metadata:
     nginx.ingress.kubernetes.io/rewrite-target: /$1
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
 #   nginx.ingress.kubernetes.io/ssl-redirect: "false"
-    nginx.ingress.kubernetes.io/proxy-body-size: 5m
-    # Timeout (in seconds) to wait for the service response (default 60)
+    # Max request body size, increased to avoid error "413: request body too large" when creating dataset
+    nginx.ingress.kubernetes.io/proxy-body-size: 120m
+    # Timeout to wait for the service response (default 60, in seconds), increased also for creation of datasets
     nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
 spec:
 # tls:

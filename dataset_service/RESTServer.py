@@ -186,7 +186,7 @@ def getTokenFromAuthorizationHeader(serviceAccount=False) -> str | None | dict:
     if ok: LOG.debug("User: " + token['preferred_username'])
     else: 
         LOG.debug(json.dumps(token))
-        return setErrorResponse(401,"invalid access token: missing '%s'" % missingProperty)
+        return setErrorResponse(401, "invalid access token: missing '%s'" % missingProperty)
     return token
 
 def getTokenOfAUserFromAuthAdminClient(userId) -> str | dict:
@@ -197,7 +197,7 @@ def getTokenOfAUserFromAuthAdminClient(userId) -> str | dict:
     if AUTH_ADMIN_CLIENT is None: raise Exception()
     token = AUTH_ADMIN_CLIENT.getUserToken(userId)
     ok, missingProperty = authorization.User.validateToken(token, False)
-    if not ok: return setErrorResponse(401,"invalid access token: missing '%s'" % missingProperty)
+    if not ok: return setErrorResponse(401, "invalid access token: missing '%s'" % missingProperty)
     return token
 
 def get_header_media_types(header):
@@ -246,7 +246,7 @@ def postSetUI():
     if CONFIG.self.dev_token == "":
         return setErrorResponse(404, "Not found: '%s'" % bottle.request.path)
     if bottle.request.get_header("devToken") != CONFIG.self.dev_token:
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
     from dataset_service.utils import execute_cmd
     destinationZipPath = CONFIG.self.static_files_dir_path + "/build.zip"
     if "method" in bottle.request.query and bottle.request.query["method"] == "fileInBody":
@@ -254,7 +254,7 @@ def postSetUI():
         zipFile = bottle.request.files["zip"]
         name, ext = os.path.splitext(zipFile.filename)
         if ext != '.zip':
-            return setErrorResponse(400,'File extension not allowed, only zip is supported.')
+            return setErrorResponse(400, 'File extension not allowed, only zip is supported.')
         if os.path.exists(destinationZipPath): os.remove(destinationZipPath)
         zipFile.save(destinationZipPath)
     else:
@@ -274,7 +274,7 @@ def getDatalakeInfo(file_path):
     if CONFIG.self.datalakeinfo_token == "":
         return setErrorResponse(404, "Not found: '%s'" % bottle.request.path)
     if bottle.request.get_header("secret") != CONFIG.self.datalakeinfo_token:
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
     return bottle.static_file(file_path, CONFIG.self.datalakeinfo_dir_path)
 
 
@@ -358,15 +358,15 @@ def postDataset():
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if user.isUnregistered() or not user.canCreateDatasets():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
 
     content_types = get_header_media_types('Content-Type')
     if "external" in bottle.request.query and bottle.request.query["external"].lower() == "true":
         if not 'multipart/form-data' in content_types:
-            return setErrorResponse(400,"invalid 'Content-Type' header, required 'multipart/form-data'")
+            return setErrorResponse(400, "invalid 'Content-Type' header, required 'multipart/form-data'")
     else:
         if not 'application/json' in content_types:
-            return setErrorResponse(400,"invalid 'Content-Type' header, required 'application/json'")
+            return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
 
     datasetDirName = ''
     datasetId = str(uuid.uuid4())
@@ -377,7 +377,7 @@ def postDataset():
             clinicalDataFile = bottle.request.files["clinical_data"]
             name, ext = os.path.splitext(clinicalDataFile.filename)
             if ext != '.csv':
-                return setErrorResponse(400,'File extension not allowed, only CSV is supported.')
+                return setErrorResponse(400, 'File extension not allowed, only CSV is supported.')
             dataset = dict(
                 name = bottle.request.forms.get("name"),
                 description = bottle.request.forms.get("description")
@@ -463,16 +463,16 @@ def postDataset():
             user_projects = user.getProjects()
             if 'project' in dataset.keys(): 
                 if not dataset["project"] in user_projects:
-                    return setErrorResponse(400,"dataset.project does not exist for the user")
+                    return setErrorResponse(400, "dataset.project does not exist for the user")
             else:
                 dataset["project"] = user_projects.pop()  # we take the first project of user
             
             if 'previousId' in dataset.keys():
                 previousDataset = db.getDataset(dataset["previousId"])
                 if previousDataset is None:
-                    return setErrorResponse(400,"dataset.previousId does not exist")
+                    return setErrorResponse(400, "dataset.previousId does not exist")
                 if not user.canModifyDataset(previousDataset):
-                    return setErrorResponse(401,"the dataset selected as previous (%s) "
+                    return setErrorResponse(401, "the dataset selected as previous (%s) "
                                                +"must be editable by the user (%s)" % (previousDataset["id"], user.username))
             else:
                 dataset["previousId"] = None
@@ -559,7 +559,7 @@ def postDataset_adjustFilePermissionsInDatalake(id):
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if not user.isSuperAdminDatasets():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
 
     datasetId = id
     with DB(CONFIG.db) as db:
@@ -614,7 +614,7 @@ def recollectMetadataForDataset(id):
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if not user.isSuperAdminDatasets():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
 
     datasetId = id
     with DB(CONFIG.db) as db:
@@ -639,7 +639,7 @@ def recollectMetadataForAllDatasets():
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if not user.isSuperAdminDatasets():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
 
     with DB(CONFIG.db) as db:
         searchFilter = authorization.Search_filter()
@@ -671,7 +671,7 @@ def relaunchDatasetCreationJob(id):
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if not user.isSuperAdminDatasets():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
     datasetId = id
     with DB(CONFIG.db) as db:
         dataset = db.getDataset(datasetId)
@@ -680,12 +680,12 @@ def relaunchDatasetCreationJob(id):
         if dataset["draft"]:
             dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
         if not user.canRelaunchDatasetCreation(dataset):
-            return setErrorResponse(401,"unauthorized user")
+            return setErrorResponse(401, "unauthorized user")
         k8sClient = k8s.K8sClient()
         job = k8sClient.exist_dataset_creation_job(datasetId)
         if job:
             if k8sClient.is_running_dataset_creation_job(job):
-                return setErrorResponse(400,"there is a creation job running for this dataset, please stop or delete it before relaunch")
+                return setErrorResponse(400, "there is a creation job running for this dataset, please stop or delete it before relaunch")
             else: k8sClient.delete_dataset_creation_job(datasetId)
         LOG.debug('Updating status in DB...')
         db.setDatasetCreationStatus(datasetId, "pending", "Relaunching dataset creation job...")
@@ -709,11 +709,11 @@ def getDatasetCreationStatus(id):
     with DB(CONFIG.db) as db:
         dataset = db.getDataset(datasetId)
         if dataset is None:
-            return setErrorResponse(404,"not found")
+            return setErrorResponse(404, "not found")
 
         # check access permission
         if not user.canViewDatasetDetails(dataset):
-            return setErrorResponse(401,"unauthorized user")
+            return setErrorResponse(401, "unauthorized user")
 
         status = db.getDatasetCreationStatus(datasetId)
         if status is None:
@@ -767,7 +767,7 @@ def checkDatasetIntegrity(id):
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if not user.canCheckIntegrityOfDatasets():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
     
     datasetId = id
     result = _checkDatasetIntegrity(datasetId)
@@ -783,7 +783,7 @@ def checkAllDatasetsIntegrity():
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if not user.canCheckIntegrityOfDatasets():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
 
     with DB(CONFIG.db) as db:
         searchFilter = authorization.Search_filter()
@@ -811,12 +811,12 @@ def getDataset(id):
     with DB(CONFIG.db) as db:
         dataset = db.getDataset(datasetId)
         if dataset is None:
-            return setErrorResponse(404,"not found")
+            return setErrorResponse(404, "not found")
         if dataset["draft"]:
             dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
         datasetACL = db.getDatasetACL(id)
     if not user.canViewDatasetDetails(dataset):
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
     dataset["editablePropertiesByTheUser"] = user.getEditablePropertiesByTheUser(dataset)
     dataset["allowedActionsForTheUser"] = user.getAllowedActionsForTheUser(dataset, datasetACL)
     if user.isUnregistered():
@@ -841,11 +841,11 @@ def getDatasetStudies(id):
     with DB(CONFIG.db) as db:
         dataset = db.getDataset(datasetId)
         if dataset is None:
-            return setErrorResponse(404,"not found")
+            return setErrorResponse(404, "not found")
         if dataset["draft"]:
             dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
         if not user.canViewDatasetDetails(dataset):
-            return setErrorResponse(401,"unauthorized user")
+            return setErrorResponse(401, "unauthorized user")
 
         studies, total = db.getStudiesFromDataset(datasetId, limit, skip)
         username = "unregistered" if user.isUnregistered() else user.username
@@ -892,7 +892,7 @@ def patchDataset(id):
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if user.isUnregistered():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
 
     datasetId = id
     read_data = bottle.request.body.read().decode('UTF-8')
@@ -905,11 +905,11 @@ def patchDataset(id):
     with DB(CONFIG.db) as db:
         dataset = db.getDataset(datasetId)
         if dataset is None:
-            return setErrorResponse(404,"not found")
+            return setErrorResponse(404, "not found")
         if dataset["draft"]:
             dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
         if property not in user.getEditablePropertiesByTheUser(dataset):
-            return setErrorResponse(400,"the property is not in the editablePropertiesByTheUser list")
+            return setErrorResponse(400, "the property is not in the editablePropertiesByTheUser list")
 
         if property == "draft":
             if bool(newValue) == False and dataset["previousId"] != None:
@@ -922,15 +922,15 @@ def patchDataset(id):
                 #  so the other datasets sharing the previousId will be in a wrong state, they will have a previousId not selectable.
                 newVersionsOfTheSameDataset = db.getDatasetsSharingPreviousId(dataset["previousId"])
                 if len(newVersionsOfTheSameDataset) > 1:
-                    return setErrorResponse(400,"There are more than one draft datasets selected as the next version for the same dataset: "
+                    return setErrorResponse(400, "There are more than one draft datasets selected as the next version for the same dataset: "
                                                +str(newVersionsOfTheSameDataset) + ". "
                                                +"Please delete or change the previousId in some of them (only one can be the next version) .")
                 # The next check can not happen because of the previous check, but it is kept just in case the previous is removed in the future.
                 if previousDataset["nextId"] != None:
-                    return setErrorResponse(400,"The previousId (%s) is not valid, " % dataset["previousId"]
-                                               +"it references to an old dataset which already has a new version (%s). " % previousDataset["nextId"]
-                                               +"You may want to set the previousId to that new version (\"rebase\" your dataset), "
-                                               +"or you can simply set to null (and put some link to the base dataset in the description).")
+                    return setErrorResponse(400, "The previousId (%s) is not valid, " % dataset["previousId"]
+                                               + "it references to an old dataset which already has a new version (%s). " % previousDataset["nextId"]
+                                               + "You may want to set the previousId to that new version (\"rebase\" your dataset), "
+                                               + "or you can simply set to null (and put some link to the base dataset in the description).")
                 db.setDatasetNextId(previousDataset["id"], datasetId)
             db.setDatasetDraft(datasetId, bool(newValue))
             if bool(newValue) == False:
@@ -980,16 +980,16 @@ def patchDataset(id):
         # elif property == "project":
         #     newProject = str(newValue)
         #     if not newProject in user.getProjects():
-        #         return setErrorResponse(400,"invalid value, unknown project code for the user")
+        #         return setErrorResponse(400, "invalid value, unknown project code for the user")
         #     db.setDatasetProject(datasetId, newProject)
         #     # Don't notify the tracer, this property can be changed only in draft state
         elif property == "previousId":
             if newValue != None:
                 previousDataset = db.getDataset(str(newValue))
                 if previousDataset is None:
-                    return setErrorResponse(400,"invalid value, the dataset id does not exist")
+                    return setErrorResponse(400, "invalid value, the dataset id does not exist")
                 if not user.canModifyDataset(previousDataset):
-                    return setErrorResponse(401,"the dataset selected as previous (%s) "
+                    return setErrorResponse(401, "the dataset selected as previous (%s) "
                                                +"must be editable by the user (%s)" % (previousDataset["id"], user.username))
             db.setDatasetPreviousId(datasetId, newValue)  # newValue can be None or str
             # Don't notify the tracer, this property can be changed only in draft state
@@ -1046,11 +1046,11 @@ def getDatasetACL(id):
     datasetId = id
     with DB(CONFIG.db) as db:
         dataset = db.getDataset(datasetId)
-        if dataset is None: return setErrorResponse(404,"not found")
+        if dataset is None: return setErrorResponse(404, "not found")
         if dataset["draft"]:
             dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
         if not user.canManageACL(dataset):
-            return setErrorResponse(401,"unauthorized user")
+            return setErrorResponse(401, "unauthorized user")
         acl = db.getDatasetACL_detailed(datasetId)
     bottle.response.content_type = "application/json"
     return json.dumps(acl)
@@ -1068,11 +1068,11 @@ def changeDatasetACL(datasetId, username, operation):
     
     with DB(CONFIG.db) as db:
         dataset = db.getDataset(datasetId)
-        if dataset is None: return setErrorResponse(404,"dataset not found")
+        if dataset is None: return setErrorResponse(404, "dataset not found")
         if dataset["draft"]:
             dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
         if not user.canManageACL(dataset): 
-            return setErrorResponse(401,"unauthorized user")
+            return setErrorResponse(401, "unauthorized user")
         userId, userGid = db.getUserIDs(username)
         if userId is None: return setErrorResponse(404, "user not found")
         if operation == Edit_operation.ADD:
@@ -1150,11 +1150,11 @@ def eucaimSearchDatasets():
     if CONFIG.self.eucaim_search_token == "":
         return setErrorResponse(404, "Not found: '%s'" % bottle.request.path)
     if bottle.request.get_header("Authorization") != "Secret " + CONFIG.self.eucaim_search_token:
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
     
     content_types = get_header_media_types('Content-Type')
     if not 'application/json' in content_types:
-        return setErrorResponse(400,"invalid 'Content-Type' header, required 'application/json'")
+        return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
     read_data = bottle.request.body.read().decode('UTF-8')
     LOG.debug("BODY: " + read_data)
     try:
@@ -1187,7 +1187,7 @@ def getUpgradableDatasets():
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if not user.canCreateDatasets():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
 
     searchFilter = authorization.Upgradables_filter()
     searchFilter.adjustByUser(user)
@@ -1310,11 +1310,11 @@ def putUser(userName):
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if not user.canAdminUsers():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
 
     content_types = get_header_media_types('Content-Type')
     if not 'application/json' in content_types:
-        return setErrorResponse(400,"invalid 'Content-Type' header, required 'application/json'")
+        return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
     read_data = None
     try:
         read_data = bottle.request.body.read().decode('UTF-8')
@@ -1337,7 +1337,7 @@ def putUser(userName):
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
-        return setErrorResponse(500,"Unexpected error, may be the input is wrong")
+        return setErrorResponse(500, "Unexpected error, may be the input is wrong")
 
 @app.route('/api/users/<userName>', method='GET')
 def getUser(userName):
@@ -1347,7 +1347,7 @@ def getUser(userName):
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if not user.canAdminUsers():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
     
     with DB(CONFIG.db) as db:
         userId, userGid = db.getUserIDs(userName)
@@ -1387,11 +1387,11 @@ def postDatasetAccessCheck():
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if not user.canAdminDatasetAccesses():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
 
     content_types = get_header_media_types('Content-Type')
     if not 'application/json' in content_types:
-        return setErrorResponse(400,"invalid 'Content-Type' header, required 'application/json'")
+        return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
     read_data = None
     try:
         read_data = bottle.request.body.read().decode('UTF-8')
@@ -1412,7 +1412,7 @@ def postDatasetAccessCheck():
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
-        return setErrorResponse(500,"Unexpected error, may be the input is wrong")
+        return setErrorResponse(500, "Unexpected error, may be the input is wrong")
 
 @app.route('/api/datasetAccess/<id>', method='POST')
 def postDatasetAccess(id):
@@ -1422,11 +1422,11 @@ def postDatasetAccess(id):
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if not user.canAdminDatasetAccesses():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
 
     content_types = get_header_media_types('Content-Type')
     if not 'application/json' in content_types:
-        return setErrorResponse(400,"invalid 'Content-Type' header, required 'application/json'")
+        return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
 
     read_data = None
     try:
@@ -1453,7 +1453,7 @@ def postDatasetAccess(id):
 
         badIds = checkDatasetListAccess(datasetIDs, userName)
         if len(badIds) > 0:
-            return setErrorResponse(403,"access denied")
+            return setErrorResponse(403, "access denied")
 
         with DB(CONFIG.db) as db:
             userId, userGID = db.getUserIDs(userName)
@@ -1483,7 +1483,7 @@ def postDatasetAccess(id):
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
-        return setErrorResponse(500,"Unexpected error, may be the input is wrong")
+        return setErrorResponse(500, "Unexpected error, may be the input is wrong")
 
 @app.route('/api/datasetAccess/<id>', method='PATCH')
 def endDatasetAccess(id):
@@ -1493,11 +1493,11 @@ def endDatasetAccess(id):
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if not user.canAdminDatasetAccesses():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
 
     content_types = get_header_media_types('Content-Type')
     if not 'application/json' in content_types:
-        return setErrorResponse(400,"invalid 'Content-Type' header, required 'application/json'")
+        return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
 
     read_data = None
     try:
@@ -1539,7 +1539,7 @@ def endDatasetAccess(id):
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
-        return setErrorResponse(500,"Unexpected error, may be the input is wrong")
+        return setErrorResponse(500, "Unexpected error, may be the input is wrong")
 
 @app.route('/api/datasets/<id>/accessHistory', method='GET')
 def getDatasetAccessHistory(id):
@@ -1549,7 +1549,7 @@ def getDatasetAccessHistory(id):
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if not user.canAdminDatasetAccesses():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
 
     datasetId = id
     skip = int(bottle.request.query['skip']) if 'skip' in bottle.request.query else 0
@@ -1560,11 +1560,11 @@ def getDatasetAccessHistory(id):
     with DB(CONFIG.db) as db:
         dataset = db.getDataset(datasetId)
         if dataset is None:
-            return setErrorResponse(404,"not found")
+            return setErrorResponse(404, "not found")
         if dataset["draft"]:
             dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
         if not user.canViewDatasetDetails(dataset):
-            return setErrorResponse(401,"unauthorized user")
+            return setErrorResponse(401, "unauthorized user")
 
         accesses, total = db.getDatasetAccesses(datasetId, limit, skip)    
     bottle.response.content_type = "application/json"
