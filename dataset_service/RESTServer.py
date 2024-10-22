@@ -738,9 +738,12 @@ def _checkDatasetIntegrity(datasetId):
         if dataset["draft"] and db.getDatasetCreationStatus(datasetId) != None:
             return dict(success=False, msg="Not checked: it is still being created.")
         lastCheck = None if dataset["lastIntegrityCheck"] is None \
-                        else datetime.fromisoformat(dataset["lastIntegrityCheck"])
-        if lastCheck != None and (datetime.now() - lastCheck).days <= CONFIG.self.dataset_integrity_check_life_days:
-            return dict(success=True, msg="Integrity OK (checked on %s)" % lastCheck)
+                        else datetime.fromisoformat(dataset["lastIntegrityCheck"]).replace(tzinfo=None)
+        if lastCheck != None and (datetime.now() - lastCheck).days < CONFIG.self.dataset_integrity_check_life_days:
+            if dataset["corrupted"]:
+                ok, integrityStr = False, "wrong" 
+            else: ok, integrityStr = True, "OK" 
+            return dict(success=ok,  msg="Integrity %s (checked on %s)" % (integrityStr, lastCheck))
         
         studies, total = db.getStudiesFromDataset(datasetId)
         for study in studies:
