@@ -2,13 +2,15 @@ import os
 import logging
 from dataset_service.auth import AuthClient, LoginException
 from dataset_service.storage import DB
+from dataset_service.hash import datasetHashesOperator
+from dataset_service.config import Config
 import dataset_service.dataset as dataset_file_system
 import dataset_service.tracer as tracer
 import time
 
 class dataset_creation_worker:
 
-    def __init__(self, config, datasetId):
+    def __init__(self, config: Config, datasetId: str):
         self.log = logging.root
         self.config = config
         self.datasetId = datasetId
@@ -93,9 +95,10 @@ class dataset_creation_worker:
                 studiesHashes = []
                 stop = self.updateProgress("Calculating the hashes of the dataset...")
                 if stop: self._cancelProgress(); return
+                hashesOperator = datasetHashesOperator(self.config.db, self.config.self.series_hash_cache_life_days)
                 tracer.traceDatasetCreation(auth_client, self.config.tracer.url, 
                                             datasetDirPath, self.config.self.index_file_name, self.config.self.eforms_file_name, 
-                                            self.datasetId, dataset["authorId"], None, studiesHashes, self.updateProgress)
+                                            self.datasetId, dataset["authorId"], hashesOperator, None, studiesHashes, self.updateProgress)
 
                 stop = self.updateProgress("Saving hashes in database...")
                 if stop: self._cancelProgress(); return

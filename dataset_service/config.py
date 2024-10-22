@@ -133,6 +133,8 @@ class Config:
             self.dataset_link_format = config["dataset_link_format"]
             self.eucaim_search_token = config["eucaim_search_token"]
             self.default_license_id = config["default_license_id"]
+            self.dataset_integrity_check_life_days = config["dataset_integrity_check_life_days"]
+            self.series_hash_cache_life_days = config["series_hash_cache_life_days"]
 
         class Log:
             def __init__(self, log: dict):

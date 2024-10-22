@@ -18,7 +18,7 @@ from jwt import PyJWKClient
 import urllib
 import urllib.error
 import uuid
-from dataset_service import authorization, k8s, pid, tracer, keycloak, config
+from dataset_service import authorization, k8s, pid, tracer, keycloak, config, hash
 from dataset_service.auth import AuthClient, LoginException
 from dataset_service.storage import DB
 import dataset_service.dataset as dataset_file_system
@@ -738,18 +738,18 @@ def _checkDatasetIntegrity(datasetId):
         if dataset["draft"] and db.getDatasetCreationStatus(datasetId) != None:
             return dict(success=False, msg="Not checked: it is still being created.")
         lastCheck = None if dataset["lastIntegrityCheck"] is None \
-                        else datetime.fromisoformat(dataset["lastIntegrityCheck"]).timestamp()
-        now = datetime.now().timestamp()
-        if lastCheck != None and now < (lastCheck + INTEGRITY_CHECK_LIFE_TIME):
+                        else datetime.fromisoformat(dataset["lastIntegrityCheck"])
+        if lastCheck != None and (datetime.now() - lastCheck).days <= CONFIG.self.dataset_integrity_check_life_days:
             return dict(success=True, msg="Integrity OK (checked on %s)" % lastCheck)
         
         studies, total = db.getStudiesFromDataset(datasetId)
         for study in studies:
             studiesHashes[study["studyId"]] = study["hash"]
     
+    hashesOperator = hash.datasetHashesOperator(CONFIG.db, CONFIG.self.series_hash_cache_life_days)
     wrongHash = tracer.checkDatasetIntegrity(AUTH_CLIENT, CONFIG.tracer.url, datasetId, datasetDirPath,
                                                 CONFIG.self.index_file_name, CONFIG.self.eforms_file_name,
-                                                studiesHashes)
+                                                studiesHashes, hashesOperator)
     corrupted = (wrongHash != None)
     with DB(CONFIG.db) as db:
         db.setDatasetLastIntegrityCheck(datasetId, corrupted, datetime.now())
@@ -771,8 +771,6 @@ def checkDatasetIntegrity(id):
     bottle.response.status = 200
     bottle.response.content_type = "application/json"
     return json.dumps(result)
-
-INTEGRITY_CHECK_LIFE_TIME = 30 * 24 * 60 * 60   # 30 days in seconds
 
 @app.route('/api/datasets/checkIntegrity', method='POST')
 def checkAllDatasetsIntegrity():
