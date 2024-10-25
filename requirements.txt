@@ -1,5 +1,6 @@
 bottle==0.12.23      # REST-API framework
 cheroot==8.6.0      # HTTP service
+pandas==2.2.2
 PyYAML==6.0.1
 kubernetes==26.1.0     # to launch jobs like dataset creation job
 psycopg2-binary==2.9.9         # postgres client

@@ -29,7 +29,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 32
+    CURRENT_SCHEMA_VERSION = 33
 
     def setup(self):
         version = self.getSchemaVersion()
