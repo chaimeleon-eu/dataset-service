@@ -294,7 +294,7 @@ paths:
                    - "authorId"
                 value:
                   type: object
-                  description: "The new value to assign. The type depends on the property."
+                  description: "The new value to assign. The type depends on the property, see the DatasetDetails schema."
       responses:
         '204':
           description: "Successful operation."
@@ -1068,12 +1068,48 @@ components:
         studies:
           type: array
           items:
-            $ref: '#/components/schemas/Study'
+            $ref: '#/components/schemas/StudyCreationObject'
         subjects:
           type: array
           description: 'Subjects of studies and their clinical data.'
           items:
             $ref: '#/components/schemas/Subject'
+
+    StudyCreationObject:
+      type: object
+      properties:
+        studyId:
+          type: string
+          maxLength: 40
+          example: "5e5629835938d12160636353"
+        studyName:
+          type: string
+          maxLength: 128
+          example: "TCPEDITRICOABDOMINOPLVICOCONCONTRASTE"
+        subjectName:
+          type: string
+          maxLength: 128
+          description: "The subject name, which is anonymized and unique: there should be an entry in the subjects array with that code."
+          example: "17B76FEW"
+        pathInDatalake:
+          type: string
+          maxLength: 256
+          description: |
+            Path to the folder of the study in the datalake (the structure usually should be: \<userName\>/\<subjectName\>_\<trial\>/\<studyName\>\<studyDate\>). 
+          example: "blancagomez/17B76FEW_Neuroblastoma/TCPEDITRICOABDOMINOPLVICOCONCONTRASTE20150129"
+        series:
+          type: array
+          description: |
+            Series considered in the dataset. 
+            This is needed because new series can be added later in the datalake for this study but the dataset can not change.
+          items:
+            $ref: '#/components/schemas/Series'
+        url:
+          type: string
+          maxLength: 256
+          format: url
+          description: "Link to the study in the case explorer web portal." 
+          example: 'https://www.quibim.com/studies?id=5e5629835938d12160636353'
     
     DatasetDetails:
       type: object
@@ -1430,13 +1466,6 @@ components:
           maxLength: 128
           description: "The subject name, which is anonymized and unique: there should be an entry in the subjects array with that code."
           example: "17B76FEW"
-        pathInDatalake:
-          type: string
-          maxLength: 256
-          description: |
-            Path to the folder of the study in the datalake (the structure usually should be: \<userName\>/\<subjectName\>_\<trial\>/\<studyName\>\<studyDate\>). 
-            It is required in POST /datasets but it will not be included in GET /datasets/{id} for privacy reasons.
-          example: "blancagomez/17B76FEW_Neuroblastoma/TCPEDITRICOABDOMINOPLVICOCONCONTRASTE20150129"
         series:
           type: array
           description: |
@@ -1455,7 +1484,6 @@ components:
           description: |
             The total size of files in all the series selected for this study in the dataset. 
             Null if metadata still not collected.
-            This property will be included GET /datasets/{id} but it is not required (will be ignored) in POST /datasets.
           example: '182460520'
           
     Series:
