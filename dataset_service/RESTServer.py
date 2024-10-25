@@ -332,15 +332,17 @@ def completeDatasetFromCSV(dataset, csvdata):
                 'eForm': eform 
             })
 
-def _checkPropertyAsArrayOfStrings(propName: str, value: list[str], item_possible_values: list[str]):
+def _checkPropertyAsArrayOfStrings(propName: str, value: list[str], item_possible_values: list[str] | None = None):
     if not isinstance(value, list):
         raise WrongInputException("'%s' must be an array of strings." % propName)
     for item in value:
         if not isinstance(item, str): 
             raise WrongInputException("'%s' must be an array of strings." % propName)
-        if not item in item_possible_values:
-            return setErrorResponse(400, "unknown item value '%s' in '%s', it should be one of {%s}" \
-                                         % (item, propName, ','.join(item_possible_values)))
+    if item_possible_values != None:
+        for item in value:
+            if not item in item_possible_values:
+                raise WrongInputException("unknown item value '%s' in '%s', it should be one of {%s}" \
+                                          % (item, propName, ','.join(item_possible_values)))
 
 ITEM_POSSIBLE_VALUES_FOR_TYPE = ['original', 'annotated', 'processed']
 ITEM_POSSIBLE_VALUES_FOR_COLLECTION_METHOD = ['patient-based', 'cohort', 'only-image', 'longitudinal', 'case-control', 'disease-specific']
@@ -893,147 +895,172 @@ def patchDataset(id):
     user = authorization.User(ret)
     if user.isUnregistered():
         return setErrorResponse(401, "unauthorized user")
+    try:
+        datasetId = id
+        read_data = bottle.request.body.read().decode('UTF-8')
+        LOG.debug("BODY: " + read_data)
+        patch = json.loads( read_data )
+        property = patch["property"]
+        newValue = patch["value"]
+        trace_details = None
 
-    datasetId = id
-    read_data = bottle.request.body.read().decode('UTF-8')
-    LOG.debug("BODY: " + read_data)
-    patch = json.loads( read_data )
-    property = patch["property"]
-    newValue = patch["value"]
-    trace_details = None
+        with DB(CONFIG.db) as db:
+            dataset = db.getDataset(datasetId)
+            if dataset is None:
+                return setErrorResponse(404, "not found")
+            if dataset["draft"]:
+                dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
+            if property not in user.getEditablePropertiesByTheUser(dataset):
+                return setErrorResponse(400, "the property is not in the editablePropertiesByTheUser list")
 
-    with DB(CONFIG.db) as db:
-        dataset = db.getDataset(datasetId)
-        if dataset is None:
-            return setErrorResponse(404, "not found")
-        if dataset["draft"]:
-            dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
-        if property not in user.getEditablePropertiesByTheUser(dataset):
-            return setErrorResponse(400, "the property is not in the editablePropertiesByTheUser list")
-
-        if property == "draft":
-            if bool(newValue) == False and dataset["previousId"] != None:
-                # Let's set in the previous dataset the reference to this one.
-                # This way, the UI can show a notice in the previous dataset that there is a new version, with a link to this one.
-                previousDataset = db.getDataset(dataset["previousId"])
-                if previousDataset is None: raise Exception()
-                #  Check the previousId is not in other datasets.
-                #  It has to be checked here because when released this dataset, the previous will disappear from the upgradable datasets list,
-                #  so the other datasets sharing the previousId will be in a wrong state, they will have a previousId not selectable.
-                newVersionsOfTheSameDataset = db.getDatasetsSharingPreviousId(dataset["previousId"])
-                if len(newVersionsOfTheSameDataset) > 1:
-                    return setErrorResponse(400, "There are more than one draft datasets selected as the next version for the same dataset: "
-                                               +str(newVersionsOfTheSameDataset) + ". "
-                                               +"Please delete or change the previousId in some of them (only one can be the next version) .")
-                # The next check can not happen because of the previous check, but it is kept just in case the previous is removed in the future.
-                if previousDataset["nextId"] != None:
-                    return setErrorResponse(400, "The previousId (%s) is not valid, " % dataset["previousId"]
-                                               + "it references to an old dataset which already has a new version (%s). " % previousDataset["nextId"]
-                                               + "You may want to set the previousId to that new version (\"rebase\" your dataset), "
-                                               + "or you can simply set to null (and put some link to the base dataset in the description).")
-                db.setDatasetNextId(previousDataset["id"], datasetId)
-            db.setDatasetDraft(datasetId, bool(newValue))
-            if bool(newValue) == False:
-                trace_details = "RELEASE"
-        elif property == "public":
-            db.setDatasetPublic(datasetId, bool(newValue))
-            dataset["public"] = bool(newValue)
-            if bool(newValue) and dataset["pids"]["preferred"] is None:
-                # When publish, a PID will be autogenerated if it is still none 
-                createZenodoDeposition(db, dataset)
-                db.setDatasetPid(datasetId, "zenodoDoi")
+            if property == "draft":
+                if not isinstance(newValue, bool): raise WrongInputException("The value must be boolean.")
+                if newValue == False and dataset["previousId"] != None:
+                    # Let's set in the previous dataset the reference to this one.
+                    # This way, the UI can show a notice in the previous dataset that there is a new version, with a link to this one.
+                    previousDataset = db.getDataset(dataset["previousId"])
+                    if previousDataset is None: raise Exception()
+                    #  Check the previousId is not in other datasets.
+                    #  It has to be checked here because when released this dataset, the previous will disappear from the upgradable datasets list,
+                    #  so the other datasets sharing the previousId will be in a wrong state, they will have a previousId not selectable.
+                    newVersionsOfTheSameDataset = db.getDatasetsSharingPreviousId(dataset["previousId"])
+                    if len(newVersionsOfTheSameDataset) > 1:
+                        return setErrorResponse(400, "There are more than one draft datasets selected as the next version for the same dataset: "
+                                                +str(newVersionsOfTheSameDataset) + ". "
+                                                +"Please delete or change the previousId in some of them (only one can be the next version) .")
+                    # The next check can not happen because of the previous check, but it is kept just in case the previous is removed in the future.
+                    if previousDataset["nextId"] != None:
+                        return setErrorResponse(400, "The previousId (%s) is not valid, " % dataset["previousId"]
+                                                + "it references to an old dataset which already has a new version (%s). " % previousDataset["nextId"]
+                                                + "You may want to set the previousId to that new version (\"rebase\" your dataset), "
+                                                + "or you can simply set to null (and put some link to the base dataset in the description).")
+                    db.setDatasetNextId(previousDataset["id"], datasetId)
+                db.setDatasetDraft(datasetId, newValue)
+                if bool(newValue) == False:
+                    trace_details = "RELEASE"
+            elif property == "public":
+                if not isinstance(newValue, bool): raise WrongInputException("The value must be boolean.")
+                db.setDatasetPublic(datasetId, newValue)
+                dataset["public"] = newValue
+                if newValue and dataset["pids"]["preferred"] is None:
+                    # When publish, a PID will be autogenerated if it is still none 
+                    createZenodoDeposition(db, dataset)
+                    db.setDatasetPid(datasetId, "zenodoDoi")
+                else:
+                    updateZenodoDeposition(db, dataset)
+                trace_details = "PUBLISH" if newValue else "UNPUBLISH"
+            elif property == "invalidated":
+                if not isinstance(newValue, bool): raise WrongInputException("The value must be boolean.")
+                db.setDatasetInvalidated(datasetId, newValue)
+                if newValue:
+                    LOG.debug('Removing ACL entries in dataset %s ...' % (datasetId))
+                    datasetDirName = datasetId
+                    dataset_file_system.invalidate_dataset(CONFIG.self.datasets_mount_path, datasetDirName)              
+                else:  # reactivated
+                    db.setDatasetInvalidationReason(datasetId, None)  # reset invalidation reason
+                trace_details = "INVALIDATE" if newValue else "REACTIVATE"
+            elif property == "invalidationReason":
+                if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                db.setDatasetInvalidationReason(datasetId, newValue)
+                # Don't notify the tracer, it is just a note to remember the reason.
+            elif property == "name":
+                if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                db.setDatasetName(datasetId, newValue)
+                # Don't notify the tracer, this property can be changed only in draft state
+            elif property == "version":
+                if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                db.setDatasetVersion(datasetId, newValue)
+                # Don't notify the tracer, this property can be changed only in draft state
+            elif property == "description":
+                if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                db.setDatasetDescription(datasetId, newValue)
+                # Don't notify the tracer, this property can be changed only in draft state
+            elif property == "purpose":
+                if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                db.setDatasetPurpose(datasetId, newValue)
+                # Don't notify the tracer, this property can be changed only in draft state
+            elif property == "type":
+                _checkPropertyAsArrayOfStrings("value", newValue, ITEM_POSSIBLE_VALUES_FOR_TYPE)
+                db.setDatasetType(datasetId, newValue)
+                # Don't notify the tracer, this property can be changed only in draft state
+            elif property == "collectionMethod":
+                _checkPropertyAsArrayOfStrings("value", newValue, ITEM_POSSIBLE_VALUES_FOR_COLLECTION_METHOD)
+                db.setDatasetCollectionMethod(datasetId, newValue)
+                # Don't notify the tracer, this property can be changed only in draft state
+            # elif property == "project":
+            #     if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+            #     if not newValue in user.getProjects():
+            #         return setErrorResponse(400, "invalid value, unknown project code for the user")
+            #     db.setDatasetProject(datasetId, newValue)
+            #     # Don't notify the tracer, this property can be changed only in draft state
+            elif property == "previousId":
+                if newValue != None:
+                    if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                    previousDataset = db.getDataset(newValue)
+                    if previousDataset is None:
+                        raise WrongInputException("invalid value, the dataset id does not exist")
+                    if not user.canModifyDataset(previousDataset):
+                        return setErrorResponse(401, "the dataset selected as previous (%s) "
+                                                +"must be editable by the user (%s)" % (previousDataset["id"], user.username))
+                db.setDatasetPreviousId(datasetId, newValue)  # newValue can be None or str
+                # Don't notify the tracer, this property can be changed only in draft state
+            elif property == "license":
+                if not isinstance(newValue, dict): raise WrongInputException("The value must be an object.")
+                if not "title" in newValue: raise WrongInputException("Missing 'title' in the new license.")
+                if not "url" in newValue: raise WrongInputException("Missing 'url' in the new license.")
+                if not isinstance(newValue["title"], str): raise WrongInputException("The title of license must be a string.")
+                if not isinstance(newValue["url"], str): raise WrongInputException("The url of license must be a string.")
+                newTitle = newValue["title"]
+                newUrl = newValue["url"]
+                db.setDatasetLicense(datasetId, newTitle, newUrl)
+                # dataset["license"] = dict(title=newTitle,url=newUrl)  license is written in a PDF file
+                # updateZenodoDeposition(db, dataset)                   and deposition files cannot be changed once published
+                trace_details = "LICENSE_UPDATED"
+            elif property == "pids":
+                if not isinstance(newValue, dict): raise WrongInputException("The value must be an object.")
+                if not "preferred" in newValue: raise WrongInputException("Missing 'preferred' in the new pids.")
+                if not isinstance(newValue["preferred"], str): raise WrongInputException("The preferred pid must be a string.")
+                preferred = newValue["preferred"].strip()
+                custom = None
+                if preferred == "zenodoDoi":
+                    createZenodoDeposition(db, dataset)
+                elif preferred == "custom":
+                    if not "urls" in newValue: raise WrongInputException("Missing 'urls' in the new pids.")
+                    if not isinstance(newValue["urls"], dict): raise WrongInputException("The 'urls' of pids must be an object.")
+                    if not "custom" in newValue["urls"]: raise WrongInputException("Missing 'custom' in the 'urls' of new pids.")
+                    if not isinstance(newValue["urls"]["custom"], str): raise WrongInputException("The custom url of pids must be a string.")
+                    custom = newValue["urls"]["custom"]
+                    if not custom.startswith("http"):
+                        raise WrongInputException("invalid value for urls.custom")
+                else: raise WrongInputException("invalid value for preferred")
+                db.setDatasetPid(datasetId, preferred, custom)
+                trace_details = "PID_UPDATED"
+            elif property == "contactInfo":
+                if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                db.setDatasetContactInfo(datasetId, newValue)
+                # dataset["contactInfo"] = newValue            contactInfo is written in a PDF file
+                # updateZenodoDeposition(db, dataset)          and deposition files cannot be changed once published
+                trace_details = "CONTACT_INFORMATION_UPDATED"
+            elif property == "authorId":
+                # This is a special operation only allowed for the role "superadmin_datasets",
+                # (s)he can create a dataset for another user and then transfer the authorship to the user.
+                if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                if not db.existsUserID(newValue):
+                    return setErrorResponse(400, "invalid value, the user id does not exist")
+                db.setDatasetAuthor(datasetId, newValue)
+                # dataset = db.getDataset(datasetId)
+                # updateZenodoDeposition(db, dataset)
+                trace_details = "AUTHOR_CHANGED"
             else:
-                updateZenodoDeposition(db, dataset)
-            trace_details = "PUBLISH" if bool(newValue) else "UNPUBLISH"
-        elif property == "invalidated":
-            db.setDatasetInvalidated(datasetId, bool(newValue))
-            if bool(newValue):
-                LOG.debug('Removing ACL entries in dataset %s ...' % (datasetId))
-                datasetDirName = datasetId
-                dataset_file_system.invalidate_dataset(CONFIG.self.datasets_mount_path, datasetDirName)              
-            else:  # reactivated
-                db.setDatasetInvalidationReason(datasetId, None)  # reset invalidation reason
-            trace_details = "INVALIDATE" if bool(newValue) else "REACTIVATE"
-        elif property == "invalidationReason":
-            db.setDatasetInvalidationReason(datasetId, str(newValue))
-            # Don't notify the tracer, it is just a note to remember the reason.
-        elif property == "name":
-            db.setDatasetName(datasetId, str(newValue))
-            # Don't notify the tracer, this property can be changed only in draft state
-        elif property == "version":
-            db.setDatasetVersion(datasetId, str(newValue))
-            # Don't notify the tracer, this property can be changed only in draft state
-        elif property == "description":
-            db.setDatasetDescription(datasetId, str(newValue))
-            # Don't notify the tracer, this property can be changed only in draft state
-        elif property == "purpose":
-            db.setDatasetPurpose(datasetId, str(newValue))
-            # Don't notify the tracer, this property can be changed only in draft state
-        elif property == "type":
-            _checkPropertyAsArrayOfStrings("value", newValue, ITEM_POSSIBLE_VALUES_FOR_TYPE)
-            db.setDatasetType(datasetId, newValue)
-            # Don't notify the tracer, this property can be changed only in draft state
-        elif property == "collectionMethod":
-            _checkPropertyAsArrayOfStrings("value", newValue, ITEM_POSSIBLE_VALUES_FOR_COLLECTION_METHOD)
-            db.setDatasetCollectionMethod(datasetId, newValue)
-            # Don't notify the tracer, this property can be changed only in draft state
-        # elif property == "project":
-        #     newProject = str(newValue)
-        #     if not newProject in user.getProjects():
-        #         return setErrorResponse(400, "invalid value, unknown project code for the user")
-        #     db.setDatasetProject(datasetId, newProject)
-        #     # Don't notify the tracer, this property can be changed only in draft state
-        elif property == "previousId":
-            if newValue != None:
-                previousDataset = db.getDataset(str(newValue))
-                if previousDataset is None:
-                    return setErrorResponse(400, "invalid value, the dataset id does not exist")
-                if not user.canModifyDataset(previousDataset):
-                    return setErrorResponse(401, "the dataset selected as previous (%s) "
-                                               +"must be editable by the user (%s)" % (previousDataset["id"], user.username))
-            db.setDatasetPreviousId(datasetId, newValue)  # newValue can be None or str
-            # Don't notify the tracer, this property can be changed only in draft state
-        elif property == "license":
-            newTitle = str(newValue["title"])
-            newUrl = str(newValue["url"])
-            db.setDatasetLicense(datasetId, newTitle, newUrl)
-            # dataset["license"] = dict(title=newTitle,url=newUrl)  license is written in a PDF file
-            # updateZenodoDeposition(db, dataset)                   and deposition files cannot be changed once published
-            trace_details = "LICENSE_UPDATED"
-        elif property == "pids":
-            preferred = str(newValue["preferred"]).strip()
-            custom = None
-            if preferred == "zenodoDoi":
-                createZenodoDeposition(db, dataset)
-            elif preferred == "custom":
-                custom = str(newValue["urls"]["custom"])
-                if not custom.startswith("http"):
-                    return setErrorResponse(400, "invalid value for urls.custom")
-            else: return setErrorResponse(400, "invalid value for preferred")
-            db.setDatasetPid(datasetId, preferred, custom)
-            trace_details = "PID_UPDATED"
-        elif property == "contactInfo":
-            db.setDatasetContactInfo(datasetId, str(newValue))
-            # dataset["contactInfo"] = str(newValue)       contactInfo is written in a PDF file
-            # updateZenodoDeposition(db, dataset)          and deposition files cannot be changed once published
-            trace_details = "CONTACT_INFORMATION_UPDATED"
-        elif property == "authorId":
-            # This is a special operation only allowed for the role "superadmin_datasets",
-            # (s)he can create a dataset for another user and then transfer the authorship to the user.
-            if not db.existsUserID(str(newValue)):
-                return setErrorResponse(400, "invalid value, the user id does not exist")
-            db.setDatasetAuthor(datasetId, str(newValue))
-            # dataset = db.getDataset(datasetId)
-            # updateZenodoDeposition(db, dataset)
-            trace_details = "AUTHOR_CHANGED"
-        else:
-            return setErrorResponse(400, "invalid property")
+                return setErrorResponse(400, "invalid property")
 
-        if CONFIG.tracer.url != '' and trace_details != None:
-            LOG.debug('Notifying to tracer-service...')
-            # Note this tracer call is inside of "with db" because if tracer fails the database changes will be reverted (transaction rollback).
-            tracer.traceDatasetUpdate(AUTH_CLIENT, CONFIG.tracer.url, datasetId, user.uid, trace_details)
-    bottle.response.status = 204
+            if CONFIG.tracer.url != '' and trace_details != None:
+                LOG.debug('Notifying to tracer-service...')
+                # Note this tracer call is inside of "with db" because if tracer fails the database changes will be reverted (transaction rollback).
+                tracer.traceDatasetUpdate(AUTH_CLIENT, CONFIG.tracer.url, datasetId, user.uid, trace_details)
+        bottle.response.status = 204
+    except WrongInputException as e:
+        return setErrorResponse(400, str(e))
 
 @app.route('/api/datasets/<id>/acl', method='GET')
 def getDatasetACL(id):
