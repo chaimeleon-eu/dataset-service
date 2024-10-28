@@ -391,6 +391,7 @@ def postDataset():
             completeDatasetFromCSV(dataset, clinicalDataFile.file.read().decode('UTF-8').splitlines())
             #return  json.dumps(dataset)
         else:
+            LOG.debug("Reading request body as JSON...")
             read_data = bottle.request.body.read().decode('UTF-8')
             #LOG.debug("BODY: " + read_data)
             dataset = json.loads( read_data )
@@ -408,24 +409,16 @@ def postDataset():
             if not 'subjects' in dataset.keys() or not isinstance(dataset["subjects"], list): 
                 raise WrongInputException("'subjects' property is required and must be an array.")
             
-            # Security check: review all data sent by the user which is involved in path constructions
-            if CONFIG.self.datalake_mount_path != '':
-                for study in dataset["studies"]:
-                    checkPath(CONFIG.self.datalake_mount_path, study['pathInDatalake'])
-                    for serie in study["series"]:
-                        checkPath(CONFIG.self.datalake_mount_path, os.path.join(study['pathInDatalake'], serie["folderName"]))
-            if CONFIG.self.datasets_mount_path != '':
-                for study in dataset["studies"]:
-                    checkPath(CONFIG.self.datasets_mount_path, os.path.join(datasetId, study['subjectName']))
-
             # Integrity checks
             subjects = set()
             study_paths = set()
+            LOG.debug("Checking for duplicated subjects...")
             for subject in dataset["subjects"]:
                 if subject["subjectName"] in subjects:
                     raise WrongInputException("The subjectName '%s' is duplicated in 'subjects' array of the dataset." % subject["subjectName"])
                 else:
                     subjects.add(subject["subjectName"])
+            LOG.debug("Checking for studies with missing subjects or conflicting paths...")
             for study in dataset["studies"]:
                 if not study["subjectName"] in subjects:
                     raise WrongInputException("The study with id '%s' has a 'subjectName' which is not in the " % study["studyId"]
@@ -440,23 +433,6 @@ def postDataset():
                                              +"this will cause a conflict when creating the dataset's directories structure." )
                 else: study_paths.add(study_path)
             
-            # File system checks
-            if CONFIG.self.datalake_mount_path != '':
-                studiesToDelete = []
-                for study in dataset["studies"]:
-                    seriesToDelete = []
-                    for serie in study["series"]:
-                        seriePathInDatalake = os.path.join(CONFIG.self.datalake_mount_path, study['pathInDatalake'], serie['folderName'])
-                        if not os.path.exists(seriePathInDatalake):
-                            LOG.warn("The directory '%s' does not exist. The serie will not be included in the dataset." % seriePathInDatalake)
-                            seriesToDelete.append(serie)
-                    for serie in seriesToDelete: 
-                        study["series"].remove(serie)
-                    if len(study["series"]) == 0:
-                        LOG.warn("The study with id '%s' does not have any series. It will not be included in the dataset." % study["studyId"])
-                        studiesToDelete.append(study)
-                for study in studiesToDelete:
-                    dataset["studies"].remove(study)
 
         with DB(CONFIG.db) as db:
             LOG.debug("Updating author: %s, %s, %s, %s" % (user.uid, user.username, user.name, user.email))
@@ -475,7 +451,7 @@ def postDataset():
                     return setErrorResponse(400, "dataset.previousId does not exist")
                 if not user.canModifyDataset(previousDataset):
                     return setErrorResponse(401, "the dataset selected as previous (%s) "
-                                               +"must be editable by the user (%s)" % (previousDataset["id"], user.username))
+                                               + "must be editable by the user (%s)" % (previousDataset["id"], user.username))
             else:
                 dataset["previousId"] = None
 
@@ -485,9 +461,8 @@ def postDataset():
             #if not "public" in dataset.keys(): 
             dataset["public"] = False
 
-            dataset["studiesCount"] = len(dataset["studies"])
-            dataset["subjectsCount"] = 0   # let's set now to zero 
-                                           # because the real number is obtained later, after a check for duplicates
+            dataset["studiesCount"] = 0   # Let's set now to zero because the real number is obtained later,
+            dataset["subjectsCount"] = 0  # after some checks like missing series.
             # The rest of Metada will be collected later, now let's leave it empty (default values in DB)
             
             LOG.debug('Creating dataset in DB...')
@@ -497,30 +472,19 @@ def postDataset():
                 if license != None:
                     db.setDatasetLicense(datasetId, license["title"], license["url"])
 
-            LOG.debug('Creating studies in DB...')
-            for study in dataset["studies"]:
-                db.createOrUpdateStudy(study, datasetId)
-
             LOG.debug('Creating dataset directory...')
             datasetDirName = datasetId
             dataset_file_system.create_dataset_dir(CONFIG.self.datasets_mount_path, datasetDirName)
             datasetDirPath = os.path.join(CONFIG.self.datasets_mount_path, datasetDirName)
 
-            LOG.debug('Writing E-FORM: ' + CONFIG.self.eforms_file_name)
+            LOG.debug('Writing E-FORMs file: ' + CONFIG.self.eforms_file_name)
             with open(os.path.join(datasetDirPath, CONFIG.self.eforms_file_name) , 'w') as outputStream:
                 json.dump(dataset["subjects"], outputStream)
 
-            LOG.debug('Writing INDEX: ' + CONFIG.self.index_file_name)
-            # dataset["studies"] contains just the information we want to save in the index.json file,
-            # but we have to set paths relative to the dataset directory
-            for study in dataset["studies"]:
-                subjectDirName = study['subjectName']
-                studyDirName = os.path.basename(study['pathInDatalake'])
-                # example of study['path']: 17B76FEW/TCPEDITRICOABDOMINOPLVICO20150129
-                study['path'] = os.path.join(subjectDirName, studyDirName)
-                del study['pathInDatalake']
-            # and dump to the index file in the dataset directory
-            with open(os.path.join(datasetDirPath, CONFIG.self.index_file_name) , 'w') as outputStream:
+            # The index file will be written later when the final list of studies is obtained.
+
+            LOG.debug('Writing studies temporal list: ' + CONFIG.self.studies_tmp_file_name)
+            with open(os.path.join(datasetDirPath, CONFIG.self.studies_tmp_file_name) , 'w') as outputStream:
                 json.dump(dataset["studies"], outputStream)
 
             LOG.debug('Creating status in DB...')

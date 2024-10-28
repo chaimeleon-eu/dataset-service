@@ -103,6 +103,7 @@ self:
   datasets_mount_path: "/mnt/datasets"
   eforms_file_name: "eforms.json"
   index_file_name: "index.json"
+  studies_tmp_file_name: ".studies.json"
   dataset_link_format: "https://chaimeleon-eu.i3m.upv.es/dataset-service/datasets/%s/details"
     # Url format of public available details of a dataset (using the endpoint of the WebUI, the Dataset-explorer)
     # It is used for the url returned in the dataset creation POST, 
