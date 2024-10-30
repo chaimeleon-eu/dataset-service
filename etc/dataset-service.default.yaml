@@ -103,6 +103,7 @@ self:
   datasets_mount_path: "/mnt/datasets"
   eforms_file_name: "eforms.json"
   index_file_name: "index.json"
+  studies_tmp_file_name: ".studies.json"
   dataset_link_format: "https://chaimeleon-eu.i3m.upv.es/dataset-service/datasets/%s/details"
     # Url format of public available details of a dataset (using the endpoint of the WebUI, the Dataset-explorer)
     # It is used for the url returned in the dataset creation POST, 
@@ -114,3 +115,16 @@ self:
     # The default license assigned to new datasets. The user can change it later.
     # Example: "1"
     # Leave it empty if you don't want to specify one license as default.
+  series_hash_cache_life_days: 30
+    # Time span to avoid read again all the files of a series to calculate the hash.
+    # It is very useful during a global integrity check when there are different datasets containing the same studies/series. 
+    # The hash of each series will be calculated only one time.
+    # And during the creation of a dataset when some of its studies are the same as in another datasets lately created.
+    # Even during a relaunch of a dataset creation process if it has been interrupted 
+    # (the process will be resumed because the hash of first studies/series will already be calculated and cached).
+  dataset_integrity_check_life_days: 40
+    # Time span to not repeat the integrity check of a dataset if already checked recently.
+    # This is also useful for resume a previous interrupted global check.
+    # NOTE: this life days should be greather than series_hash_cache_life_days, 
+    #       otherwise the integrity check will take the cached series hashes.
+    

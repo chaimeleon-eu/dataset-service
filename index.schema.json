@@ -7,7 +7,7 @@
   "items": {
     "type": "object",
     "title": "Study",
-    "description": "This is a study selected for the dataset. The study has been performed on a subject with clinical data. The 'subjectName' property should be used as a reference key to find the corresponding entry (json object) with the clinical data in the array contained in the eforms.json file. And the images of the study are grouped in series which are directories in the study path. To walk through the images (list the DICOM files) of the first serie you must concatenate the 'path' property with the first item of 'series' property.",
+    "description": "This is a study selected for the dataset. The study has been performed on a subject with clinical data. The 'subjectName' property should be used as a reference key to find the corresponding entry (json object) with the clinical data in the array contained in the eforms.json file. And the images of the study are grouped in series which are directories in the study path. To walk through the images (list the DICOM files) of the first series you must concatenate the 'path' property of the study with the 'folderName' property of the first series (the first item in 'series' property).",
     "properties": {
       "studyId": {
         "description": "The unique identifier of the study in the Case Explorer database.",
@@ -25,12 +25,12 @@
         "examples": ["17B76FEW"]
       },
       "path": {
-        "description": "The path to the study directory (relative to the dataset directory, where is this index.json file). The study directory contains a directory for each serie.",
+        "description": "The path to the study directory (relative to the dataset directory, where is this index.json file). The study directory contains a directory for each series.",
         "type": "string",
         "examples": ["17B76FEW/TCPEDITRICOABDOMINOPLVICO20150129"]
       },
       "series": {
-        "description": "A list of the series selected in this study for the dataset. It is important for the reproducibility of experiments that you only walk through the series listed here, because there can be other series not selected for this dataset. The path of a serie is the concatenation of the study path with the series dir name.",
+        "description": "A list of the series selected in this study for the dataset. It is important for the reproducibility of experiments that you only walk through the series listed here, because there can be other series not selected for this dataset. The path of a series is the concatenation of the study path with the series folder name.",
         "type": "array",
         "items": {
           "type": "object",

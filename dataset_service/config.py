@@ -130,9 +130,12 @@ class Config:
             self.datasets_mount_path = config["datasets_mount_path"]
             self.eforms_file_name = config["eforms_file_name"]
             self.index_file_name = config["index_file_name"]
+            self.studies_tmp_file_name = config["studies_tmp_file_name"]
             self.dataset_link_format = config["dataset_link_format"]
             self.eucaim_search_token = config["eucaim_search_token"]
             self.default_license_id = config["default_license_id"]
+            self.dataset_integrity_check_life_days = config["dataset_integrity_check_life_days"]
+            self.series_hash_cache_life_days = config["series_hash_cache_life_days"]
 
         class Log:
             def __init__(self, log: dict):

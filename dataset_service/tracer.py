@@ -69,11 +69,12 @@ def getSupportedHashAlgorithms(authClient: auth.AuthClient, tracerUrl):
 #         if os.path.isdir(filePath): addFilesFromDirectoryAsResources(body, datasetDirPath, fileRelativePath)
 #         else:                       addFileAsResource(body, filePath, hash.getHashOfString(fileRelativePath))
 
-def _getResources(datasetDirPath, indexFileName, eformsFileName, studies = None, studiesHashes = None, notifyProgress = None):
+def _getResources(datasetDirPath, indexFileName, eformsFileName, hashOperator: hash.datasetHashesOperator, 
+                  studies = None, studiesHashes = None, notifyProgress = None):
     resources = []
     logging.root.debug('Calculating SHAs...')
-    indexHash, imagesHash, clinicalDataHash = hash.getHashesOfDataset(datasetDirPath, indexFileName, eformsFileName, 
-                                                                      studies, studiesHashes, notifyProgress)
+    indexHash, imagesHash, clinicalDataHash = hashOperator.getHashesOfDataset(datasetDirPath, indexFileName, eformsFileName, 
+                                                                              studies, studiesHashes, notifyProgress)
     resources.append(
         dict(id = 'index',
              contentType = 'HASH',       # contentTypes: FILE_DATA, HTTP_FTP, HASH
@@ -105,7 +106,7 @@ def _getResources(datasetDirPath, indexFileName, eformsFileName, studies = None,
 
 
 def traceDatasetCreation(authClient: auth.AuthClient, tracerUrl, datasetDirPath, indexFileName, eformsFileName, 
-                         datasetId, userId, datasetStudies = None, studiesHashes = None, notifyProgress = None):
+                         datasetId, userId, hashOperator, datasetStudies = None, studiesHashes = None, notifyProgress = None):
     '''
     "studiesHashes" is an optional array that will be filled with the hashes of studies.
     "notifyProgress" is an optional function which accepts one arg of type str.
@@ -120,7 +121,7 @@ def traceDatasetCreation(authClient: auth.AuthClient, tracerUrl, datasetDirPath,
         userId = userId, 
         userAction = 'CREATE_DATASET', 
         datasetId = datasetId,
-        resources = _getResources(datasetDirPath, indexFileName, eformsFileName, datasetStudies, studiesHashes, notifyProgress)
+        resources = _getResources(datasetDirPath, indexFileName, eformsFileName, hashOperator, datasetStudies, studiesHashes, notifyProgress)
     )
     # if dataset["previousId"] != None:
     #     body['userAction'] = 'CREATE_VERSION_DATASET'
@@ -231,10 +232,11 @@ def checkStudiesHashes(studiesHashes0, studiesHashes):
     logging.root.info('%d/%d studies wrong' % (wrongCount, len(studiesHashes)))
     
 
-def checkDatasetIntegrity(authClient: auth.AuthClient, tracerUrl, datasetId, datasetDirPath, indexFileName, eformsFileName, studiesHashes0) -> str | None:
+def checkDatasetIntegrity(authClient: auth.AuthClient, tracerUrl, datasetId, datasetDirPath, indexFileName, eformsFileName, 
+                          studiesHashes0, hashOperator: hash.datasetHashesOperator) -> str | None:
     indexHash0, imagesHash0, clinicalDataHash0 = getOriginalResourcesFromTracer(authClient, tracerUrl, datasetId)
     studiesHashes = []
-    indexHash, imagesHash, clinicalDataHash = hash.getHashesOfDataset(datasetDirPath, indexFileName, eformsFileName, studiesHashes=studiesHashes)
+    indexHash, imagesHash, clinicalDataHash = hashOperator.getHashesOfDataset(datasetDirPath, indexFileName, eformsFileName, studiesHashes=studiesHashes)
     if not checkHash(clinicalDataHash0, clinicalDataHash, 'clinicalData'): return 'clinicalData'
     if not checkHash(indexHash0,        indexHash,        'index'):        return 'index'
     if not checkHash(imagesHash0,       imagesHash,       'images'):       

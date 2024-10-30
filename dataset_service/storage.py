@@ -72,6 +72,7 @@ class DB:
             if version < 30: self.updateDB_v29To30()
             if version < 31: self.updateDB_v30To31()
             if version < 32: self.updateDB_v31To32()
+            if version < 33: self.updateDB_v32To33()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -190,14 +191,14 @@ class DB:
                 constraint fk_dataset foreign key (dataset_id) references dataset(id),
                 constraint fk_study foreign key (study_id) references study(id)
             );
-            /* hash varchar(50) NOT NULL DEFAULT '',
-               hash_last_check timestamp DEFAULT NULL, */
             CREATE TABLE series (
                 study_id varchar(40),
                 folder_name varchar(128),
                 body_part varchar(16) DEFAULT NULL,
                 modality varchar(16) DEFAULT NULL,
                 manufacturer varchar(64) DEFAULT NULL,
+                hash_cache bytea DEFAULT NULL,
+                hash_last_time_calculated timestamp DEFAULT NULL,
                 constraint pk_series primary key (study_id, folder_name),
                 constraint fk_study foreign key (study_id) references study(id)
             );
@@ -497,6 +498,12 @@ class DB:
         self.cursor.execute("DROP TABLE user_group;")
         self.cursor.execute("ALTER TABLE license ADD constraint un_name unique (name);")
 
+    def updateDB_v32To33(self):
+        logging.root.info("Updating database from v32 to v33...")
+        self.cursor.execute("ALTER TABLE series ADD COLUMN hash_cache bytea DEFAULT NULL")
+        self.cursor.execute("ALTER TABLE series ADD COLUMN hash_last_time_calculated timestamp DEFAULT NULL")
+
+
     def createOrUpdateAuthor(self, userId, username, name, email):
         self.cursor.execute("SELECT id FROM author WHERE id=%s LIMIT 1;", (userId,))
         row = self.cursor.fetchone()
@@ -686,6 +693,21 @@ class DB:
     #     if self.cursor.rowcount == 0: return None
     #     row = self.cursor.fetchone()
     #     return row[0]
+
+    def setSeriesHashCache(self, studyId, seriesDirName, hash, time: datetime):
+        self.cursor.execute("""
+            UPDATE series set hash_cache=%s, hash_last_time_calculated=%s
+            WHERE study_id = %s AND folder_name = %s;""",
+            (hash, time, studyId, seriesDirName))
+
+    def getSeriesHashCache(self, studyId, seriesDirName) -> tuple[bytes|None, datetime|None]:
+        self.cursor.execute("""
+            SELECT hash_cache, hash_last_time_calculated FROM series
+            WHERE study_id = %s AND folder_name = %s;""",
+            (studyId, seriesDirName))
+        row = self.cursor.fetchone()
+        if row is None: return None, None
+        return row[0], row[1]
 
     def existDataset(self, id):
         """Note: invalidated datasets also exist.

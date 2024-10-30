@@ -18,7 +18,7 @@ from jwt import PyJWKClient
 import urllib
 import urllib.error
 import uuid
-from dataset_service import authorization, k8s, pid, tracer, keycloak, config
+from dataset_service import authorization, k8s, pid, tracer, keycloak, config, hash
 from dataset_service.auth import AuthClient, LoginException
 from dataset_service.storage import DB
 import dataset_service.dataset as dataset_file_system
@@ -186,7 +186,7 @@ def getTokenFromAuthorizationHeader(serviceAccount=False) -> str | None | dict:
     if ok: LOG.debug("User: " + token['preferred_username'])
     else: 
         LOG.debug(json.dumps(token))
-        return setErrorResponse(401,"invalid access token: missing '%s'" % missingProperty)
+        return setErrorResponse(401, "invalid access token: missing '%s'" % missingProperty)
     return token
 
 def getTokenOfAUserFromAuthAdminClient(userId) -> str | dict:
@@ -197,7 +197,7 @@ def getTokenOfAUserFromAuthAdminClient(userId) -> str | dict:
     if AUTH_ADMIN_CLIENT is None: raise Exception()
     token = AUTH_ADMIN_CLIENT.getUserToken(userId)
     ok, missingProperty = authorization.User.validateToken(token, False)
-    if not ok: return setErrorResponse(401,"invalid access token: missing '%s'" % missingProperty)
+    if not ok: return setErrorResponse(401, "invalid access token: missing '%s'" % missingProperty)
     return token
 
 def get_header_media_types(header):
@@ -237,17 +237,33 @@ def getAlive():
 
 @app.route('/api/set-ui', method='POST')
 def postSetUI():
-    if CONFIG is None or not isinstance(bottle.request.body, io.IOBase): raise Exception()
+    if CONFIG is None \
+       or not isinstance(bottle.request.query, bottle.FormsDict) \
+       or not isinstance(bottle.request.files, bottle.FormsDict) \
+       or not isinstance(bottle.request.body, io.IOBase): 
+        raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     if CONFIG.self.dev_token == "":
         return setErrorResponse(404, "Not found: '%s'" % bottle.request.path)
     if bottle.request.get_header("devToken") != CONFIG.self.dev_token:
-        return setErrorResponse(401,"unauthorized user")
-    sourceUrl = bottle.request.body.read().decode('UTF-8')
-    LOG.debug("BODY: " + sourceUrl )
+        return setErrorResponse(401, "unauthorized user")
     from dataset_service.utils import execute_cmd
-    output, status = execute_cmd("wget -O \"" + CONFIG.self.static_files_dir_path + "/build.zip\" '" + sourceUrl + "'")
-    output, status = execute_cmd("unzip -uo \"" + CONFIG.self.static_files_dir_path + "/build.zip\" -d \"" + CONFIG.self.static_files_dir_path + "/\"")
+    destinationZipPath = CONFIG.self.static_files_dir_path + "/build.zip"
+    if "method" in bottle.request.query and bottle.request.query["method"] == "fileInBody":
+        LOG.debug("Method: fileInBody.")
+        zipFile = bottle.request.files["zip"]
+        name, ext = os.path.splitext(zipFile.filename)
+        if ext != '.zip':
+            return setErrorResponse(400, 'File extension not allowed, only zip is supported.')
+        if os.path.exists(destinationZipPath): os.remove(destinationZipPath)
+        zipFile.save(destinationZipPath)
+    else:
+        sourceUrl = bottle.request.body.read().decode('UTF-8')
+        LOG.debug("URL in body: " + sourceUrl )
+        output, status = execute_cmd("wget -O \"" + destinationZipPath + "\" '" + sourceUrl + "'")
+
+    output, status = execute_cmd("unzip -uo \"" + destinationZipPath + "\" -d \"" + CONFIG.self.static_files_dir_path + "/\"")
+    LOG.debug("UI package successfully updated.")
     return output
 
 @app.route('/datalakeinfo/<file_path:re:.*\.(json)>', method='GET')
@@ -258,7 +274,7 @@ def getDatalakeInfo(file_path):
     if CONFIG.self.datalakeinfo_token == "":
         return setErrorResponse(404, "Not found: '%s'" % bottle.request.path)
     if bottle.request.get_header("secret") != CONFIG.self.datalakeinfo_token:
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
     return bottle.static_file(file_path, CONFIG.self.datalakeinfo_dir_path)
 
 
@@ -316,15 +332,17 @@ def completeDatasetFromCSV(dataset, csvdata):
                 'eForm': eform 
             })
 
-def _checkPropertyAsArrayOfStrings(propName: str, value: list[str], item_possible_values: list[str]):
+def _checkPropertyAsArrayOfStrings(propName: str, value: list[str], item_possible_values: list[str] | None = None):
     if not isinstance(value, list):
         raise WrongInputException("'%s' must be an array of strings." % propName)
     for item in value:
         if not isinstance(item, str): 
             raise WrongInputException("'%s' must be an array of strings." % propName)
-        if not item in item_possible_values:
-            return setErrorResponse(400, "unknown item value '%s' in '%s', it should be one of {%s}" \
-                                         % (item, propName, ','.join(item_possible_values)))
+    if item_possible_values != None:
+        for item in value:
+            if not item in item_possible_values:
+                raise WrongInputException("unknown item value '%s' in '%s', it should be one of {%s}" \
+                                          % (item, propName, ','.join(item_possible_values)))
 
 ITEM_POSSIBLE_VALUES_FOR_TYPE = ['original', 'annotated', 'processed']
 ITEM_POSSIBLE_VALUES_FOR_COLLECTION_METHOD = ['patient-based', 'cohort', 'only-image', 'longitudinal', 'case-control', 'disease-specific']
@@ -342,15 +360,15 @@ def postDataset():
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if user.isUnregistered() or not user.canCreateDatasets():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
 
     content_types = get_header_media_types('Content-Type')
     if "external" in bottle.request.query and bottle.request.query["external"].lower() == "true":
         if not 'multipart/form-data' in content_types:
-            return setErrorResponse(400,"invalid 'Content-Type' header, required 'multipart/form-data'")
+            return setErrorResponse(400, "invalid 'Content-Type' header, required 'multipart/form-data'")
     else:
         if not 'application/json' in content_types:
-            return setErrorResponse(400,"invalid 'Content-Type' header, required 'application/json'")
+            return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
 
     datasetDirName = ''
     datasetId = str(uuid.uuid4())
@@ -361,7 +379,7 @@ def postDataset():
             clinicalDataFile = bottle.request.files["clinical_data"]
             name, ext = os.path.splitext(clinicalDataFile.filename)
             if ext != '.csv':
-                return setErrorResponse(400,'File extension not allowed, only CSV is supported.')
+                return setErrorResponse(400, 'File extension not allowed, only CSV is supported.')
             dataset = dict(
                 name = bottle.request.forms.get("name"),
                 description = bottle.request.forms.get("description")
@@ -373,6 +391,7 @@ def postDataset():
             completeDatasetFromCSV(dataset, clinicalDataFile.file.read().decode('UTF-8').splitlines())
             #return  json.dumps(dataset)
         else:
+            LOG.debug("Reading request body as JSON...")
             read_data = bottle.request.body.read().decode('UTF-8')
             #LOG.debug("BODY: " + read_data)
             dataset = json.loads( read_data )
@@ -390,24 +409,16 @@ def postDataset():
             if not 'subjects' in dataset.keys() or not isinstance(dataset["subjects"], list): 
                 raise WrongInputException("'subjects' property is required and must be an array.")
             
-            # Security check: review all data sent by the user which is involved in path constructions
-            if CONFIG.self.datalake_mount_path != '':
-                for study in dataset["studies"]:
-                    checkPath(CONFIG.self.datalake_mount_path, study['pathInDatalake'])
-                    for serie in study["series"]:
-                        checkPath(CONFIG.self.datalake_mount_path, os.path.join(study['pathInDatalake'], serie["folderName"]))
-            if CONFIG.self.datasets_mount_path != '':
-                for study in dataset["studies"]:
-                    checkPath(CONFIG.self.datasets_mount_path, os.path.join(datasetId, study['subjectName']))
-
             # Integrity checks
             subjects = set()
             study_paths = set()
+            LOG.debug("Checking for duplicated subjects...")
             for subject in dataset["subjects"]:
                 if subject["subjectName"] in subjects:
                     raise WrongInputException("The subjectName '%s' is duplicated in 'subjects' array of the dataset." % subject["subjectName"])
                 else:
                     subjects.add(subject["subjectName"])
+            LOG.debug("Checking for studies with missing subjects or conflicting paths...")
             for study in dataset["studies"]:
                 if not study["subjectName"] in subjects:
                     raise WrongInputException("The study with id '%s' has a 'subjectName' which is not in the " % study["studyId"]
@@ -422,23 +433,6 @@ def postDataset():
                                              +"this will cause a conflict when creating the dataset's directories structure." )
                 else: study_paths.add(study_path)
             
-            # File system checks
-            if CONFIG.self.datalake_mount_path != '':
-                studiesToDelete = []
-                for study in dataset["studies"]:
-                    seriesToDelete = []
-                    for serie in study["series"]:
-                        seriePathInDatalake = os.path.join(CONFIG.self.datalake_mount_path, study['pathInDatalake'], serie['folderName'])
-                        if not os.path.exists(seriePathInDatalake):
-                            LOG.warn("The directory '%s' does not exist. The serie will not be included in the dataset." % seriePathInDatalake)
-                            seriesToDelete.append(serie)
-                    for serie in seriesToDelete: 
-                        study["series"].remove(serie)
-                    if len(study["series"]) == 0:
-                        LOG.warn("The study with id '%s' does not have any series. It will not be included in the dataset." % study["studyId"])
-                        studiesToDelete.append(study)
-                for study in studiesToDelete:
-                    dataset["studies"].remove(study)
 
         with DB(CONFIG.db) as db:
             LOG.debug("Updating author: %s, %s, %s, %s" % (user.uid, user.username, user.name, user.email))
@@ -447,17 +441,17 @@ def postDataset():
             user_projects = user.getProjects()
             if 'project' in dataset.keys(): 
                 if not dataset["project"] in user_projects:
-                    return setErrorResponse(400,"dataset.project does not exist for the user")
+                    return setErrorResponse(400, "dataset.project does not exist for the user")
             else:
                 dataset["project"] = user_projects.pop()  # we take the first project of user
             
             if 'previousId' in dataset.keys():
                 previousDataset = db.getDataset(dataset["previousId"])
                 if previousDataset is None:
-                    return setErrorResponse(400,"dataset.previousId does not exist")
+                    return setErrorResponse(400, "dataset.previousId does not exist")
                 if not user.canModifyDataset(previousDataset):
-                    return setErrorResponse(401,"the dataset selected as previous (%s) "
-                                               +"must be editable by the user (%s)" % (previousDataset["id"], user.username))
+                    return setErrorResponse(401, "the dataset selected as previous (%s) "
+                                               + "must be editable by the user (%s)" % (previousDataset["id"], user.username))
             else:
                 dataset["previousId"] = None
 
@@ -467,9 +461,8 @@ def postDataset():
             #if not "public" in dataset.keys(): 
             dataset["public"] = False
 
-            dataset["studiesCount"] = len(dataset["studies"])
-            dataset["subjectsCount"] = 0   # let's set now to zero 
-                                           # because the real number is obtained later, after a check for duplicates
+            dataset["studiesCount"] = 0   # Let's set now to zero because the real number is obtained later,
+            dataset["subjectsCount"] = 0  # after some checks like missing series.
             # The rest of Metada will be collected later, now let's leave it empty (default values in DB)
             
             LOG.debug('Creating dataset in DB...')
@@ -479,30 +472,19 @@ def postDataset():
                 if license != None:
                     db.setDatasetLicense(datasetId, license["title"], license["url"])
 
-            LOG.debug('Creating studies in DB...')
-            for study in dataset["studies"]:
-                db.createOrUpdateStudy(study, datasetId)
-
             LOG.debug('Creating dataset directory...')
             datasetDirName = datasetId
             dataset_file_system.create_dataset_dir(CONFIG.self.datasets_mount_path, datasetDirName)
             datasetDirPath = os.path.join(CONFIG.self.datasets_mount_path, datasetDirName)
 
-            LOG.debug('Writing E-FORM: ' + CONFIG.self.eforms_file_name)
+            LOG.debug('Writing E-FORMs file: ' + CONFIG.self.eforms_file_name)
             with open(os.path.join(datasetDirPath, CONFIG.self.eforms_file_name) , 'w') as outputStream:
                 json.dump(dataset["subjects"], outputStream)
 
-            LOG.debug('Writing INDEX: ' + CONFIG.self.index_file_name)
-            # dataset["studies"] contains just the information we want to save in the index.json file,
-            # but we have to set paths relative to the dataset directory
-            for study in dataset["studies"]:
-                subjectDirName = study['subjectName']
-                studyDirName = os.path.basename(study['pathInDatalake'])
-                # example of study['path']: 17B76FEW/TCPEDITRICOABDOMINOPLVICO20150129
-                study['path'] = os.path.join(subjectDirName, studyDirName)
-                del study['pathInDatalake']
-            # and dump to the index file in the dataset directory
-            with open(os.path.join(datasetDirPath, CONFIG.self.index_file_name) , 'w') as outputStream:
+            # The index file will be written later when the final list of studies is obtained.
+
+            LOG.debug('Writing studies temporal list: ' + CONFIG.self.studies_tmp_file_name)
+            with open(os.path.join(datasetDirPath, CONFIG.self.studies_tmp_file_name) , 'w') as outputStream:
                 json.dump(dataset["studies"], outputStream)
 
             LOG.debug('Creating status in DB...')
@@ -543,7 +525,7 @@ def postDataset_adjustFilePermissionsInDatalake(id):
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if not user.isSuperAdminDatasets():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
 
     datasetId = id
     with DB(CONFIG.db) as db:
@@ -598,7 +580,7 @@ def recollectMetadataForDataset(id):
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if not user.isSuperAdminDatasets():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
 
     datasetId = id
     with DB(CONFIG.db) as db:
@@ -623,7 +605,7 @@ def recollectMetadataForAllDatasets():
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if not user.isSuperAdminDatasets():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
 
     with DB(CONFIG.db) as db:
         searchFilter = authorization.Search_filter()
@@ -655,7 +637,7 @@ def relaunchDatasetCreationJob(id):
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if not user.isSuperAdminDatasets():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
     datasetId = id
     with DB(CONFIG.db) as db:
         dataset = db.getDataset(datasetId)
@@ -664,12 +646,12 @@ def relaunchDatasetCreationJob(id):
         if dataset["draft"]:
             dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
         if not user.canRelaunchDatasetCreation(dataset):
-            return setErrorResponse(401,"unauthorized user")
+            return setErrorResponse(401, "unauthorized user")
         k8sClient = k8s.K8sClient()
         job = k8sClient.exist_dataset_creation_job(datasetId)
         if job:
             if k8sClient.is_running_dataset_creation_job(job):
-                return setErrorResponse(400,"there is a creation job running for this dataset, please stop or delete it before relaunch")
+                return setErrorResponse(400, "there is a creation job running for this dataset, please stop or delete it before relaunch")
             else: k8sClient.delete_dataset_creation_job(datasetId)
         LOG.debug('Updating status in DB...')
         db.setDatasetCreationStatus(datasetId, "pending", "Relaunching dataset creation job...")
@@ -693,11 +675,11 @@ def getDatasetCreationStatus(id):
     with DB(CONFIG.db) as db:
         dataset = db.getDataset(datasetId)
         if dataset is None:
-            return setErrorResponse(404,"not found")
+            return setErrorResponse(404, "not found")
 
         # check access permission
         if not user.canViewDatasetDetails(dataset):
-            return setErrorResponse(401,"unauthorized user")
+            return setErrorResponse(401, "unauthorized user")
 
         status = db.getDatasetCreationStatus(datasetId)
         if status is None:
@@ -722,18 +704,21 @@ def _checkDatasetIntegrity(datasetId):
         if dataset["draft"] and db.getDatasetCreationStatus(datasetId) != None:
             return dict(success=False, msg="Not checked: it is still being created.")
         lastCheck = None if dataset["lastIntegrityCheck"] is None \
-                        else datetime.fromisoformat(dataset["lastIntegrityCheck"]).timestamp()
-        now = datetime.now().timestamp()
-        if lastCheck != None and now < (lastCheck + INTEGRITY_CHECK_LIFE_TIME):
-            return dict(success=True, msg="Integrity OK (checked on %s)" % lastCheck)
+                        else datetime.fromisoformat(dataset["lastIntegrityCheck"]).replace(tzinfo=None)
+        if lastCheck != None and (datetime.now() - lastCheck).days < CONFIG.self.dataset_integrity_check_life_days:
+            if dataset["corrupted"]:
+                ok, integrityStr = False, "wrong" 
+            else: ok, integrityStr = True, "OK" 
+            return dict(success=ok,  msg="Integrity %s (checked on %s)" % (integrityStr, lastCheck))
         
         studies, total = db.getStudiesFromDataset(datasetId)
         for study in studies:
             studiesHashes[study["studyId"]] = study["hash"]
     
+    hashesOperator = hash.datasetHashesOperator(CONFIG.db, CONFIG.self.series_hash_cache_life_days)
     wrongHash = tracer.checkDatasetIntegrity(AUTH_CLIENT, CONFIG.tracer.url, datasetId, datasetDirPath,
                                                 CONFIG.self.index_file_name, CONFIG.self.eforms_file_name,
-                                                studiesHashes)
+                                                studiesHashes, hashesOperator)
     corrupted = (wrongHash != None)
     with DB(CONFIG.db) as db:
         db.setDatasetLastIntegrityCheck(datasetId, corrupted, datetime.now())
@@ -748,15 +733,13 @@ def checkDatasetIntegrity(id):
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if not user.canCheckIntegrityOfDatasets():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
     
     datasetId = id
     result = _checkDatasetIntegrity(datasetId)
     bottle.response.status = 200
     bottle.response.content_type = "application/json"
     return json.dumps(result)
-
-INTEGRITY_CHECK_LIFE_TIME = 30 * 24 * 60 * 60   # 30 days in seconds
 
 @app.route('/api/datasets/checkIntegrity', method='POST')
 def checkAllDatasetsIntegrity():
@@ -766,7 +749,7 @@ def checkAllDatasetsIntegrity():
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if not user.canCheckIntegrityOfDatasets():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
 
     with DB(CONFIG.db) as db:
         searchFilter = authorization.Search_filter()
@@ -794,12 +777,12 @@ def getDataset(id):
     with DB(CONFIG.db) as db:
         dataset = db.getDataset(datasetId)
         if dataset is None:
-            return setErrorResponse(404,"not found")
+            return setErrorResponse(404, "not found")
         if dataset["draft"]:
             dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
         datasetACL = db.getDatasetACL(id)
     if not user.canViewDatasetDetails(dataset):
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
     dataset["editablePropertiesByTheUser"] = user.getEditablePropertiesByTheUser(dataset)
     dataset["allowedActionsForTheUser"] = user.getAllowedActionsForTheUser(dataset, datasetACL)
     if user.isUnregistered():
@@ -824,11 +807,11 @@ def getDatasetStudies(id):
     with DB(CONFIG.db) as db:
         dataset = db.getDataset(datasetId)
         if dataset is None:
-            return setErrorResponse(404,"not found")
+            return setErrorResponse(404, "not found")
         if dataset["draft"]:
             dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
         if not user.canViewDatasetDetails(dataset):
-            return setErrorResponse(401,"unauthorized user")
+            return setErrorResponse(401, "unauthorized user")
 
         studies, total = db.getStudiesFromDataset(datasetId, limit, skip)
         username = "unregistered" if user.isUnregistered() else user.username
@@ -875,148 +858,173 @@ def patchDataset(id):
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if user.isUnregistered():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
+    try:
+        datasetId = id
+        read_data = bottle.request.body.read().decode('UTF-8')
+        LOG.debug("BODY: " + read_data)
+        patch = json.loads( read_data )
+        property = patch["property"]
+        newValue = patch["value"]
+        trace_details = None
 
-    datasetId = id
-    read_data = bottle.request.body.read().decode('UTF-8')
-    LOG.debug("BODY: " + read_data)
-    patch = json.loads( read_data )
-    property = patch["property"]
-    newValue = patch["value"]
-    trace_details = None
+        with DB(CONFIG.db) as db:
+            dataset = db.getDataset(datasetId)
+            if dataset is None:
+                return setErrorResponse(404, "not found")
+            if dataset["draft"]:
+                dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
+            if property not in user.getEditablePropertiesByTheUser(dataset):
+                return setErrorResponse(400, "the property is not in the editablePropertiesByTheUser list")
 
-    with DB(CONFIG.db) as db:
-        dataset = db.getDataset(datasetId)
-        if dataset is None:
-            return setErrorResponse(404,"not found")
-        if dataset["draft"]:
-            dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
-        if property not in user.getEditablePropertiesByTheUser(dataset):
-            return setErrorResponse(400,"the property is not in the editablePropertiesByTheUser list")
-
-        if property == "draft":
-            if bool(newValue) == False and dataset["previousId"] != None:
-                # Let's set in the previous dataset the reference to this one.
-                # This way, the UI can show a notice in the previous dataset that there is a new version, with a link to this one.
-                previousDataset = db.getDataset(dataset["previousId"])
-                if previousDataset is None: raise Exception()
-                #  Check the previousId is not in other datasets.
-                #  It has to be checked here because when released this dataset, the previous will disappear from the upgradable datasets list,
-                #  so the other datasets sharing the previousId will be in a wrong state, they will have a previousId not selectable.
-                newVersionsOfTheSameDataset = db.getDatasetsSharingPreviousId(dataset["previousId"])
-                if len(newVersionsOfTheSameDataset) > 1:
-                    return setErrorResponse(400,"There are more than one draft datasets selected as the next version for the same dataset: "
-                                               +str(newVersionsOfTheSameDataset) + ". "
-                                               +"Please delete or change the previousId in some of them (only one can be the next version) .")
-                # The next check can not happen because of the previous check, but it is kept just in case the previous is removed in the future.
-                if previousDataset["nextId"] != None:
-                    return setErrorResponse(400,"The previousId (%s) is not valid, " % dataset["previousId"]
-                                               +"it references to an old dataset which already has a new version (%s). " % previousDataset["nextId"]
-                                               +"You may want to set the previousId to that new version (\"rebase\" your dataset), "
-                                               +"or you can simply set to null (and put some link to the base dataset in the description).")
-                db.setDatasetNextId(previousDataset["id"], datasetId)
-            db.setDatasetDraft(datasetId, bool(newValue))
-            if bool(newValue) == False:
-                trace_details = "RELEASE"
-        elif property == "public":
-            db.setDatasetPublic(datasetId, bool(newValue))
-            dataset["public"] = bool(newValue)
-            if bool(newValue) and dataset["pids"]["preferred"] is None:
-                # When publish, a PID will be autogenerated if it is still none 
-                createZenodoDeposition(db, dataset)
-                db.setDatasetPid(datasetId, "zenodoDoi")
+            if property == "draft":
+                if not isinstance(newValue, bool): raise WrongInputException("The value must be boolean.")
+                if newValue == False and dataset["previousId"] != None:
+                    # Let's set in the previous dataset the reference to this one.
+                    # This way, the UI can show a notice in the previous dataset that there is a new version, with a link to this one.
+                    previousDataset = db.getDataset(dataset["previousId"])
+                    if previousDataset is None: raise Exception()
+                    #  Check the previousId is not in other datasets.
+                    #  It has to be checked here because when released this dataset, the previous will disappear from the upgradable datasets list,
+                    #  so the other datasets sharing the previousId will be in a wrong state, they will have a previousId not selectable.
+                    newVersionsOfTheSameDataset = db.getDatasetsSharingPreviousId(dataset["previousId"])
+                    if len(newVersionsOfTheSameDataset) > 1:
+                        return setErrorResponse(400, "There are more than one draft datasets selected as the next version for the same dataset: "
+                                                +str(newVersionsOfTheSameDataset) + ". "
+                                                +"Please delete or change the previousId in some of them (only one can be the next version) .")
+                    # The next check can not happen because of the previous check, but it is kept just in case the previous is removed in the future.
+                    if previousDataset["nextId"] != None:
+                        return setErrorResponse(400, "The previousId (%s) is not valid, " % dataset["previousId"]
+                                                + "it references to an old dataset which already has a new version (%s). " % previousDataset["nextId"]
+                                                + "You may want to set the previousId to that new version (\"rebase\" your dataset), "
+                                                + "or you can simply set to null (and put some link to the base dataset in the description).")
+                    db.setDatasetNextId(previousDataset["id"], datasetId)
+                db.setDatasetDraft(datasetId, newValue)
+                if bool(newValue) == False:
+                    trace_details = "RELEASE"
+            elif property == "public":
+                if not isinstance(newValue, bool): raise WrongInputException("The value must be boolean.")
+                db.setDatasetPublic(datasetId, newValue)
+                dataset["public"] = newValue
+                if newValue and dataset["pids"]["preferred"] is None:
+                    # When publish, a PID will be autogenerated if it is still none 
+                    createZenodoDeposition(db, dataset)
+                    db.setDatasetPid(datasetId, "zenodoDoi")
+                else:
+                    updateZenodoDeposition(db, dataset)
+                trace_details = "PUBLISH" if newValue else "UNPUBLISH"
+            elif property == "invalidated":
+                if not isinstance(newValue, bool): raise WrongInputException("The value must be boolean.")
+                db.setDatasetInvalidated(datasetId, newValue)
+                if newValue:
+                    LOG.debug('Removing ACL entries in dataset %s ...' % (datasetId))
+                    datasetDirName = datasetId
+                    dataset_file_system.invalidate_dataset(CONFIG.self.datasets_mount_path, datasetDirName)              
+                else:  # reactivated
+                    db.setDatasetInvalidationReason(datasetId, None)  # reset invalidation reason
+                trace_details = "INVALIDATE" if newValue else "REACTIVATE"
+            elif property == "invalidationReason":
+                if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                db.setDatasetInvalidationReason(datasetId, newValue)
+                # Don't notify the tracer, it is just a note to remember the reason.
+            elif property == "name":
+                if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                db.setDatasetName(datasetId, newValue)
+                # Don't notify the tracer, this property can be changed only in draft state
+            elif property == "version":
+                if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                db.setDatasetVersion(datasetId, newValue)
+                # Don't notify the tracer, this property can be changed only in draft state
+            elif property == "description":
+                if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                db.setDatasetDescription(datasetId, newValue)
+                # Don't notify the tracer, this property can be changed only in draft state
+            elif property == "purpose":
+                if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                db.setDatasetPurpose(datasetId, newValue)
+                # Don't notify the tracer, this property can be changed only in draft state
+            elif property == "type":
+                _checkPropertyAsArrayOfStrings("value", newValue, ITEM_POSSIBLE_VALUES_FOR_TYPE)
+                db.setDatasetType(datasetId, newValue)
+                # Don't notify the tracer, this property can be changed only in draft state
+            elif property == "collectionMethod":
+                _checkPropertyAsArrayOfStrings("value", newValue, ITEM_POSSIBLE_VALUES_FOR_COLLECTION_METHOD)
+                db.setDatasetCollectionMethod(datasetId, newValue)
+                # Don't notify the tracer, this property can be changed only in draft state
+            # elif property == "project":
+            #     if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+            #     if not newValue in user.getProjects():
+            #         return setErrorResponse(400, "invalid value, unknown project code for the user")
+            #     db.setDatasetProject(datasetId, newValue)
+            #     # Don't notify the tracer, this property can be changed only in draft state
+            elif property == "previousId":
+                if newValue != None:
+                    if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                    previousDataset = db.getDataset(newValue)
+                    if previousDataset is None:
+                        raise WrongInputException("invalid value, the dataset id does not exist")
+                    if not user.canModifyDataset(previousDataset):
+                        return setErrorResponse(401, "the dataset selected as previous (%s) "
+                                                +"must be editable by the user (%s)" % (previousDataset["id"], user.username))
+                db.setDatasetPreviousId(datasetId, newValue)  # newValue can be None or str
+                # Don't notify the tracer, this property can be changed only in draft state
+            elif property == "license":
+                if not isinstance(newValue, dict): raise WrongInputException("The value must be an object.")
+                if not "title" in newValue: raise WrongInputException("Missing 'title' in the new license.")
+                if not "url" in newValue: raise WrongInputException("Missing 'url' in the new license.")
+                if not isinstance(newValue["title"], str): raise WrongInputException("The title of license must be a string.")
+                if not isinstance(newValue["url"], str): raise WrongInputException("The url of license must be a string.")
+                newTitle = newValue["title"]
+                newUrl = newValue["url"]
+                db.setDatasetLicense(datasetId, newTitle, newUrl)
+                # dataset["license"] = dict(title=newTitle,url=newUrl)  license is written in a PDF file
+                # updateZenodoDeposition(db, dataset)                   and deposition files cannot be changed once published
+                trace_details = "LICENSE_UPDATED"
+            elif property == "pids":
+                if not isinstance(newValue, dict): raise WrongInputException("The value must be an object.")
+                if not "preferred" in newValue: raise WrongInputException("Missing 'preferred' in the new pids.")
+                if not isinstance(newValue["preferred"], str): raise WrongInputException("The preferred pid must be a string.")
+                preferred = newValue["preferred"].strip()
+                custom = None
+                if preferred == "zenodoDoi":
+                    createZenodoDeposition(db, dataset)
+                elif preferred == "custom":
+                    if not "urls" in newValue: raise WrongInputException("Missing 'urls' in the new pids.")
+                    if not isinstance(newValue["urls"], dict): raise WrongInputException("The 'urls' of pids must be an object.")
+                    if not "custom" in newValue["urls"]: raise WrongInputException("Missing 'custom' in the 'urls' of new pids.")
+                    if not isinstance(newValue["urls"]["custom"], str): raise WrongInputException("The custom url of pids must be a string.")
+                    custom = newValue["urls"]["custom"]
+                    if not custom.startswith("http"):
+                        raise WrongInputException("invalid value for urls.custom")
+                else: raise WrongInputException("invalid value for preferred")
+                db.setDatasetPid(datasetId, preferred, custom)
+                trace_details = "PID_UPDATED"
+            elif property == "contactInfo":
+                if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                db.setDatasetContactInfo(datasetId, newValue)
+                # dataset["contactInfo"] = newValue            contactInfo is written in a PDF file
+                # updateZenodoDeposition(db, dataset)          and deposition files cannot be changed once published
+                trace_details = "CONTACT_INFORMATION_UPDATED"
+            elif property == "authorId":
+                # This is a special operation only allowed for the role "superadmin_datasets",
+                # (s)he can create a dataset for another user and then transfer the authorship to the user.
+                if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                if not db.existsUserID(newValue):
+                    return setErrorResponse(400, "invalid value, the user id does not exist")
+                db.setDatasetAuthor(datasetId, newValue)
+                # dataset = db.getDataset(datasetId)
+                # updateZenodoDeposition(db, dataset)
+                trace_details = "AUTHOR_CHANGED"
             else:
-                updateZenodoDeposition(db, dataset)
-            trace_details = "PUBLISH" if bool(newValue) else "UNPUBLISH"
-        elif property == "invalidated":
-            db.setDatasetInvalidated(datasetId, bool(newValue))
-            if bool(newValue):
-                LOG.debug('Removing ACL entries in dataset %s ...' % (datasetId))
-                datasetDirName = datasetId
-                dataset_file_system.invalidate_dataset(CONFIG.self.datasets_mount_path, datasetDirName)              
-            else:  # reactivated
-                db.setDatasetInvalidationReason(datasetId, None)  # reset invalidation reason
-            trace_details = "INVALIDATE" if bool(newValue) else "REACTIVATE"
-        elif property == "invalidationReason":
-            db.setDatasetInvalidationReason(datasetId, str(newValue))
-            # Don't notify the tracer, it is just a note to remember the reason.
-        elif property == "name":
-            db.setDatasetName(datasetId, str(newValue))
-            # Don't notify the tracer, this property can be changed only in draft state
-        elif property == "version":
-            db.setDatasetVersion(datasetId, str(newValue))
-            # Don't notify the tracer, this property can be changed only in draft state
-        elif property == "description":
-            db.setDatasetDescription(datasetId, str(newValue))
-            # Don't notify the tracer, this property can be changed only in draft state
-        elif property == "purpose":
-            db.setDatasetPurpose(datasetId, str(newValue))
-            # Don't notify the tracer, this property can be changed only in draft state
-        elif property == "type":
-            _checkPropertyAsArrayOfStrings("value", newValue, ITEM_POSSIBLE_VALUES_FOR_TYPE)
-            db.setDatasetType(datasetId, newValue)
-            # Don't notify the tracer, this property can be changed only in draft state
-        elif property == "collectionMethod":
-            _checkPropertyAsArrayOfStrings("value", newValue, ITEM_POSSIBLE_VALUES_FOR_COLLECTION_METHOD)
-            db.setDatasetCollectionMethod(datasetId, newValue)
-            # Don't notify the tracer, this property can be changed only in draft state
-        # elif property == "project":
-        #     newProject = str(newValue)
-        #     if not newProject in user.getProjects():
-        #         return setErrorResponse(400,"invalid value, unknown project code for the user")
-        #     db.setDatasetProject(datasetId, newProject)
-        #     # Don't notify the tracer, this property can be changed only in draft state
-        elif property == "previousId":
-            if newValue != None:
-                previousDataset = db.getDataset(str(newValue))
-                if previousDataset is None:
-                    return setErrorResponse(400,"invalid value, the dataset id does not exist")
-                if not user.canModifyDataset(previousDataset):
-                    return setErrorResponse(401,"the dataset selected as previous (%s) "
-                                               +"must be editable by the user (%s)" % (previousDataset["id"], user.username))
-            db.setDatasetPreviousId(datasetId, newValue)  # newValue can be None or str
-            # Don't notify the tracer, this property can be changed only in draft state
-        elif property == "license":
-            newTitle = str(newValue["title"])
-            newUrl = str(newValue["url"])
-            db.setDatasetLicense(datasetId, newTitle, newUrl)
-            # dataset["license"] = dict(title=newTitle,url=newUrl)  license is written in a PDF file
-            # updateZenodoDeposition(db, dataset)                   and deposition files cannot be changed once published
-            trace_details = "LICENSE_UPDATED"
-        elif property == "pids":
-            preferred = str(newValue["preferred"]).strip()
-            custom = None
-            if preferred == "zenodoDoi":
-                createZenodoDeposition(db, dataset)
-            elif preferred == "custom":
-                custom = str(newValue["urls"]["custom"])
-                if not custom.startswith("http"):
-                    return setErrorResponse(400, "invalid value for urls.custom")
-            else: return setErrorResponse(400, "invalid value for preferred")
-            db.setDatasetPid(datasetId, preferred, custom)
-            trace_details = "PID_UPDATED"
-        elif property == "contactInfo":
-            db.setDatasetContactInfo(datasetId, str(newValue))
-            # dataset["contactInfo"] = str(newValue)       contactInfo is written in a PDF file
-            # updateZenodoDeposition(db, dataset)          and deposition files cannot be changed once published
-            trace_details = "CONTACT_INFORMATION_UPDATED"
-        elif property == "authorId":
-            # This is a special operation only allowed for the role "superadmin_datasets",
-            # (s)he can create a dataset for another user and then transfer the authorship to the user.
-            if not db.existsUserID(str(newValue)):
-                return setErrorResponse(400, "invalid value, the user id does not exist")
-            db.setDatasetAuthor(datasetId, str(newValue))
-            # dataset = db.getDataset(datasetId)
-            # updateZenodoDeposition(db, dataset)
-            trace_details = "AUTHOR_CHANGED"
-        else:
-            return setErrorResponse(400, "invalid property")
+                return setErrorResponse(400, "invalid property")
 
-        if CONFIG.tracer.url != '' and trace_details != None:
-            LOG.debug('Notifying to tracer-service...')
-            # Note this tracer call is inside of "with db" because if tracer fails the database changes will be reverted (transaction rollback).
-            tracer.traceDatasetUpdate(AUTH_CLIENT, CONFIG.tracer.url, datasetId, user.uid, trace_details)
-    bottle.response.status = 200
+            if CONFIG.tracer.url != '' and trace_details != None:
+                LOG.debug('Notifying to tracer-service...')
+                # Note this tracer call is inside of "with db" because if tracer fails the database changes will be reverted (transaction rollback).
+                tracer.traceDatasetUpdate(AUTH_CLIENT, CONFIG.tracer.url, datasetId, user.uid, trace_details)
+        bottle.response.status = 204
+    except WrongInputException as e:
+        return setErrorResponse(400, str(e))
 
 @app.route('/api/datasets/<id>/acl', method='GET')
 def getDatasetACL(id):
@@ -1029,11 +1037,11 @@ def getDatasetACL(id):
     datasetId = id
     with DB(CONFIG.db) as db:
         dataset = db.getDataset(datasetId)
-        if dataset is None: return setErrorResponse(404,"not found")
+        if dataset is None: return setErrorResponse(404, "not found")
         if dataset["draft"]:
             dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
         if not user.canManageACL(dataset):
-            return setErrorResponse(401,"unauthorized user")
+            return setErrorResponse(401, "unauthorized user")
         acl = db.getDatasetACL_detailed(datasetId)
     bottle.response.content_type = "application/json"
     return json.dumps(acl)
@@ -1051,11 +1059,11 @@ def changeDatasetACL(datasetId, username, operation):
     
     with DB(CONFIG.db) as db:
         dataset = db.getDataset(datasetId)
-        if dataset is None: return setErrorResponse(404,"dataset not found")
+        if dataset is None: return setErrorResponse(404, "dataset not found")
         if dataset["draft"]:
             dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
         if not user.canManageACL(dataset): 
-            return setErrorResponse(401,"unauthorized user")
+            return setErrorResponse(401, "unauthorized user")
         userId, userGid = db.getUserIDs(username)
         if userId is None: return setErrorResponse(404, "user not found")
         if operation == Edit_operation.ADD:
@@ -1133,11 +1141,11 @@ def eucaimSearchDatasets():
     if CONFIG.self.eucaim_search_token == "":
         return setErrorResponse(404, "Not found: '%s'" % bottle.request.path)
     if bottle.request.get_header("Authorization") != "Secret " + CONFIG.self.eucaim_search_token:
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
     
     content_types = get_header_media_types('Content-Type')
     if not 'application/json' in content_types:
-        return setErrorResponse(400,"invalid 'Content-Type' header, required 'application/json'")
+        return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
     read_data = bottle.request.body.read().decode('UTF-8')
     LOG.debug("BODY: " + read_data)
     try:
@@ -1170,7 +1178,7 @@ def getUpgradableDatasets():
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if not user.canCreateDatasets():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
 
     searchFilter = authorization.Upgradables_filter()
     searchFilter.adjustByUser(user)
@@ -1293,11 +1301,11 @@ def putUser(userName):
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if not user.canAdminUsers():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
 
     content_types = get_header_media_types('Content-Type')
     if not 'application/json' in content_types:
-        return setErrorResponse(400,"invalid 'Content-Type' header, required 'application/json'")
+        return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
     read_data = None
     try:
         read_data = bottle.request.body.read().decode('UTF-8')
@@ -1320,7 +1328,7 @@ def putUser(userName):
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
-        return setErrorResponse(500,"Unexpected error, may be the input is wrong")
+        return setErrorResponse(500, "Unexpected error, may be the input is wrong")
 
 @app.route('/api/users/<userName>', method='GET')
 def getUser(userName):
@@ -1330,7 +1338,7 @@ def getUser(userName):
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if not user.canAdminUsers():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
     
     with DB(CONFIG.db) as db:
         userId, userGid = db.getUserIDs(userName)
@@ -1370,11 +1378,11 @@ def postDatasetAccessCheck():
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if not user.canAdminDatasetAccesses():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
 
     content_types = get_header_media_types('Content-Type')
     if not 'application/json' in content_types:
-        return setErrorResponse(400,"invalid 'Content-Type' header, required 'application/json'")
+        return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
     read_data = None
     try:
         read_data = bottle.request.body.read().decode('UTF-8')
@@ -1395,7 +1403,7 @@ def postDatasetAccessCheck():
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
-        return setErrorResponse(500,"Unexpected error, may be the input is wrong")
+        return setErrorResponse(500, "Unexpected error, may be the input is wrong")
 
 @app.route('/api/datasetAccess/<id>', method='POST')
 def postDatasetAccess(id):
@@ -1405,11 +1413,11 @@ def postDatasetAccess(id):
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if not user.canAdminDatasetAccesses():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
 
     content_types = get_header_media_types('Content-Type')
     if not 'application/json' in content_types:
-        return setErrorResponse(400,"invalid 'Content-Type' header, required 'application/json'")
+        return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
 
     read_data = None
     try:
@@ -1436,7 +1444,7 @@ def postDatasetAccess(id):
 
         badIds = checkDatasetListAccess(datasetIDs, userName)
         if len(badIds) > 0:
-            return setErrorResponse(403,"access denied")
+            return setErrorResponse(403, "access denied")
 
         with DB(CONFIG.db) as db:
             userId, userGID = db.getUserIDs(userName)
@@ -1466,7 +1474,7 @@ def postDatasetAccess(id):
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
-        return setErrorResponse(500,"Unexpected error, may be the input is wrong")
+        return setErrorResponse(500, "Unexpected error, may be the input is wrong")
 
 @app.route('/api/datasetAccess/<id>', method='PATCH')
 def endDatasetAccess(id):
@@ -1476,11 +1484,11 @@ def endDatasetAccess(id):
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if not user.canAdminDatasetAccesses():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
 
     content_types = get_header_media_types('Content-Type')
     if not 'application/json' in content_types:
-        return setErrorResponse(400,"invalid 'Content-Type' header, required 'application/json'")
+        return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
 
     read_data = None
     try:
@@ -1522,7 +1530,7 @@ def endDatasetAccess(id):
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
-        return setErrorResponse(500,"Unexpected error, may be the input is wrong")
+        return setErrorResponse(500, "Unexpected error, may be the input is wrong")
 
 @app.route('/api/datasets/<id>/accessHistory', method='GET')
 def getDatasetAccessHistory(id):
@@ -1532,7 +1540,7 @@ def getDatasetAccessHistory(id):
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
     if not user.canAdminDatasetAccesses():
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
 
     datasetId = id
     skip = int(bottle.request.query['skip']) if 'skip' in bottle.request.query else 0
@@ -1543,11 +1551,11 @@ def getDatasetAccessHistory(id):
     with DB(CONFIG.db) as db:
         dataset = db.getDataset(datasetId)
         if dataset is None:
-            return setErrorResponse(404,"not found")
+            return setErrorResponse(404, "not found")
         if dataset["draft"]:
             dataset["creating"] = (db.getDatasetCreationStatus(datasetId) != None)
         if not user.canViewDatasetDetails(dataset):
-            return setErrorResponse(401,"unauthorized user")
+            return setErrorResponse(401, "unauthorized user")
 
         accesses, total = db.getDatasetAccesses(datasetId, limit, skip)    
     bottle.response.content_type = "application/json"
