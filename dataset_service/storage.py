@@ -709,7 +709,7 @@ class DB:
         if row is None: return None, None
         return row[0], row[1]
 
-    def existDataset(self, id):
+    def existsDataset(self, id):
         """Note: invalidated datasets also exist.
         """
         self.cursor.execute("SELECT id FROM dataset WHERE id=%s", (id,))
@@ -1386,7 +1386,7 @@ class DB:
                 (datasetAccessId, id)
             )
 
-    def existDatasetAccess(self, datasetAccessId):
+    def existsDatasetAccess(self, datasetAccessId):
         self.cursor.execute("SELECT id FROM dataset_access WHERE id=%s", (datasetAccessId,))
         return self.cursor.rowcount > 0
 

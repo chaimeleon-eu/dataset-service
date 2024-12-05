@@ -55,8 +55,7 @@ paths:
 
   /datasets:
     post:
-      tags:
-        - datasets
+      tags: [datasets]
       summary: Create a new dataset
       operationId: createDataset
       description: Creates a new dataset into the system.
@@ -86,8 +85,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
     get:
-      tags:
-        - datasets
+      tags: [datasets]
       summary: List datasets
       operationId: listDatasets
       description: |
@@ -227,8 +225,7 @@ paths:
 
   /datasets/{id}:
     get:
-      tags:
-        - datasets
+      tags: [datasets]
       summary: Get a dataset by its id
       operationId: getDataset
       description: "Returns the details of a dataset specified by its id."
@@ -251,8 +248,7 @@ paths:
         '404':
           description: "not found"
     patch:
-      tags:
-        - datasets
+      tags: [datasets]
       summary: Change a property of a dataset by its id
       operationId: modifyDataset
       description: "Changes a property of a dataset in the system."
@@ -305,8 +301,7 @@ paths:
         '404':
           description: "Not found."
     delete:
-      tags:
-        - datasets
+      tags: [datasets]
       summary: Delete a dataset by its id
       operationId: deleteDataset
       description:  |
@@ -333,8 +328,7 @@ paths:
 
   /datasets/{id}/studies:
     get:
-      tags:
-        - datasets
+      tags: [datasets]
       summary: List studies of a dataset
       operationId: getDatasetStudies
       description: "Returns the list of studies in a dataset specified by its id."
@@ -396,8 +390,7 @@ paths:
 
   /datasets/{id}/creationStatus:
     get:
-      tags:
-        - datasets
+      tags: [datasets]
       summary: Get the status of creation of a dataset by its id
       operationId: getDatasetCreationStatus
       description: Returns the details of the creation of a dataset specified by its id.
@@ -433,8 +426,7 @@ paths:
 
   /datasets/{id}/checkIntegrity:
     post:
-      tags:
-        - datasets
+      tags: [datasets]
       summary: Check the integrity of a dataset
       operationId: checkDatasetIntegrity
       description: |
@@ -466,8 +458,7 @@ paths:
 
   /datasets/{id}/relaunchCreationJob:
     post:
-      tags:
-        - datasets
+      tags: [datasets]
       summary: Relaunch the creation job of a dataset
       operationId: relaunchDatasetCreationJob
       description: |
@@ -491,8 +482,7 @@ paths:
 
   /datasets/{id}/accessHistory:
     get:
-      tags:
-        - datasets
+      tags: [datasets]
       summary: List accesses of a dataset
       operationId: getDatasetAccessHistory
       description: |
@@ -556,8 +546,7 @@ paths:
 
   /datasets/{id}/acl:
     get:
-      tags:
-        - datasets
+      tags: [datasets]
       summary: Get the ACL of a dataset by its id
       operationId: getDatasetACL
       description: |
@@ -598,8 +587,7 @@ paths:
 
   /datasets/{id}/acl/{username}:
     put:
-      tags:
-        - datasets
+      tags: [datasets]
       summary: Put a user to the ACL of the dataset
       operationId: putUserToDatasetACL
       description: |
@@ -629,8 +617,7 @@ paths:
         '404':
           description: "Not found."
     delete:
-      tags:
-        - datasets
+      tags: [datasets]
       summary: Delete a user from the ACL of a dataset
       operationId: deleteUserFromDatasetACL
       description: |
@@ -660,8 +647,7 @@ paths:
 
   /upgradableDatasets:
     get:
-      tags:
-        - datasets
+      tags: [datasets]
       summary: List datasets that can be upgraded by the user
       operationId: listUpgradableDatasets
       description: |
@@ -695,8 +681,7 @@ paths:
 
   /users/{userName}:
     put:
-      tags:
-        - users
+      tags: [users]
       summary: Create new user
       operationId: createUser
       description: |
@@ -731,8 +716,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
     get:
-      tags:
-        - users
+      tags: [users]
       summary: Get user GID
       operationId: getUser
       description: "Returns the gid of a user"
@@ -761,8 +745,7 @@ paths:
 
   /projects:
     get:
-      tags:
-        - projects
+      tags: [projects]
       summary: List projects
       operationId: listProjects
       description: |
@@ -789,8 +772,7 @@ paths:
 
   /licenses:
     get:
-      tags:
-        - licenses
+      tags: [licenses]
       summary: List licenses
       operationId: listLicenses
       description: "List all available licenses for datasets."
@@ -808,8 +790,7 @@ paths:
 
   /datasetAccessCheck:
     post:
-      tags:
-        - datasetAccesses
+      tags: [datasetAccesses]
       summary: Check the access to datasets
       operationId: checkDatasetAccess
       description: |
@@ -850,8 +831,7 @@ paths:
 
   /datasetAccess/{id}:
     post:
-      tags:
-        - datasetAccesses
+      tags: [datasetAccesses]
       summary: Create new access to datasets
       operationId: createDatasetAccess
       description: |
@@ -913,8 +893,7 @@ paths:
           $ref: '#/components/responses/Unauthorized'
 
     patch:
-      tags:
-        - datasetAccesses
+      tags: [datasetAccesses]
       summary: Close a previous access to datasets
       operationId: closeDatasetAccess
       description: "It is called when a user ends the work over one o more datasets whose access have been required previously."

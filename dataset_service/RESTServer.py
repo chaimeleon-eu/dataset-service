@@ -22,6 +22,7 @@ from dataset_service import authorization, k8s, pid, tracer, keycloak, config, h
 from dataset_service.auth import AuthClient, LoginException
 from dataset_service.storage import DB
 import dataset_service.dataset as dataset_file_system
+import dataset_service.utils as utils
 
 #LOG = logging.getLogger('module1')
 LOG = logging.root
@@ -32,7 +33,7 @@ class MyBottle(bottle.Bottle):
         bottle.response.content_type = 'application/json'
         return json.dumps(dict(error = res.body, status_code = res.status_code))
     # Below method overwrite is not required in fact (all should work if we delete it).
-    # It is a simplified version or the original method (https://github.com/bottlepy/bottle/blob/release-0.12/bottle.py#L788)
+    # It is a simplified version of the original method (https://github.com/bottlepy/bottle/blob/release-0.12/bottle.py#L788)
     # just to avoid the pylance warning 'Object of type "ModuleType" is no callable'.
     # Usefull link to understand the code: https://stackoverflow.com/a/33777519
     def route(self, path=None, method='GET', **config):
@@ -247,7 +248,6 @@ def postSetUI():
         return setErrorResponse(404, "Not found: '%s'" % bottle.request.path)
     if bottle.request.get_header("devToken") != CONFIG.self.dev_token:
         return setErrorResponse(401, "unauthorized user")
-    from dataset_service.utils import execute_cmd
     destinationZipPath = CONFIG.self.static_files_dir_path + "/build.zip"
     if "method" in bottle.request.query and bottle.request.query["method"] == "fileInBody":
         LOG.debug("Method: fileInBody.")
@@ -260,9 +260,9 @@ def postSetUI():
     else:
         sourceUrl = bottle.request.body.read().decode('UTF-8')
         LOG.debug("URL in body: " + sourceUrl )
-        output, status = execute_cmd("wget -O \"" + destinationZipPath + "\" '" + sourceUrl + "'")
+        output, status = utils.execute_cmd("wget -O \"" + destinationZipPath + "\" '" + sourceUrl + "'")
 
-    output, status = execute_cmd("unzip -uo \"" + destinationZipPath + "\" -d \"" + CONFIG.self.static_files_dir_path + "/\"")
+    output, status = utils.execute_cmd("unzip -uo \"" + destinationZipPath + "\" -d \"" + CONFIG.self.static_files_dir_path + "/\"")
     LOG.debug("UI package successfully updated.")
     return output
 
@@ -529,7 +529,7 @@ def postDataset_adjustFilePermissionsInDatalake(id):
 
     datasetId = id
     with DB(CONFIG.db) as db:
-        if not db.existDataset(datasetId):
+        if not db.existsDataset(datasetId):
             return setErrorResponse(404, "not found")
         datasetStudies, total = db.getStudiesFromDataset(datasetId)
         dataset_file_system.adjust_file_permissions_in_datalake(CONFIG.self.datalake_mount_path, datasetStudies)
@@ -584,7 +584,7 @@ def recollectMetadataForDataset(id):
 
     datasetId = id
     with DB(CONFIG.db) as db:
-        if not db.existDataset(datasetId):
+        if not db.existsDataset(datasetId):
             return setErrorResponse(404, "not found")
         LOG.debug('Collecting metadata for dataset %s' % datasetId)
         result = _recollectMetadataForDataset(datasetId)
@@ -1267,7 +1267,7 @@ def getLicenses():
 
 @app.route('/api/projects', method='GET')
 def getProjects():
-    if CONFIG is None or not isinstance(bottle.request.query, bottle.FormsDict) or AUTH_ADMIN_CLIENT is None: raise Exception()
+    if CONFIG is None or not isinstance(bottle.request.query, bottle.FormsDict): raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ret = getTokenFromAuthorizationHeader()
     if isinstance(ret, str): return ret  # return error message
@@ -1502,7 +1502,7 @@ def endDatasetAccess(id):
         endTime = datetime.fromisoformat(endTime.removesuffix('Z')) if endTime != '' else None
         datasetAccessId = id
         with DB(CONFIG.db) as db:
-            if not db.existDatasetAccess(datasetAccessId):
+            if not db.existsDatasetAccess(datasetAccessId):
                 return setErrorResponse(404, "not found")    
 
             if CONFIG.self.datasets_mount_path != '':
