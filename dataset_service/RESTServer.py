@@ -350,7 +350,7 @@ def _checkPropertyAsLicense(newValue):
     if not isinstance(newValue["title"], str): raise WrongInputException("The title of license must be a string.")
     if not isinstance(newValue["url"], str): raise WrongInputException("The url of license must be a string.")
 
-ITEM_POSSIBLE_VALUES_FOR_TYPE = ['original', 'annotated', 'processed']
+ITEM_POSSIBLE_VALUES_FOR_TYPE = ['original', 'annotated', 'processed', 'personal-data']
 ITEM_POSSIBLE_VALUES_FOR_COLLECTION_METHOD = ['patient-based', 'cohort', 'only-image', 'longitudinal', 'case-control', 'disease-specific']
 
 @app.route('/api/datasets', method='POST')
@@ -402,8 +402,9 @@ def postDataset():
             #LOG.debug("BODY: " + read_data)
             dataset = json.loads( read_data )
             if not isinstance(dataset, dict): raise WrongInputException("The body must be a json object.")
-            if not 'version' in dataset.keys(): dataset["version"] = ''
-            if not 'purpose' in dataset.keys(): dataset["purpose"] = ''
+            if not 'version' in dataset.keys(): dataset["version"] = '??'
+            if not 'provenance' in dataset.keys(): dataset["provenance"] = '??'
+            if not 'purpose' in dataset.keys(): dataset["purpose"] = '??'
             if 'type' in dataset.keys(): 
                 _checkPropertyAsArrayOfStrings('type', dataset["type"], ITEM_POSSIBLE_VALUES_FOR_TYPE)
             else: dataset["type"] = []
@@ -948,6 +949,10 @@ def patchDataset(id):
             elif property == "description":
                 if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
                 db.setDatasetDescription(datasetId, newValue)
+                # Don't notify the tracer, this property can be changed only in draft state
+            elif property == "provenance":
+                if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                db.setDatasetProvenance(datasetId, newValue)
                 # Don't notify the tracer, this property can be changed only in draft state
             elif property == "purpose":
                 if not isinstance(newValue, str): raise WrongInputException("The value must be string.")

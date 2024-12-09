@@ -274,6 +274,7 @@ def collectMetadata(dataset, datalake_mount_path, eformsFilePath):
     minAgeUnit, maxAgeUnit = None, None
     ageNullCount = 0
     sexDict = {}
+    diagnosisDict = {}
     bodyPartDict = {}
     modalityDict = {}
     manufacturerDict = {}
@@ -303,6 +304,7 @@ def collectMetadata(dataset, datalake_mount_path, eformsFilePath):
                 maxAgeUnit = study["ageUnit"]
         else: ageNullCount += 1
         _aggregateItemToCountDict(sexDict, study["sex"])
+        _aggregateItemToCountDict(diagnosisDict, study["diagnosis"])
         if study["diagnosisYear"] != None:
             if study["diagnosisYear"] < minDiagnosisYear:
                 minDiagnosisYear = study["diagnosisYear"]
@@ -328,6 +330,7 @@ def collectMetadata(dataset, datalake_mount_path, eformsFilePath):
     dataset["ageHighInDays"], dataset["ageHighUnit"] = (maxAgeInDays, maxAgeUnit) if maxAgeInDays != 0 else (None, None)
     dataset["ageNullCount"] = ageNullCount
     dataset["sex"], dataset["sexCount"] = _getValuesAndCountsFromCountDict(sexDict)
+    dataset["diagnosis"], dataset["diagnosisCount"] = _getValuesAndCountsFromCountDict(diagnosisDict)
     dataset["diagnosisYearLow"] = minDiagnosisYear if minDiagnosisYear != MAX_YEAR_VALUE else None
     dataset["diagnosisYearHigh"] = maxDiagnosisYear if maxDiagnosisYear != 0 else None
     dataset["diagnosisYearNullCount"] = diagnosisYearNullCount

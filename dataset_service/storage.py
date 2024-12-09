@@ -29,7 +29,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 34
+    CURRENT_SCHEMA_VERSION = 35
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -74,6 +74,7 @@ class DB:
             if version < 32: self.updateDB_v31To32()
             if version < 33: self.updateDB_v32To33()
             if version < 34: self.updateDB_v33To34()
+            if version < 35: self.updateDB_v34To35()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -135,6 +136,7 @@ class DB:
                 author_id varchar(64) NOT NULL,
                 creation_date timestamp NOT NULL,
                 description text NOT NULL DEFAULT '',
+                provenance text NOT NULL DEFAULT '',
                 purpose text NOT NULL DEFAULT '',
                 type varchar(16) ARRAY NOT NULL DEFAULT ARRAY[]::varchar[],
                 collection_method varchar(16) ARRAY NOT NULL DEFAULT ARRAY[]::varchar[],
@@ -157,6 +159,8 @@ class DB:
                 age_null_count integer DEFAULT NULL,
                 sex text NOT NULL DEFAULT '[]',
                 sex_count text NOT NULL DEFAULT '[]',
+                diagnosis text NOT NULL DEFAULT '[]',
+                diagnosis_count text NOT NULL DEFAULT '[]',
                 diagnosis_year_low integer DEFAULT NULL,
                 diagnosis_year_high integer DEFAULT NULL,
                 diagnosis_year_null_count integer DEFAULT NULL,
@@ -536,6 +540,13 @@ class DB:
                 zenodo_grant varchar(128) NOT NULL DEFAULT '',
                 constraint pk_project primary key (code)
             );""")
+    
+    def updateDB_v34To35(self):
+        logging.root.info("Updating database from v34 to v35...")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN provenance text NOT NULL DEFAULT ''")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN diagnosis text NOT NULL DEFAULT '[]'")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN diagnosis_count text NOT NULL DEFAULT '[]'")
+    
 
     def createOrUpdateAuthor(self, userId, username, name, email):
         self.cursor.execute("SELECT id FROM author WHERE id=%s LIMIT 1;", (userId,))
@@ -587,12 +598,12 @@ class DB:
     def createDataset(self, dataset, userId):
         self.cursor.execute("""
             INSERT INTO dataset (id, name, version, project_code, previous_id, author_id, 
-                                 creation_date, description, purpose, 
+                                 creation_date, description, provenance, purpose, 
                                  type, collection_method, public,
                                  studies_count, subjects_count)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s);""",
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s);""",
             (dataset["id"], dataset["name"], dataset["version"], dataset["project"], dataset["previousId"], userId, 
-             dataset["creationDate"], dataset["description"], dataset["purpose"],
+             dataset["creationDate"], dataset["description"], dataset["provenance"], dataset["purpose"],
              dataset["type"], dataset["collectionMethod"], dataset["public"], 
              dataset["studiesCount"], dataset["subjectsCount"]))
 
@@ -601,6 +612,7 @@ class DB:
         # because json don't allow store the None value in a array of strings.
         # In final format the None value is converted to "Unknown" which is compliant with Miabis.
         sexList = [output_formats.sexToMiabis(i) for i in dataset["sex"]]
+        diagnosisList = [output_formats.diagnosisToOutputFormat(i) for i in dataset["diagnosis"]]
         bodyPartList = [output_formats.bodyPartToOutputFormat(i) for i in dataset["bodyPart"]]
         modalityList = [output_formats.modalityToOutputFormat(i) for i in dataset["modality"]]
         manufacturerList = [output_formats.manufacturerToOutputFormat(i) for i in dataset["manufacturer"]]
@@ -611,6 +623,7 @@ class DB:
                 age_high_in_days = %s, age_high_unit = %s, 
                 age_null_count = %s, 
                 sex = %s, sex_count = %s, 
+                diagnosis = %s, diagnosis_count = %s,
                 diagnosis_year_low = %s, diagnosis_year_high = %s, 
                 diagnosis_year_null_count = %s, 
                 body_part = %s, body_part_count = %s, 
@@ -623,6 +636,7 @@ class DB:
                 dataset["ageHighInDays"], dataset["ageHighUnit"], 
                 dataset["ageNullCount"], 
                 json.dumps(sexList), json.dumps(dataset["sexCount"]), 
+                json.dumps(diagnosisList), json.dumps(dataset["diagnosisCount"]), 
                 dataset["diagnosisYearLow"], dataset["diagnosisYearHigh"], 
                 dataset["diagnosisYearNullCount"], 
                 json.dumps(bodyPartList), json.dumps(dataset["bodyPartCount"]), 
@@ -774,7 +788,8 @@ class DB:
                    dataset.next_id, dataset.last_integrity_check, dataset.size_in_bytes, 
                    dataset.project_code, dataset.version, 
                    dataset.purpose, dataset.type, dataset.collection_method,
-                   dataset.invalidation_reason, dataset.corrupted
+                   dataset.invalidation_reason, dataset.corrupted, dataset.provenance,
+                   dataset.diagnosis, dataset.diagnosis_count
             FROM dataset, author 
             WHERE dataset.id=%s AND author.id = dataset.author_id 
             LIMIT 1;""",
@@ -805,7 +820,7 @@ class DB:
                     previousId = row[2], nextId = row[35], 
                     authorId = row[3], authorName = row[4], authorEmail = row[5], 
                     creationDate = creationDate, description = row[7], 
-                    purpose = row[40], type = row[41], collectionMethod = row[42],
+                    provenance = row[45], purpose = row[40], type = row[41], collectionMethod = row[42],
                     license = dict(
                         title = row[8], 
                         url = row[9]), 
@@ -820,6 +835,7 @@ class DB:
                     studiesCount = row[16], subjectsCount = row[17], 
                     ageLow = ageLow, ageHigh = ageHigh, ageUnit = ageUnit, ageNullCount = row[22], 
                     sex = json.loads(row[23]), sexCount = json.loads(row[24]), 
+                    diagnosis = json.loads(row[46]), diagnosisCount = json.loads(row[47]),
                     diagnosisYearLow = row[25], diagnosisYearHigh = row[26], diagnosisYearNullCount = row[27], 
                     bodyPart = json.loads(row[28]), bodyPartCount = json.loads(row[29]), 
                     modality = json.loads(row[30]), modalityCount = json.loads(row[31]), 
@@ -1373,6 +1389,9 @@ class DB:
     def setDatasetDescription(self, id, newValue: str):
         self.cursor.execute("UPDATE dataset SET description = %s WHERE id = %s;", (newValue, id))
     
+    def setDatasetProvenance(self, id, newValue: str):
+        self.cursor.execute("UPDATE dataset SET provenance = %s WHERE id = %s;", (newValue, id))
+
     def setDatasetPurpose(self, id, newValue: str):
         self.cursor.execute("UPDATE dataset SET purpose = %s WHERE id = %s;", (newValue, id))
 

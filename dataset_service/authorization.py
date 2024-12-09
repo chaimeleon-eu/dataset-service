@@ -112,14 +112,10 @@ class User:
             if dataset["draft"]: 
                 if not dataset["creating"]:
                     editableProperties.append("draft")
-                editableProperties.append("name")
-                editableProperties.append("version")
+                editableProperties.extend(["name", "version", "previousId",
+                                           "description", "provenance", "purpose",
+                                           "type", "collectionMethod"])
                 # editableProperties.append("project")
-                editableProperties.append("description")
-                editableProperties.append("purpose")
-                editableProperties.append("type")
-                editableProperties.append("collectionMethod")
-                editableProperties.append("previousId")
             else:
                 if self.isSuperAdminDatasets():
                     editableProperties.append("public")
@@ -127,8 +123,7 @@ class User:
             editableProperties.append("invalidated")
             if dataset["invalidated"]:
                 editableProperties.append("invalidationReason")
-            editableProperties.append("contactInfo")
-            editableProperties.append("license")
+            editableProperties.extend(["contactInfo", "license"])
             if self.isSuperAdminDatasets():
                 editableProperties.append("authorId")
         return editableProperties

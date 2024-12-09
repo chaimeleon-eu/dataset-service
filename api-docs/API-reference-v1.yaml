@@ -19,7 +19,7 @@ servers:
   ## Added by API Auto Mocking Plugin
   #- description: SwaggerHub API Auto Mocking
   #  url: https://virtserver.swaggerhub.com/UPV-CHAIMELEON/Dataset-service/1.0.0
-    
+
 tags:
   - name: datasets
     description: Operations with datasets
@@ -35,7 +35,7 @@ tags:
   - name: datasetDetails_schema
     x-displayName: DatasetDetails
     description: <SchemaDefinition schemaRef="#/components/schemas/DatasetDetails" />
-      
+
 x-tagGroups:
   - name: OPERATIONS
     tags:
@@ -47,10 +47,10 @@ x-tagGroups:
   - name: SCHEMAS
     tags:
       - datasetDetails_schema
-      
+
 security: 
   - bearerAuth: []
-    
+
 paths:
 
   /datasets:
@@ -280,6 +280,7 @@ paths:
                    - "name"
                    - "version"
                    - "description"
+                   - "provenance"
                    - "purpose"
                    - "type"
                    - "collectionMethod"
@@ -1215,6 +1216,11 @@ components:
         description:
           type: string
           description: "Long explanation of dataset details, statistics, links, references, improvements/modifications if it's a new version, etc."
+        provenance:
+          type: string
+          description: |
+            Short text with the provenance of the data.
+            Optional for backward compatibility, but should be included in new implementations.
         purpose:
           type: string
           description: |
@@ -1230,6 +1236,7 @@ components:
              - "original"
              - "annotated"
              - "processed"
+             - "personal-data"
         collectionMethod:
           type: array
           description: "Optional for backward compatibility, but should be included in new implementations."
@@ -1351,6 +1358,9 @@ components:
         description:
           type: string
           description: "Long explanation of dataset details, statistics, links, references, improvements/modifications if it's a new version, etc."
+        provenance:
+          type: string
+          description: "Short text with the provenance of the data."
         purpose:
           type: string
           description: "Short text with the intended purpose of the dataset."
@@ -1363,6 +1373,7 @@ components:
              - "original"
              - "annotated"
              - "processed"
+             - "personal-data"
         collectionMethod:
           type: array
           example: '["only-image","disease-specific"]'
@@ -1534,6 +1545,23 @@ components:
           type: array
           description: |
             Array with the number of studies for each item of the previous 'sex' array. 
+            Empty if metadata still not collected.
+          example: '[348, 170, 2]'
+          items:
+            type: integer
+        diagnosis:
+          type: array
+          description: |
+            Array of different diagnosis values in the dataset. Empty if metadata still not collected.
+            Collected from Dicom tag (70D1,2000), private tag (project name) defined in CHAIMELEON.
+            Possible values: "Prostate cancer", "Breast cancer", "Lung cancer", "Colon cancer", "Rectum cancer", "Unknown".
+          example: '["Colon cancer", "Rectum cancer", "Unknown"]'
+          items:
+            type: string
+        diagnosisCount:
+          type: array
+          description: |
+            Array with the number of studies for each item of the previous 'diagnosis' array. 
             Empty if metadata still not collected.
           example: '[348, 170, 2]'
           items:
