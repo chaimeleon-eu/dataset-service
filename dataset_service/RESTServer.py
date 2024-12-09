@@ -260,7 +260,7 @@ def postSetUI():
     else:
         sourceUrl = bottle.request.body.read().decode('UTF-8')
         LOG.debug("URL in body: " + sourceUrl )
-        output, status = utils.execute_cmd("wget -O \"" + destinationZipPath + "\" '" + sourceUrl + "'")
+        utils.download_url(sourceUrl, destinationZipPath)
 
     output, status = utils.execute_cmd("unzip -uo \"" + destinationZipPath + "\" -d \"" + CONFIG.self.static_files_dir_path + "/\"")
     LOG.debug("UI package successfully updated.")
@@ -343,6 +343,12 @@ def _checkPropertyAsArrayOfStrings(propName: str, value: list[str], item_possibl
             if not item in item_possible_values:
                 raise WrongInputException("unknown item value '%s' in '%s', it should be one of {%s}" \
                                           % (item, propName, ','.join(item_possible_values)))
+def _checkPropertyAsLicense(newValue):
+    if not isinstance(newValue, dict): raise WrongInputException("The license property must be an object.")
+    if not "title" in newValue: raise WrongInputException("Missing 'title' in the new license.")
+    if not "url" in newValue: raise WrongInputException("Missing 'url' in the new license.")
+    if not isinstance(newValue["title"], str): raise WrongInputException("The title of license must be a string.")
+    if not isinstance(newValue["url"], str): raise WrongInputException("The url of license must be a string.")
 
 ITEM_POSSIBLE_VALUES_FOR_TYPE = ['original', 'annotated', 'processed']
 ITEM_POSSIBLE_VALUES_FOR_COLLECTION_METHOD = ['patient-based', 'cohort', 'only-image', 'longitudinal', 'case-control', 'disease-specific']
@@ -467,10 +473,10 @@ def postDataset():
             
             LOG.debug('Creating dataset in DB...')
             db.createDataset(dataset, user.uid)
-            if CONFIG.self.default_license_id != '':
-                license = db.getLicense(int(CONFIG.self.default_license_id))
-                if license != None:
-                    db.setDatasetLicense(datasetId, license["title"], license["url"])
+            projectConfig = db.getProjectConfig(dataset["project"])
+            if projectConfig is None: raise Exception("Unexpected error: the project assigned to dataset does not exist.")
+            db.setDatasetContactInfo(datasetId, projectConfig["defaultContactInfo"])
+            db.setDatasetLicense(datasetId, projectConfig["defaultLicense"]["title"], projectConfig["defaultLicense"]["url"])
 
             LOG.debug('Creating dataset directory...')
             datasetDirName = datasetId
@@ -834,9 +840,11 @@ def createZenodoDeposition(db: DB, dataset):
     if dataset["pids"]["urls"]["zenodoDoi"] is None: 
         datasetId = dataset["id"]
         studies, total = db.getStudiesFromDataset(datasetId)
-        author = CONFIG.zenodo.author if CONFIG.zenodo.author != '' else dataset["authorName"]
-        newValue = pid.getZenodoDOI(CONFIG.zenodo.url, CONFIG.zenodo.access_token, dataset, studies, author,
-                                    CONFIG.self.dataset_link_format, CONFIG.zenodo.community, CONFIG.zenodo.grant)
+        projectConfig = db.getProjectConfig(dataset["project"])
+        if projectConfig is None: raise Exception()
+        author = projectConfig["zenodoAuthor"] if projectConfig["zenodoAuthor"] != '' else dataset["authorName"]
+        newValue = pid.getZenodoDOI(CONFIG.zenodo.url, projectConfig["zenodoAccessToken"], dataset, studies, author,
+                                    CONFIG.self.dataset_link_format, projectConfig["zenodoCommunity"], projectConfig["zenodoGrant"])
         db.setZenodoDOI(datasetId, newValue)
 
 def updateZenodoDeposition(db, dataset):
@@ -845,9 +853,11 @@ def updateZenodoDeposition(db, dataset):
     if pidUrl != None: 
         i = pidUrl.rfind('.') + 1
         depositionId = pidUrl[i:]
-        author = CONFIG.zenodo.author if CONFIG.zenodo.author != '' else dataset["authorName"]
-        pid.updateZenodoDeposition(CONFIG.zenodo.url, CONFIG.zenodo.access_token, dataset, author,
-                                   CONFIG.self.dataset_link_format, CONFIG.zenodo.community, CONFIG.zenodo.grant, 
+        projectConfig = db.getProjectConfig(dataset["project"])
+        if projectConfig is None: raise Exception()
+        author = projectConfig["zenodoAuthor"] if projectConfig["zenodoAuthor"] != '' else dataset["authorName"]
+        pid.updateZenodoDeposition(CONFIG.zenodo.url, projectConfig["zenodoAccessToken"], dataset, author,
+                                   CONFIG.self.dataset_link_format, projectConfig["zenodoCommunity"], projectConfig["zenodoGrant"], 
                                    depositionId)
 
 @app.route('/api/datasets/<id>', method='PATCH')
@@ -969,15 +979,9 @@ def patchDataset(id):
                 db.setDatasetPreviousId(datasetId, newValue)  # newValue can be None or str
                 # Don't notify the tracer, this property can be changed only in draft state
             elif property == "license":
-                if not isinstance(newValue, dict): raise WrongInputException("The value must be an object.")
-                if not "title" in newValue: raise WrongInputException("Missing 'title' in the new license.")
-                if not "url" in newValue: raise WrongInputException("Missing 'url' in the new license.")
-                if not isinstance(newValue["title"], str): raise WrongInputException("The title of license must be a string.")
-                if not isinstance(newValue["url"], str): raise WrongInputException("The url of license must be a string.")
-                newTitle = newValue["title"]
-                newUrl = newValue["url"]
-                db.setDatasetLicense(datasetId, newTitle, newUrl)
-                # dataset["license"] = dict(title=newTitle,url=newUrl)  license is written in a PDF file
+                _checkPropertyAsLicense(newValue)
+                db.setDatasetLicense(datasetId, newValue["title"], newValue["url"])
+                # dataset["license"] = dict(title=newTitle,url=newUrl)  license is written in a PDF file when uploaded to zenodo
                 # updateZenodoDeposition(db, dataset)                   and deposition files cannot be changed once published
                 trace_details = "LICENSE_UPDATED"
             elif property == "pids":
@@ -1025,6 +1029,8 @@ def patchDataset(id):
         bottle.response.status = 204
     except WrongInputException as e:
         return setErrorResponse(400, str(e))
+    except pid.PidException as e:
+        return setErrorResponse(500, str(e))
 
 @app.route('/api/datasets/<id>/acl', method='GET')
 def getDatasetACL(id):
@@ -1273,19 +1279,250 @@ def getProjects():
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
 
+    ###### transitional step 1: while deprecated param 'forNewDataset' still exists and purpose is not provided by client (now mandatory)
     if 'forNewDataset' in bottle.request.query and bottle.request.query['forNewDataset'].lower() == 'true':
+        purpose = "datasetCreation"
+    else: purpose = "datasetSearchFilter"
+    #######################################################
+
+    if 'purpose' in bottle.request.query:
+        if not bottle.request.query['purpose'] in ["datasetCreation", "datasetSearchFilter", "projectList"]:
+            return setErrorResponse(400, "unknown purpose")
+        else: purpose = bottle.request.query['purpose']
+    #else: purpose = "projectList"   transitional step 2: when the client change GET /projects to GET /projects?purpose=datasetSearchFilter
+    #                                uncomment that line
+    #                                and change API DOC to make purpose optional, default=projectList
+    if purpose == "datasetCreation":
         # New datasets only can be assigned to projects which the user has joined to
         projects = list(user.getProjects())
-    else:
+    elif purpose == "datasetSearchFilter":
         # List all the possible values for "project" filter in GET /datasets
         searchFilter = authorization.Search_filter()
         searchFilter.adjustByUser(user)
         with DB(CONFIG.db) as db:
-            projects = db.getProjects(searchFilter)
+            projects = db.getProjectsForSearchFilter(searchFilter)
+    else:  # purpose == "projectList"
+        with DB(CONFIG.db) as db:
+            projects = db.getProjects()
+            for project in projects:
+                project["logoUrl"] = '/project-logos/' + project["logoFileName"] if project["logoFileName"] != "" else ""
+                del project["logoFileName"]
 
     bottle.response.content_type = "application/json"
     return json.dumps(projects)
 
+def _checkUserCanModifyProject(code):
+    if CONFIG is None: raise Exception()
+    ret = getTokenFromAuthorizationHeader()
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
+    if not user.canAdminProjects():
+        with DB(CONFIG.db) as db:
+            if not db.existsProject(code) or not user.canModifyProject(code):
+                return setErrorResponse(401, "unauthorized user")
+
+def _obtainAndWriteLogoFile(sourceUrl, destinationFilePath):
+    if not isinstance(sourceUrl, str) or not utils.is_valid_url(sourceUrl, empty_path_allowed=False):
+        raise WrongInputException("'logoUrl' property must be an URL-formated string.")
+    LOG.debug("URL in body: " + sourceUrl )
+    utils.download_url(sourceUrl, destinationFilePath, 8)
+    
+    # elif 'logoImage' in projectData.keys():
+    #     logoFile = bottle.request.files["logoImage"]
+    #     name, ext = os.path.splitext(logoFile.filename)
+    #     if not ext in ['.png']:
+    #         return setErrorResponse(400, 'File extension not allowed, supported formats: png')
+    #     logoFile.file.read().decode('UTF-8').splitlines()
+    #     logoFile.save(destinationPath + ".tmp")
+    #     imageType = checkImageAndGetType()
+    #     return True
+
+@app.route('/api/projects/<code>', method='PUT')
+def putProject(code):
+    if CONFIG is None or not isinstance(bottle.request.body, io.IOBase) \
+       or not isinstance(bottle.request.files, bottle.FormsDict): raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    _checkUserCanModifyProject(code)
+    
+    content_types = get_header_media_types('Content-Type')
+    if not 'application/json' in content_types:
+        return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
+    read_data = None
+    logoFileName = code   # str(uuid.uuid4())
+    destinationFilePath = os.path.join(CONFIG.self.static_files_logos_dir_path, logoFileName)
+    try:
+        read_data = bottle.request.body.read().decode('UTF-8')
+        LOG.debug("BODY: " + read_data)
+        projectData = json.loads(read_data)
+        if not 'name' in projectData.keys() or not isinstance(projectData["name"], str): 
+            raise WrongInputException("'name' property is required and must be a string.")
+        name = projectData["name"]
+        if not 'shortDescription' in projectData.keys() or not isinstance(projectData["shortDescription"], str): 
+            raise WrongInputException("'shortDescription' property is required and must be a string.")
+        shortDescription = projectData["shortDescription"]
+        externalUrl = projectData["externalUrl"] if "externalUrl" in projectData.keys() else ''
+        if not isinstance(externalUrl, str) or (externalUrl != '' and not utils.is_valid_url(externalUrl)):
+            raise WrongInputException("'externalUrl' property must be an URL-formated string.")
+        
+        if 'logoUrl' in projectData.keys() and projectData["logoUrl"] != "":
+            _obtainAndWriteLogoFile(projectData["logoUrl"], destinationFilePath + ".tmp")
+        else:
+            logoFileName = ""
+
+        with DB(CONFIG.db) as db:
+            LOG.debug("Creating or updating project: %s" % code)
+            db.createOrUpdateProject(code, name, shortDescription, externalUrl, logoFileName)
+            # project configuration is included in this operation also
+            _putProjectConfig(projectData, code, db)
+
+        if os.path.exists(destinationFilePath + ".tmp"): 
+            os.rename(destinationFilePath + ".tmp", destinationFilePath)
+        LOG.debug('Project successfully created or updated.')
+        bottle.response.status = 201
+    except WrongInputException as e:
+        return setErrorResponse(400, str(e))
+    except Exception as e:
+        LOG.exception(e)
+        if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
+        # delete if exist temporal image logo file
+        if os.path.exists(destinationFilePath + ".tmp"): os.unlink(destinationFilePath + ".tmp")
+        return setErrorResponse(500, "Unexpected error, may be the input is wrong")
+
+def _putProjectConfig(projectConfig, projectCode, db):
+    defaultContactInfo = projectConfig["defaultContactInfo"] if "defaultContactInfo" in projectConfig.keys() else ''
+    if "defaultLicense" in projectConfig.keys():
+        _checkPropertyAsLicense(projectConfig["defaultLicense"])
+        defaultLicenseTitle = projectConfig["defaultLicense"]["title"]
+        defaultLicenseUrl = projectConfig["defaultLicense"]["url"]
+    else:
+        defaultLicenseTitle = ""
+        defaultLicenseUrl = ""
+    zenodoAccessToken = projectConfig["zenodoAccessToken"] if "zenodoAccessToken" in projectConfig.keys() else ''
+    if not isinstance(zenodoAccessToken, str): raise WrongInputException("'zenodoAccessToken' property must be a string.")
+    zenodoAuthor = projectConfig["zenodoAuthor"] if "zenodoAuthor" in projectConfig.keys() else ''
+    if not isinstance(zenodoAuthor, str): raise WrongInputException("'zenodoAuthor' property must be a string.")
+    zenodoCommunity = projectConfig["zenodoCommunity"] if "zenodoCommunity" in projectConfig.keys() else ''
+    if not isinstance(zenodoCommunity, str): raise WrongInputException("'zenodoCommunity' property must be a string.")
+    zenodoGrant = projectConfig["zenodoGrant"] if "zenodoGrant" in projectConfig.keys() else ''
+    if not isinstance(zenodoGrant, str): raise WrongInputException("'zenodoGrant' property must be a string.")
+    db.setProjectConfig(projectCode, defaultContactInfo, defaultLicenseTitle, defaultLicenseUrl,
+                                     zenodoAccessToken, zenodoAuthor, zenodoCommunity, zenodoGrant)
+
+
+@app.route('/api/projects/<code>/config', method='PUT')
+def putProjectConfig(code):
+    if CONFIG is None or not isinstance(bottle.request.body, io.IOBase): raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    _checkUserCanModifyProject(code)
+    
+    content_types = get_header_media_types('Content-Type')
+    if not 'application/json' in content_types:
+        return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
+    read_data = None
+    try:
+        read_data = bottle.request.body.read().decode('UTF-8')
+        LOG.debug("BODY: " + read_data)
+        projectConfig = json.loads(read_data)
+        with DB(CONFIG.db) as db:
+            LOG.debug("Updating config of project: %s" % code)
+            _putProjectConfig(projectConfig, code, db)
+        LOG.debug('Project config successfully updated.')
+        bottle.response.status = 201
+    except WrongInputException as e:
+        return setErrorResponse(400, str(e))
+    except Exception as e:
+        LOG.exception(e)
+        if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
+        return setErrorResponse(500, "Unexpected error, may be the input is wrong")
+
+
+@app.route('/api/projects/<code>', method='GET')
+def getProject(code):
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    ret = getTokenFromAuthorizationHeader()
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
+    
+    with DB(CONFIG.db) as db:
+        project = db.getProject(code)
+    if project is None:
+        return setErrorResponse(404, "not found")
+    project["logoUrl"] = '/project-logos/' + project["logoFileName"] if project["logoFileName"] != "" else ""
+    del project["logoFileName"]
+    project["editablePropertiesByTheUser"] = user.getEditablePropertiesOfProjectByTheUser(code)
+    project["allowedActionsForTheUser"] = user.getAllowedActionsOnProjectForTheUser(code)
+    bottle.response.content_type = "application/json"
+    return json.dumps(project)
+
+@app.route('/api/projects/<code>/config', method='GET')
+def getProjectConfig(code):
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    _checkUserCanModifyProject(code)
+    
+    with DB(CONFIG.db) as db:
+        project = db.getProject(code)
+        if project is None:
+            return setErrorResponse(404, "not found")
+        config = db.getProjectConfig(code)
+
+    bottle.response.content_type = "application/json"
+    return json.dumps(config)
+
+@app.route('/api/projects/<code>', method='PATCH')
+def patchProject(code):
+    if CONFIG is None or AUTH_CLIENT is None or not isinstance(bottle.request.body, io.IOBase): raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    ret = getTokenFromAuthorizationHeader()
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
+    if user.isUnregistered():
+        return setErrorResponse(401, "unauthorized user")
+    
+    logoFileName = code   # str(uuid.uuid4())
+    destinationFilePath = os.path.join(CONFIG.self.static_files_logos_dir_path, logoFileName)
+    try:
+        read_data = bottle.request.body.read().decode('UTF-8')
+        LOG.debug("BODY: " + read_data)
+        patch = json.loads( read_data )
+        property = patch["property"]
+        newValue = patch["value"]
+        with DB(CONFIG.db) as db:
+            if not db.existsProject(code):
+                return setErrorResponse(404, "not found")
+            if property not in user.getEditablePropertiesOfProjectByTheUser(code):
+                return setErrorResponse(400, "the property is not in the editablePropertiesByTheUser list")
+            elif property == "name":
+                if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                db.setProjectName(code, newValue)
+            elif property == "shortDescription":
+                if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                db.setProjectShortDescription(code, newValue)
+            elif property == "externalUrl":
+                if not isinstance(newValue, str) or (newValue != '' and not utils.is_valid_url(newValue)):
+                    raise WrongInputException("'externalUrl' property must be an URL-formated string.")
+                db.setProjectExternalUrl(code, newValue)
+            elif property == "logoUrl":
+                if newValue != "":
+                    _obtainAndWriteLogoFile(newValue, destinationFilePath + ".tmp")
+                else:
+                    logoFileName = ""
+                db.setProjectLogoFileName(code, logoFileName)
+                if os.path.exists(destinationFilePath + ".tmp"): 
+                    os.rename(destinationFilePath + ".tmp", destinationFilePath)
+            else:
+                return setErrorResponse(400, "invalid property")
+
+        bottle.response.status = 204
+    except WrongInputException as e:
+        return setErrorResponse(400, str(e))
+    except Exception as e:
+        LOG.exception(e)
+        if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
+        # delete if exist temporal image logo file
+        if os.path.exists(destinationFilePath + ".tmp"): os.unlink(destinationFilePath + ".tmp")
+        return setErrorResponse(500, "Unexpected error, may be the input is wrong")
 
 @app.route('/api/user/<userName>', method='POST')
 def postUser(userName):
@@ -1601,14 +1838,21 @@ def getUnknownWeb(any_path):
     LOG.debug("Received GET unknown path: %s" % bottle.request.path)
     return setErrorResponse(404, "Not found '%s'" % bottle.request.path)
 
-# # temporal for backward compatibility
-# @app.route('/<file_path:re:.*\.(html|js|json|txt|map|css|jpg|png|gif|ico|svg)>', method='GET')
-# def getStaticFile(file_path):
-#     LOG.debug("Received GET %s" % bottle.request.path)
-#     LOG.debug("Static file: "+file_path)
-#     return bottle.static_file(file_path, CONFIG.self.static_files_dir_path)
+# ====================
+# Project logos routes
+# ====================
 
-# Any other path (without prefix /api/ or /web/) will be responded with the index.html content,
+# static files (any route that ends with '.' + known extension, including subpaths)
+# To avoid conflicts, static files prefixed with /web/
+@app.route('/project-logos/<file_path:re:.+>', method='GET')
+def getStaticFileLogos(file_path):
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    LOG.debug("Static file (logos): "+file_path)
+    return bottle.static_file(file_path, CONFIG.self.static_files_logos_dir_path)
+
+
+# Any other path (without prefix /api/ or /web/ or /project-logos/) will be responded with the index.html content,
 # index.html loads a javascript interface that manage those other paths.
 @app.route('/', method='GET')
 @app.route('/<any_path:re:.+>', method='GET')

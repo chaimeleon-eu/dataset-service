@@ -29,7 +29,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 33
+    CURRENT_SCHEMA_VERSION = 34
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -73,6 +73,7 @@ class DB:
             if version < 31: self.updateDB_v30To31()
             if version < 32: self.updateDB_v31To32()
             if version < 33: self.updateDB_v32To33()
+            if version < 34: self.updateDB_v33To34()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -254,6 +255,21 @@ class DB:
             );
             INSERT INTO license (name, url) 
                 VALUES ('CC BY 4.0', 'https://creativecommons.org/licenses/by/4.0/');
+            CREATE TABLE project (
+                code varchar(16),
+                name varchar(128) NOT NULL,
+                short_description varchar(512) NOT NULL,
+                external_url varchar(256) NOT NULL DEFAULT '',
+                logo_file_name varchar(64) NOT NULL DEFAULT '',
+                default_contact_info varchar(256) NOT NULL DEFAULT '',
+                default_license_title varchar(128) NOT NULL DEFAULT '',
+                default_license_url varchar(256) NOT NULL DEFAULT '',
+                zenodo_access_token varchar(128) NOT NULL DEFAULT '',
+                zenodo_author varchar(128) NOT NULL DEFAULT '',
+                zenodo_community varchar(128) NOT NULL DEFAULT '',
+                zenodo_grant varchar(128) NOT NULL DEFAULT '',
+                constraint pk_project primary key (code)
+            );
         """ % self.CURRENT_SCHEMA_VERSION)
     
     def updateDB_v1To2(self):
@@ -503,6 +519,23 @@ class DB:
         self.cursor.execute("ALTER TABLE series ADD COLUMN hash_cache bytea DEFAULT NULL")
         self.cursor.execute("ALTER TABLE series ADD COLUMN hash_last_time_calculated timestamp DEFAULT NULL")
 
+    def updateDB_v33To34(self):
+        logging.root.info("Updating database from v33 to v34...")
+        self.cursor.execute("""CREATE TABLE project (
+                code varchar(16),
+                name varchar(128) NOT NULL,
+                short_description varchar(512) NOT NULL,
+                external_url varchar(256) NOT NULL DEFAULT '',
+                logo_file_name varchar(64) NOT NULL DEFAULT '',
+                default_contact_info varchar(256) NOT NULL DEFAULT '',
+                default_license_title varchar(128) NOT NULL DEFAULT '',
+                default_license_url varchar(256) NOT NULL DEFAULT '',
+                zenodo_access_token varchar(128) NOT NULL DEFAULT '',
+                zenodo_author varchar(128) NOT NULL DEFAULT '',
+                zenodo_community varchar(128) NOT NULL DEFAULT '',
+                zenodo_grant varchar(128) NOT NULL DEFAULT '',
+                constraint pk_project primary key (code)
+            );""")
 
     def createOrUpdateAuthor(self, userId, username, name, email):
         self.cursor.execute("SELECT id FROM author WHERE id=%s LIMIT 1;", (userId,))
@@ -956,7 +989,7 @@ class DB:
                             studiesCount = row[9], subjectsCount = row[10]))
         return res, total
     
-    def getProjects(self, searchFilter: authorization.Search_filter):
+    def getProjectsForSearchFilter(self, searchFilter: authorization.Search_filter):
         whereClause = sql.Composed([])
 
         if searchFilter.getUserId() != None:
@@ -1479,4 +1512,72 @@ class DB:
             WHERE id=%s;""",
             (startTime, endTime, endStatus, datasetAccessId))
 
+    def createOrUpdateProject(self, code, name, shortDescription, externalUrl, logoFileName):
+        self.cursor.execute("""
+            INSERT INTO project (code, name, short_description, external_url, logo_file_name) 
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (code) DO UPDATE
+                SET name = excluded.name,
+                    short_description = excluded.short_description,
+                    external_url = excluded.external_url,
+                    logo_file_name = excluded.logo_file_name;""", 
+            (code, name, shortDescription, externalUrl, logoFileName)
+        )
 
+    def getProjects(self):
+        self.cursor.execute("""
+            SELECT code, name, logo_file_name
+            FROM project;""")
+            # ORDER BY count of public datasets
+        res = []
+        for row in self.cursor:
+            res.append(dict(code = row[0], name = row[1], logoFileName = row[2]))
+        return res
+    
+    def existsProject(self, code):
+        self.cursor.execute("SELECT code FROM project WHERE code=%s", (code,))
+        return self.cursor.rowcount > 0
+    
+    def getProject(self, code):
+        self.cursor.execute("""
+            SELECT code, name, short_description, external_url, logo_file_name
+            FROM project WHERE code=%s LIMIT 1;""", (code,))
+        row = self.cursor.fetchone()
+        if row is None: return None
+        return dict(code = row[0], name = row[1], shortDescription = row[2],
+                    externalUrl = row[3], logoFileName = row[4])
+    
+    def setProjectName(self, code, newValue: str | None):
+        self.cursor.execute("UPDATE project SET name = %s WHERE code = %s;", (newValue, code))
+    def setProjectShortDescription(self, code, newValue: str | None):
+        self.cursor.execute("UPDATE project SET short_description = %s WHERE code = %s;", (newValue, code))
+    def setProjectExternalUrl(self, code, newValue: str):
+        self.cursor.execute("UPDATE project SET external_url = %s WHERE code = %s;", (newValue, code))
+    def setProjectLogoFileName(self, code, newValue: str):
+        self.cursor.execute("UPDATE project SET logo_file_name = %s WHERE code = %s;", (newValue, code))
+
+    def setProjectConfig(self, projectCode, defaultContactInfo: str, defaultLicenseTitle: str, defaultLicenseUrl: str,
+                         zenodoAccessToken: str, zenodoAuthor: str, zenodoCommunity: str, zenodoGrant: str):
+        self.cursor.execute("""
+            UPDATE project 
+                SET default_contact_info = %s, default_license_title = %s, default_license_url = %s,
+                    zenodo_access_token = %s, zenodo_author = %s, zenodo_community = %s, zenodo_grant = %s 
+            WHERE code = %s;""", 
+            (defaultContactInfo, defaultLicenseTitle, defaultLicenseUrl, 
+             zenodoAccessToken, zenodoAuthor, zenodoCommunity, zenodoGrant,
+             projectCode))
+
+    def getProjectConfig(self, projectCode):
+        self.cursor.execute("""
+            SELECT default_contact_info, default_license_title, default_license_url,
+                   zenodo_access_token, zenodo_author, zenodo_community, zenodo_grant
+            FROM project WHERE code=%s LIMIT 1;""", (projectCode,))
+        row = self.cursor.fetchone()
+        if row is None: return None
+        return dict(defaultContactInfo = row[0], 
+                    defaultLicense = dict(
+                        title = row[1], 
+                        url = row[2]),
+                    zenodoAccessToken = row[3], zenodoAuthor = row[4], 
+                    zenodoCommunity = row[5], zenodoGrant = row[6])
+    

@@ -206,6 +206,40 @@ Content-Length: 0
 Content-Type: text/html; charset=UTF-8
 ```
 
+### List projects
+
+Example:
+```
+# curl -i -X GET \
+       -H "Authorization: bearer $DSS_TOKEN" \
+       "${DSS_ENDPOINT}/projects?purpose=projectList"
+HTTP/2 200
+content-type: application/json
+content-length: 50
+
+[{"code": "CHAIMELEON", "name": "Accelerating the lab to market transition of AI tools for cancer management", "logoUrl": ""}]
+```
+
+### Get details of a project
+
+Example:
+```
+$ curl -i -X GET \
+       -H "Authorization: bearer $DSS_TOKEN" \
+       "${DSS_ENDPOINT}/projects/CHAIMELEON"
+HTTP/2 200
+content-type: application/json
+content-length: 297
+
+{"code": "CHAIMELEON", 
+ "name": "Accelerating the lab to market transition of AI tools for cancer management", 
+ "shortDescription": "...", 
+ "externalUrl": "", 
+ "logoUrl": "", 
+ "editablePropertiesByTheUser": ["name", "shortDescription", "externalUrl", "logoUrl"], 
+ "allowedActionsForTheUser": ["config"]}
+```
+
 ### Create a user
 
 PUT /users/{userName}
@@ -409,7 +443,7 @@ Please note it is JSON format this time, and takes precedence over all configura
 The capabilities of a user (which operations can do) are defined by the token received. 
 There are two places in the token to see:
  - the roles for the application (i.e. in 'resource_access.dataset-service.roles'). 
- - the groups with prefix 'PROJECT-'
+ - the groups with prefix 'PROJECT-' and 'ADMINS-PROJECT-'
 Example:
 ```
 {
@@ -440,7 +474,8 @@ Example:
   },
   "groups": [
     "data-scientists",
-    "PROJECT-CHAIMELEON"
+    "PROJECT-CHAIMELEON",
+    "ADMINS-PROJECT-CHAIMELEON"
   ],
   ...
   "name": ...,
@@ -449,19 +484,33 @@ Example:
 }
 ```
 
-These are the known roles:
+The groups with pattern `PROJECT-{project}` indicate the projects which the user has joined to.
+The user will be able to see any public dataset (as any unregistered user), but only the non-public datasets of the projects which the user has joined to.
+These are the known roles related with datasets operation:
  - __use_datasets__ (1): The user can use datasets (in addition to only see the metadata).
+                         The user will be able to use datasets (public and non-public) of the projects which the user has joined to.
+                         The user will be able to use public datasets of other projects only if she/he is specifically included in the ACL (Access Control List) of the dataset.
+                         The non-public datasets can not be seen nor used by users out of the project.
  - __admin_datasets__ (2): Also can create datasets and modify properties (and the state) of his/her own datasets.
- - __superadmin_datasets__ (3): Also can modify any dataset (not only his/her own datasets).
+                           The user can create datasets only in the projects where he/she has joined to.
+ - __superadmin_datasets__ (3): Also can modify any dataset of any project, and not only his/her own datasets.
 
 The name of each one can be customized in the configuration file. 
 The number is just a hint, not part of the name: you can see them as permission levels, each level include the previous levels.
 
-The groups with pattern `PROJECT-{project}` indicate the projects which the user has joined to.
-The user will be able to see and use any public dataset and the non-public datasets of the projects which the user has joined to.
+The groups with pattern `ADMINS-PROJECT-{project}` indicate the projects which the user is admin of.
+The admins of a project can:
+ - edit the details of the project
+ - view and change the configuration of the project (Zenodo parameters for publication and others)
+ - publish released datasets of a project (as responsible of the Zenodo account) (the creators of datasets can't do).
+ 
+NOTE: for keycloak it is recommended to create the groups with prefix `PROJECT-` and `ADMINS-PROJECT-` as subgroups in a group named for example `PROJECTS` for better organization;
+even though they appear in the token as a plain list (at same level), so the prefix is required anyway.
+
 There are other special roles:
  - __admin_users__: required for the operations in path '/user'.
  - __admin_datasetAccess__: required for the operations in paths '/datasetAccess' and '/datasetAccessCheck'.
+ - __admin_projects__: can create and modify all the projects.
 
 ## Dataset states
 

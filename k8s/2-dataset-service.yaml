@@ -52,6 +52,9 @@ spec:
             - mountPath: "/var/www/dataset-service-ui"
               subPath: "ui"
               name: dataset-service-data-volume
+            - mountPath: "/var/www/project-logos"
+              subPath: "project-logos"
+              name: dataset-service-data-volume
             - mountPath: "/var/www/datalakeinfo"
               subPath: "datalakeinfo"
               name: dataset-service-data-volume
@@ -81,10 +84,7 @@ spec:
                       "url": "https://chaimeleon-eu.i3m.upv.es/tracer-service/tracer/"
                   },
                   "zenodo": {
-                      "url": "https://zenodo.org/",
-                      "access_token": "XXXXXXXX",
-                      "community": "chaimeleon_h2020",
-                      "grant": "10.13039/501100000780::952172"
+                      "url": "https://zenodo.org/"
                   },
                   "self": { 
                       "port": 11000, 
@@ -93,6 +93,7 @@ spec:
                         "dataset_creation_job": {"level": "DEBUG", "file_path": "./log/dataset-creation-job-%s.log"}
                       },
                       "static_files_dir_path": "/var/www/dataset-service-ui",
+                      "static_files_logos_dir_path": "/var/www/project-logos",
                       "datalakeinfo_dir_path": "/var/www/datalakeinfo",
                       "datalakeinfo_token": "XXXXXXXX",
                       "datalake_mount_path": "/mnt/datalake",

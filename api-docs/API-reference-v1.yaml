@@ -748,13 +748,25 @@ paths:
       tags: [projects]
       summary: List projects
       operationId: listProjects
-      description: |
-        List all available projects which datasets can belong to.
-        Useful to list the possible values for the param "project" in "GET /datasets"
-        and (using the param "forNewDataset=true") to list the possible values for the property "project" of new dataset (POST /datasets).
+      description: "List the projects depending on the purpose."
       parameters:
+        - name: purpose
+          description: |
+            List the projects depending on the purpose:
+             * `projectList` - List all the projects. Useful for a general list of projects, usually available in the main menu.
+             * `datasetCreation` - List the possible values for the property "project" of new dataset (POST /datasets) according to the authenticated user. New datasets only can be assigned to one of the projects the user has joined to.
+             * `datasetSearchFilter` - List all available projects which visible datasets can belong to.
+                                       Useful to list the possible values for the param "project" in "GET /datasets"
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: 
+              - "projectList"
+              - "datasetCreation"
+              - "datasetSearchFilter"
         - name: forNewDataset
-          description: "(Optional, default=false) List projects which the user has joined to. New datasets only can be assigned to one of them."
+          description: "(Deprecated, optional, default=false, purpose takes precedence if both params included) List projects which the user has joined to. New datasets only can be assigned to one of them."
           in: query
           required: false
           schema:
@@ -765,10 +777,197 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
+                oneOf:
+                  - description: "In case of purpose is `datasetCreation` or `datasetSearchFilter`"
+                    type: array
+                    items:
+                      type: string
+                      example: "MY-PROJECT"
+                  - description: "In case of purpose is `projectList`"
+                    type: array
+                    items:
+                      type: object
+                      example: {"MY-PROJECT", "My own project", "/project-logos/729037af-9015-4222-b064-77f3c1bm9d7h.png"}
+                      properties:
+                        code:
+                          $ref: '#/components/schemas/ProjectCode'
+                        name:
+                          type: string
+                          maxLength: 128
+                          description: "Long name of the project."
+                        logoUrl:
+                          type: string
+                          description: "Image path of the logo."
+  
+  /projects/{code}:
+    put:
+      tags: [projects]
+      summary: Create new project
+      operationId: createProject
+      description: |
+        Creates a new project or updates if already exists.
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ProjectCode'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ProjectDetails'
+                - type: object
+                  properties:
+                    logoUrl:
+                      type: string
+                      description: |
+                        Optional URL to an image logo of the project. 
+                        The image will be automatically downloaded and stored in the server. 
+                        Set to empty string if there is no logo for the project."
+                      example: "https://some-project.org/img/logo.png"
+                    projectConfig:
+                      $ref: '#/components/schemas/ProjectConfig'
+      responses:
+        '201':
+          description: project created or updated
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    get:
+      tags: [projects]
+      summary: Get the details of a project
+      operationId: getProject
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ProjectCode'
+      responses:
+        '200':
+          description: "successfully retrieved the details of the project"
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ProjectDetails'
+                  - type: object
+                    example: {"MY-PROJECT", "My own project", "/project-logos/729037af-9015-4222-b064-77f3c1bm9d7h.png"}
+                    properties:
+                      code:
+                        $ref: '#/components/schemas/ProjectCode'
+                      logoUrl:
+                        type: string
+                        description: "(Optional) Image path of the logo. Empty string if there is no logo for the project."
+                        example: "/project-logos/729037af-9015-4222-b064-77f3c1bm9d7h.png"
+                      editablePropertiesByTheUser:
+                        type: array
+                        description: |
+                          The properties that can be modified with PATCH operation by the current authenticated user. 
+                          The array will be empty if no properties can be modified.
+                          The UI can use this property to show which properties are editable.
+                        example: '["name", "shortDescription", "externalUrl", "logoUrl"]'
+                        items:
+                          type: string
+                      allowedActionsForTheUser:
+                        type: array
+                        description: |
+                          The actions that the current authenticated user can do on the project. 
+                          The actions are some operations apart from edit fields/flags which are already specified in the previous property "editablePropertiesByTheUser".
+                          So this property is intended for let the UI know which other actions to show.
+                          Possible values are:
+                           * `config` - To show the form with the configuration params for the project.
+                        example: '["config"]'
+                        items:
+                          type: string
+                          enum: 
+                           - "config"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    patch:
+      tags: [projects]
+      summary: Change a property of a project by its code
+      operationId: modifyProject
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ProjectCode'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example: '{"property": "description", "value": "This is an amazing project."}'
+              properties:
+                property:
                   type: string
-                  example: "MY-PROJECT"
+                  description: |
+                    The name of the property to change. 
+                    The properies that can be changed depend on the current user, see the property "editablePropertiesByTheUser" returned by GET. 
+                    See the object returned by GET operation to know definition and value type for each of these properties.
+                  enum:
+                   - "name"
+                   - "shortDescription"
+                   - "externalUrl"
+                   - "logoUrl"
+                value:
+                  type: object
+                  description: "The new value to assign. The type depends on the property, see the object returned by GET operation."
+      responses:
+        '204':
+          description: "Successful operation."
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '400': 
+          description: "Bad request content."
+        '404':
+          description: "Not found."
+
+  /projects/{code}/config:
+    put:
+      tags: [projects]
+      summary: Set the configuration of a project
+      operationId: setProjectConfig
+      description: "..."
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ProjectCode'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectConfig'
+      responses:
+        '201':
+          description: "project configuration updated successfully"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    get:
+      tags: [projects]
+      summary: Get the configuration of a project
+      operationId: getProjectConfig
+      description: "..."
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ProjectCode'
+      responses:
+        '200':
+          description: "successfully retrieved the configuration of the project"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectConfig'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /licenses:
     get:
@@ -1177,16 +1376,7 @@ components:
              - "case-control"
              - "disease-specific"
         license:
-          type: object
-          description: "Name and link to the license document."
-          example: '{"title": "Creative Commons Attribution 4.0 International", "url": "https://creativecommons.org/licenses/by/4.0/legalcode"}'
-          properties:
-            title:
-              type: string
-              maxLength: 128
-            url:
-              type: string
-              maxLength: 256
+          $ref: '#/components/schemas/License'
         pids:
           type: object
           description: |
@@ -1429,6 +1619,7 @@ components:
             The total size of files in all the studies and series selected for this dataset plus the eforms file. 
             Null if metadata still not collected.
           example: '2834502270'
+
     Study:
       type: object
       properties:
@@ -1478,6 +1669,7 @@ components:
           example: '["Axial", "T2W"]'
           items:
             type: string
+
     Subject:
       type: object
       properties:
@@ -1492,9 +1684,87 @@ components:
         eForm:
           type: object
           description: "The clinical data of the subject"
+
+    ProjectCode:
+      type: string
+      minLength: 3
+      maxLength: 16
+      description: "The unique code of the project: short name without spaces (usually capital letters and numbers and hyphens instead of spaces)"
+      example: "MY-PROJECT"
+
+    ProjectDetails:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 128
+          description: "The long name of the project or just the codename but without restrictions of spaces and so on."
+          example: "Accelerating the lab to market transition of AI tools for cancer management"
+        shortDescription:
+          type: string
+          maxLength: 512
+          example: "CHAIMELEON will set up an EU-wide structured repository for health imaging data as an open source for artificial intelligence (AI) experimentation in cancer management."
+        externalUrl:
+          type: string
+          maxLength: 256
+          description: "(Optional, default null) URL to the project web page."
+          example: "https://some-project.org/"
+
+    ProjectConfig:
+      type: object
+      properties:
+        defaultContactInfo:
+          type: string
+          maxLength: 256
+          description: |
+            (Optional but recommended, default is empty) The default contact info assigned to new datasets. 
+            Usually the contact information of the project manager, the project email or the url of contact form of the project. 
+            The creator of a dataset can change later that contact info for his/her dataset.
+          example: "project-manager@some-project.org or https://some-project.org/contact-form"
+        defaultLicense:
+          description: |
+            (Optional, default is empty) The name and link to a default license document assigned to new datasets.
+            It is useful when there is a custom license defined for the datasets of the project.
+            The creator of a dataset can change later the license of his/her dataset.
+          example: '{"title": "Some Project Common License 1.0", "url": "https://some-project.org/datasets-license.pdf"}'
+          allOf:
+            - $ref: '#/components/schemas/License'
+        zenodoAccessToken:
+          type: string
+          maxLength: 128
+          description: |
+            (Optional, default is empty) The access token of the Zenodo account used to send datasets metadata when they are published. 
+            You can get one if you register in zenodo.org.
+            If you leave it empty, the datasets from this project will not be able to be published.
+          example: "iHU32BZJU8nosIkln89sd4FesEqbhfu4DIHbdsibgaa"
+        zenodoAuthor:
+          type: string
+          maxLength: 128
+          description: |
+            (Optional, default is empty) The text that will appear as the author in dataset publications.
+            That way you can set a collective authorship if the data can be provided by several sources. 
+            If you leave it empty, the name of the user who created the dataset will appear as the author of publication.
+          example: "SOME-PROJECT consortium"
+        zenodoCommunity:
+          type: string
+          maxLength: 128
+          description: |
+            (Optional, default is empty) The community code which the dataset publications will be related to. 
+            You can create one for your project in zenodo.org. 
+            It is useful as a collection to easily find all the depositions of your project.
+            If you leave it empty, the publications will no be related to any community.
+          example: "some_project"
+        zenodoGrant:
+          type: string
+          maxLength: 128
+          description: |
+            (Optional, default is empty) The grant code which the dataset publications will be related to.
+          example: "10.13039/501100000780::952172"
       
     License:
       type: object
+      description: "Name and link to the license document."
       properties:
         title:
           type: string
