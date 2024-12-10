@@ -1,14 +1,14 @@
 import os
 import logging
-from dataset_service.auth import AuthClient, LoginException
-from dataset_service.storage import DB
-from dataset_service.hash import datasetHashesOperator
-from dataset_service.config import Config
-import dataset_service.dataset as dataset_file_system
-import dataset_service.tracer as tracer
 import time
 from pathlib import Path
 import json
+from .auth import AuthClient, LoginException
+from .storage import DB, DBDatasetsOperator
+from .hash import datasetHashesOperator
+from .config import Config
+from . import dataset as dataset_file_system
+from . import tracer as tracer
 
 class WrongInputException(Exception): pass
 
@@ -27,15 +27,16 @@ class dataset_creation_worker:
         if message != "":
             if log: self.log.debug(message)
             with DB(self.config.db) as db:
-                db.setDatasetCreationStatus(self.datasetId, "running", message)
+                DBDatasetsOperator(db).setDatasetCreationStatus(self.datasetId, "running", message)
         return False
 
     def _endProgress(self, errorMessage: str | None = None):
         with DB(self.config.db) as db:
+            dbdatasets = DBDatasetsOperator(db)
             if errorMessage is None:    # end successfully
-                db.deleteDatasetCreationStatus(self.datasetId)
+                dbdatasets.deleteDatasetCreationStatus(self.datasetId)
             else:                       # end with error
-                db.setDatasetCreationStatus(self.datasetId, "error", errorMessage)
+                dbdatasets.setDatasetCreationStatus(self.datasetId, "error", errorMessage)
 
     def _cancelProgress(self):
         self._endProgress(errorMessage="Canceled by user")
@@ -44,7 +45,7 @@ class dataset_creation_worker:
     def stop(self):
         self.stopping = True
         with DB(self.config.db) as db:
-            db.setDatasetCreationStatus(self.datasetId, "running", "Canceling...")
+            DBDatasetsOperator(db).setDatasetCreationStatus(self.datasetId, "running", "Canceling...")
 
     WAIT_FOR_DATASET_INTERVAL_SECONDS = 5
     WAIT_FOR_DATASET_MAX_SECONDS = 120
@@ -140,7 +141,7 @@ class dataset_creation_worker:
             with DB(self.config.db) as db:
                 dataset = self._getDataset(db)
                 if dataset is None: raise Exception("dataset not found in database")
-                datasetStudies, total = db.getStudiesFromDataset(self.datasetId)
+                datasetStudies, total = DBDatasetsOperator(db).getStudiesFromDataset(self.datasetId)
             if total > 0:  
                 # This is true only when the creation of dataset has been interrupted previously 
                 # and the studies are already stored in DB. 
@@ -165,8 +166,9 @@ class dataset_creation_worker:
                 stop = self.updateProgress('Creating studies in DB...')
                 if stop: self._cancelProgress(); return
                 with DB(self.config.db) as db:
+                    dbdatasets = DBDatasetsOperator(db)
                     for study in dataset["studies"]:
-                        db.createOrUpdateStudy(study, self.datasetId)
+                        dbdatasets.createOrUpdateStudy(study, self.datasetId)
 
             if dataset["sizeInBytes"] is None:  # This condition is just to skip collecting again metadata if it's
                                                 # already there because of relaunch of the dataset creation.
@@ -176,7 +178,7 @@ class dataset_creation_worker:
                 dataset_file_system.collectMetadata(dataset, self.config.self.datalake_mount_path, eformsFilePath)
                 # All the metadata is added as new properties to dataset, to the studies inside, and to the series inside the studies
                 with DB(self.config.db) as db:
-                    db.updateDatasetAndStudyMetadata(dataset)
+                    DBDatasetsOperator(db).updateDatasetAndStudyMetadata(dataset)
             
             indexFilePath = os.path.join(datasetDirPath, self.config.self.index_file_name)
             if not os.path.exists(indexFilePath):  # Again this condition is just to skip in case of relaunching
@@ -208,8 +210,9 @@ class dataset_creation_worker:
                 # Save the hash of each study in the DB just for being able to know which studies have been changed 
                 # in the unusual case in which the general hash of the dataset stored in the tracer has changed.
                 with DB(self.config.db) as db:
+                    dbdatasets = DBDatasetsOperator(db)
                     for studyHash in studiesHashes:
-                        db.setDatasetStudyHash(self.datasetId, studyHash["studyId"], studyHash["hash"])
+                        dbdatasets.setDatasetStudyHash(self.datasetId, studyHash["studyId"], studyHash["hash"])
         
             # delete studies temporal file
             os.unlink(studiesTmpFilePath)
