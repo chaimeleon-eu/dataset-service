@@ -1201,13 +1201,11 @@ components:
           description: "Optional for backward compatibility, but should be included in new implementations."
           example: "20240415"
         project:
-          type: string
-          minLength: 1
-          maxLength: 80
           description: |
             (Optional) The code of the project which the dataset is assigned to.
             If not provided, it is assumed there is only one project in the system, so the first project found for the user will be taken.
-          example: "MY-PROJECT"
+          allOf:
+            - $ref: '#/components/schemas/ProjectCode'
         previousId:
           type: string
           format: uuid
@@ -1308,17 +1306,15 @@ components:
           minLength: 3
           maxLength: 128
           description: "Short descriptive name."
-          example: "Lung cancer v3"
+          example: "Lung cancer"
         version:
           type: string
           maxLength: 16
           example: "20240415"
         project:
-          type: string
-          minLength: 1
-          maxLength: 80
           description: "The code of the project which the dataset is assigned to."
-          example: "MY-PROJECT"
+          allOf:
+            - $ref: '#/components/schemas/ProjectCode'
         previousId:
           type: string
           format: uuid
