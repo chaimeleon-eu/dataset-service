@@ -87,19 +87,6 @@ class DB:
                 constraint un_user unique (username),
                 constraint un_gid unique (gid)
             );
-            CREATE TABLE study (
-                id varchar(40),
-                name varchar(128) NOT NULL,
-                subject_name varchar(128) NOT NULL,
-                path_in_datalake varchar(256),
-                url varchar(256),
-                age_in_days integer DEFAULT NULL,
-                sex char(1) DEFAULT NULL,
-                diagnosis varchar(16) DEFAULT NULL,
-                diagnosis_year integer DEFAULT NULL,
-                study_date timestamp DEFAULT NULL,
-                constraint pk_study primary key (id)
-            );
             CREATE TABLE dataset (
                 id varchar(40),
                 name varchar(256) NOT NULL,
@@ -159,6 +146,27 @@ class DB:
                 constraint pk_dataset_creation_status primary key (dataset_id),
                 constraint fk_dataset foreign key (dataset_id) references dataset(id)
             );
+            /* Allowed users to access to a dataset apart from the user joined to the project. */
+            CREATE TABLE dataset_acl (
+                dataset_id varchar(40),
+                user_id varchar(64),
+                constraint pk_dataset_access_control primary key (dataset_id, user_id),
+                constraint fk_dataset foreign key (dataset_id) references dataset(id),
+                constraint fk_user foreign key (user_id) references author(id)
+            );
+            CREATE TABLE study (
+                id varchar(40),
+                name varchar(128) NOT NULL,
+                subject_name varchar(128) NOT NULL,
+                path_in_datalake varchar(256),
+                url varchar(256),
+                age_in_days integer DEFAULT NULL,
+                sex char(1) DEFAULT NULL,
+                diagnosis varchar(16) DEFAULT NULL,
+                diagnosis_year integer DEFAULT NULL,
+                study_date timestamp DEFAULT NULL,
+                constraint pk_study primary key (id)
+            );
             /* A dataset can contain multiple studies and a study can be contained in multiple datasets. */
             CREATE TABLE dataset_study (
                 dataset_id varchar(40),
@@ -190,6 +198,7 @@ class DB:
                 constraint fk_study foreign key (study_id) references study(id),
                 constraint fk_series foreign key (study_id, series_folder_name) references series(study_id, folder_name)
             );
+            
             /* access_type options: 'i' (interactive desktop or web app), 
                                     'b' (batch job) */
             CREATE TABLE dataset_access (
@@ -216,14 +225,7 @@ class DB:
                 constraint pk_dataset_access_dataset primary key (dataset_access_id, dataset_id),
                 constraint fk_dataset foreign key (dataset_id) references dataset(id)
             );
-            /* Allowed users to access to a dataset apart from the user joined to the project. */
-            CREATE TABLE dataset_acl (
-                dataset_id varchar(40),
-                user_id varchar(64),
-                constraint pk_dataset_access_control primary key (dataset_id, user_id),
-                constraint fk_dataset foreign key (dataset_id) references dataset(id),
-                constraint fk_user foreign key (user_id) references author(id)
-            );
+
             CREATE TABLE license (
                 id SERIAL,
                 name varchar(128) NOT NULL,
@@ -233,6 +235,7 @@ class DB:
             );
             INSERT INTO license (name, url) 
                 VALUES ('CC BY 4.0', 'https://creativecommons.org/licenses/by/4.0/');
+            
             CREATE TABLE project (
                 code varchar(16),
                 name varchar(128) NOT NULL,

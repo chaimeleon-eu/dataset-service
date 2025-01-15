@@ -125,6 +125,7 @@ def give_access_to_dataset(datasets_dir_path, dataset_dir_name, datalake_dir_pat
         # pathInDatalake example: blancagomez/01_Neuroblastoma_4_Neuroblastoma/TCPEDITRICOABDOMINOPLVICO20150129/
         linkDestination = os.path.join(datalake_dir_path, pathInDatalake)
         # ACL to the destination study directory (not the symbolic link)
+        if not os.path.exists(linkDestination): continue
         ok = set_acl_group(str(acl_gid), acl_permissions, linkDestination, recursive=False) 
         if not ok: 
             logging.root.error("Error in set acl to: " + linkDestination)
@@ -146,6 +147,7 @@ def remove_access_to_studies(datalake_dir_path, pathsOfStudies, acl_gid):
         # pathInDatalake example: blancagomez/01_Neuroblastoma_4_Neuroblastoma/TCPEDITRICOABDOMINOPLVICO20150129/
         linkDestination = os.path.join(datalake_dir_path, pathInDatalake)
         # ACL to the destination study directory (not the symbolic link)
+        if not os.path.exists(linkDestination): continue
         ok = delete_acl_group(str(acl_gid), linkDestination, recursive=False) 
         if not ok: 
             logging.root.error("Error in delete acl to: " + linkDestination)

@@ -333,6 +333,14 @@ def completeDatasetFromCSV(dataset, csvdata):
                 'eForm': eform 
             })
 
+def _checkPropertyAsString(propName:str, value: str, min_length: int = 0, max_length: int = 0):
+    if not isinstance(value, str): 
+        raise WrongInputException("'%s' must be a string." % propName)
+    if min_length > 0 and len(value) < min_length:
+        raise WrongInputException("Length of '%s' must be %s characters or more." % (propName, min_length))
+    if max_length > 0 and len(value) > max_length:
+        raise WrongInputException("Max length of '%s' is %s characters." % (propName, max_length))
+
 def _checkPropertyAsArrayOfStrings(propName: str, value: list[str], item_possible_values: list[str] | None = None):
     if not isinstance(value, list):
         raise WrongInputException("'%s' must be an array of strings." % propName)
@@ -344,6 +352,7 @@ def _checkPropertyAsArrayOfStrings(propName: str, value: list[str], item_possibl
             if not item in item_possible_values:
                 raise WrongInputException("unknown item value '%s' in '%s', it should be one of {%s}" \
                                           % (item, propName, ','.join(item_possible_values)))
+
 def _checkPropertyAsLicense(newValue):
     if not isinstance(newValue, dict): raise WrongInputException("The license property must be an object.")
     if not "title" in newValue: raise WrongInputException("Missing 'title' in the new license.")
@@ -941,27 +950,27 @@ def patchDataset(id):
                     dbdatasets.setDatasetInvalidationReason(datasetId, None)  # reset invalidation reason
                 trace_details = "INVALIDATE" if newValue else "REACTIVATE"
             elif property == "invalidationReason":
-                if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                _checkPropertyAsString("value", newValue, max_length=128)
                 dbdatasets.setDatasetInvalidationReason(datasetId, newValue)
                 # Don't notify the tracer, it is just a note to remember the reason.
             elif property == "name":
-                if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                _checkPropertyAsString("value", newValue, max_length=256)
                 dbdatasets.setDatasetName(datasetId, newValue)
                 # Don't notify the tracer, this property can be changed only in draft state
             elif property == "version":
-                if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                _checkPropertyAsString("value", newValue, max_length=16)
                 dbdatasets.setDatasetVersion(datasetId, newValue)
                 # Don't notify the tracer, this property can be changed only in draft state
             elif property == "description":
-                if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                _checkPropertyAsString("value", newValue)
                 dbdatasets.setDatasetDescription(datasetId, newValue)
                 # Don't notify the tracer, this property can be changed only in draft state
             elif property == "provenance":
-                if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                _checkPropertyAsString("value", newValue)
                 dbdatasets.setDatasetProvenance(datasetId, newValue)
                 # Don't notify the tracer, this property can be changed only in draft state
             elif property == "purpose":
-                if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                _checkPropertyAsString("value", newValue)
                 dbdatasets.setDatasetPurpose(datasetId, newValue)
                 # Don't notify the tracer, this property can be changed only in draft state
             elif property == "type":
@@ -973,14 +982,14 @@ def patchDataset(id):
                 dbdatasets.setDatasetCollectionMethod(datasetId, newValue)
                 # Don't notify the tracer, this property can be changed only in draft state
             # elif property == "project":
-            #     if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+            #     _checkPropertyAsString("value", newValue, max_length=16)
             #     if not newValue in user.getProjects():
             #         return setErrorResponse(400, "invalid value, unknown project code for the user")
             #     db.setDatasetProject(datasetId, newValue)
             #     # Don't notify the tracer, this property can be changed only in draft state
             elif property == "previousId":
                 if newValue != None:
-                    if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                    _checkPropertyAsString("value", newValue, max_length=40)
                     previousDataset = dbdatasets.getDataset(newValue)
                     if previousDataset is None:
                         raise WrongInputException("invalid value, the dataset id does not exist")
@@ -1015,7 +1024,7 @@ def patchDataset(id):
                 dbdatasets.setDatasetPid(datasetId, preferred, custom)
                 trace_details = "PID_UPDATED"
             elif property == "contactInfo":
-                if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                _checkPropertyAsString("value", newValue, max_length=256)
                 dbdatasets.setDatasetContactInfo(datasetId, newValue)
                 # dataset["contactInfo"] = newValue            contactInfo is written in a PDF file
                 # updateZenodoDeposition(db, dataset)          and deposition files cannot be changed once published
@@ -1023,7 +1032,7 @@ def patchDataset(id):
             elif property == "authorId":
                 # This is a special operation only allowed for the role "superadmin_datasets",
                 # (s)he can create a dataset for another user and then transfer the authorship to the user.
-                if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                _checkPropertyAsString("value", newValue, max_length=64)
                 if not dbdatasets.existsUserID(newValue):
                     return setErrorResponse(400, "invalid value, the user id does not exist")
                 dbdatasets.setDatasetAuthor(datasetId, newValue)
@@ -1365,11 +1374,11 @@ def putProject(code):
         read_data = bottle.request.body.read().decode('UTF-8')
         LOG.debug("BODY: " + read_data)
         projectData = json.loads(read_data)
-        if not 'name' in projectData.keys() or not isinstance(projectData["name"], str): 
-            raise WrongInputException("'name' property is required and must be a string.")
+        if not 'name' in projectData.keys(): raise WrongInputException("'name' property is required.")
+        _checkPropertyAsString("name", projectData["name"], min_length=3, max_length=128)
         name = projectData["name"]
-        if not 'shortDescription' in projectData.keys() or not isinstance(projectData["shortDescription"], str): 
-            raise WrongInputException("'shortDescription' property is required and must be a string.")
+        if not 'shortDescription' in projectData.keys(): raise WrongInputException("'shortDescription' property is required.")
+        _checkPropertyAsString("shortDescription", projectData["shortDescription"], max_length=512)
         shortDescription = projectData["shortDescription"]
         externalUrl = projectData["externalUrl"] if "externalUrl" in projectData.keys() else ''
         if not isinstance(externalUrl, str) or (externalUrl != '' and not utils.is_valid_url(externalUrl)):
@@ -1504,10 +1513,11 @@ def patchProject(code):
             if property not in user.getEditablePropertiesOfProjectByTheUser(code):
                 return setErrorResponse(400, "the property is not in the editablePropertiesByTheUser list")
             elif property == "name":
-                if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                _checkPropertyAsString("value", newValue, min_length=3, max_length=128)
                 dbprojects.setProjectName(code, newValue)
             elif property == "shortDescription":
                 if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
+                _checkPropertyAsString("value", newValue, max_length=512)
                 dbprojects.setProjectShortDescription(code, newValue)
             elif property == "externalUrl":
                 if not isinstance(newValue, str) or (newValue != '' and not utils.is_valid_url(newValue)):

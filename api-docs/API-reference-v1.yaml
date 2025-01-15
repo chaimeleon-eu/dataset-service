@@ -774,18 +774,19 @@ paths:
             type: boolean
       responses:
         '200':
-          description: "successfully retrieved the list of projects"
+          description: |
+            Successfully retrieved the list of projects.
+            An array of string is returned in the body in case of purpose is `datasetCreation` or `datasetSearchFilter`.
+            An array of objects is returned in the body in case of purpose is `projectList`.
           content:
             application/json:
               schema:
                 oneOf:
-                  - description: "In case of purpose is `datasetCreation` or `datasetSearchFilter`"
-                    type: array
+                  - type: array
                     items:
                       type: string
                       example: "MY-PROJECT"
-                  - description: "In case of purpose is `projectList`"
-                    type: array
+                  - type: array
                     items:
                       type: object
                       example: {"MY-PROJECT", "My own project", "/project-logos/729037af-9015-4222-b064-77f3c1bm9d7h.png"}
@@ -854,7 +855,6 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/ProjectDetails'
                   - type: object
-                    example: {"MY-PROJECT", "My own project", "/project-logos/729037af-9015-4222-b064-77f3c1bm9d7h.png"}
                     properties:
                       code:
                         $ref: '#/components/schemas/ProjectCode'
