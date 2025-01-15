@@ -106,6 +106,12 @@ class User:
     def canCheckIntegrityOfDatasets(self):
         return self.isSuperAdminDatasets()
 
+    def getAllowedActionsOnDatasetsForTheUser(self):
+        allowedActions = []
+        if self.canCreateDatasets():
+            allowedActions.append("create")
+        return allowedActions
+    
     def getEditablePropertiesByTheUser(self, dataset):
         editableProperties = []
         if self.canModifyDataset(dataset):
@@ -181,6 +187,12 @@ class User:
         for g in self._token["groups"]:
             if g.startswith(ADMINS_PROJECT_GROUP_PREFIX) and g[prefix_len:] == projectCode: return True
         return False
+    
+    def getAllowedActionsOnProjectsForTheUser(self):
+        allowedActions = []
+        if self.canAdminProjects():
+            allowedActions.append("create")
+        return allowedActions
     
     def getEditablePropertiesOfProjectByTheUser(self, projectCode: str):
         editableProperties = []

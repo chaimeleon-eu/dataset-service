@@ -1160,7 +1160,8 @@ def getDatasets():
                         "returned": len(datasets),
                         "skipped": skip,
                         "limit": limit,
-                        "list": datasets })
+                        "list": datasets,
+                        "allowedActionForTheUser": user.getAllowedActionsOnDatasetsForTheUser()})
     
 @app.route('/api/datasets/eucaimSearch', method='POST')
 def eucaimSearchDatasets():
@@ -1315,21 +1316,23 @@ def getProjects():
     #                                and change API DOC to make purpose optional, default=projectList
     if purpose == "datasetCreation":
         # New datasets only can be assigned to projects which the user has joined to
-        projects = list(user.getProjects())
+        ret = list(user.getProjects())
     elif purpose == "datasetSearchFilter":
         # List all the possible values for "project" filter in GET /datasets
         searchFilter = authorization.Search_filter()
         searchFilter.adjustByUser(user)
         with DB(CONFIG.db) as db:
-            projects = DBDatasetsOperator(db).getProjectsForSearchFilter(searchFilter)
+            ret = DBDatasetsOperator(db).getProjectsForSearchFilter(searchFilter)
     else:  # purpose == "projectList"
         with DB(CONFIG.db) as db:
             projects = DBProjectsOperator(db).getProjects()
-            for project in projects:
-                project["logoUrl"] = '/project-logos/' + project["logoFileName"] if project["logoFileName"] != "" else ""
-                del project["logoFileName"]
+        for project in projects:
+            project["logoUrl"] = '/project-logos/' + project["logoFileName"] if project["logoFileName"] != "" else ""
+            del project["logoFileName"]
+        ret = {"list": projects, 
+               "allowedActionForTheUser": user.getAllowedActionsOnProjectsForTheUser()}
     bottle.response.content_type = "application/json"
-    return json.dumps(projects)
+    return json.dumps(ret)
 
 def _checkUserCanModifyProject(code):
     if CONFIG is None: raise Exception()
