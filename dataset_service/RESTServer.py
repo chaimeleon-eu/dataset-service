@@ -1866,7 +1866,7 @@ def getUnknownWeb(any_path):
 # ====================
 
 # static files (any route that ends with '.' + known extension, including subpaths)
-# To avoid conflicts, static files prefixed with /web/
+# To avoid conflicts, static files prefixed with /project-logos/
 @app.route('/project-logos/<file_path:re:.+>', method='GET')
 def getStaticFileLogos(file_path):
     if CONFIG is None: raise Exception()
@@ -1874,8 +1874,30 @@ def getStaticFileLogos(file_path):
     LOG.debug("Static file (logos): "+file_path)
     return bottle.static_file(file_path, CONFIG.self.static_files_logos_dir_path)
 
+# ====================
+# output-files routes
+# ====================
 
-# Any other path (without prefix /api/ or /web/ or /project-logos/) will be responded with the index.html content,
+# To avoid conflicts, static files prefixed with /output-files/
+@app.route('/output-files/<file_path:re:.+>', method='GET')
+def getStaticFileOutput(file_path):
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    # ret = getTokenFromAuthorizationHeader(serviceAccount=True)
+    # if isinstance(ret, str): return ret  # return error message
+    # user = authorization.User(ret)
+    # if user.isUnregistered:
+    #     return setErrorResponse(401, "unauthorized user")
+    LOG.debug("Static file (output): "+file_path)
+    return bottle.static_file(file_path, CONFIG.self.static_files_output_dir_path)
+
+
+# ====================
+# Any other route
+# ====================
+
+# Any other path (without prefix /api/ or /web/ or /project-logos/ or /output-files/) 
+# will be responded with the index.html content,
 # index.html loads a javascript interface that manage those other paths.
 @app.route('/', method='GET')
 @app.route('/<any_path:re:.+>', method='GET')

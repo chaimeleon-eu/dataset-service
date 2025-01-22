@@ -55,6 +55,9 @@ spec:
             - mountPath: "/var/www/project-logos"
               subPath: "project-logos"
               name: dataset-service-data-volume
+            - mountPath: "/var/www/output-files"
+              subPath: "output-files"
+              name: dataset-service-data-volume                              
             - mountPath: "/var/www/datalakeinfo"
               subPath: "datalakeinfo"
               name: dataset-service-data-volume
@@ -94,6 +97,7 @@ spec:
                       },
                       "static_files_dir_path": "/var/www/dataset-service-ui",
                       "static_files_logos_dir_path": "/var/www/project-logos",
+                      "static_files_output_dir_path": "/var/www/output-files",
                       "datalakeinfo_dir_path": "/var/www/datalakeinfo",
                       "datalakeinfo_token": "XXXXXXXX",
                       "datalake_mount_path": "/mnt/datalake",

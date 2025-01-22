@@ -80,6 +80,9 @@ self:
   static_files_logos_dir_path: "/var/www/project-logos"
     # Absolute directory path where the logos static image files are.
     # They will be served when a request of path "/project-logos/..." is received.
+  static_files_output_dir_path: "/var/www/output-files"
+    # Absolute directory path where the output static files are deposited to download.
+    # They will be served when a request of path "/output-files/..." is received.
   dev_token: ""
     # Secret token for the POST "/api/set-ui" operation (for developers, to set the web UI static files).
     # If empty token, that operation is not allowed (404 returned), this way you can disable it.

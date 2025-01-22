@@ -120,6 +120,7 @@ class Config:
             self.static_api_doc_dir_path = config["static_api_doc_dir_path"]
             self.static_files_dir_path = config["static_files_dir_path"]
             self.static_files_logos_dir_path = config["static_files_logos_dir_path"]
+            self.static_files_output_dir_path = config["static_files_output_dir_path"]
             self.dev_token = config["dev_token"]
             self.datalakeinfo_dir_path = config["datalakeinfo_dir_path"]
             self.datalakeinfo_token = config["datalakeinfo_token"]
