@@ -49,6 +49,9 @@ spec:
             - mountPath: "/dataset-service/log"
               subPath: "log"
               name: dataset-service-data-volume
+            - mountPath: "/var/user-management-jobs"
+              subPath: "user-management-jobs"
+              name: dataset-service-data-volume
             - mountPath: "/var/www/dataset-service-ui"
               subPath: "ui"
               name: dataset-service-data-volume
@@ -88,6 +91,9 @@ spec:
                   },
                   "zenodo": {
                       "url": "https://zenodo.org/"
+                  },
+                  "user_management_scripts": {
+                      "job_template_file_path": ""
                   },
                   "self": { 
                       "port": 11000, 

@@ -1574,17 +1574,40 @@ def putUser(userName):
         userId = userData["uid"] if "uid" in userData.keys() else None
         #userGroups = userData["groups"]
         userGid = int(userData["gid"]) if "gid" in userData.keys() else None
+        site = userData["site"] if "site" in userData.keys() else ""
+        projects = userData["projects"] if "projects" in userData.keys() else []
+        roles = userData["roles"] if "roles" in userData.keys() else []
+
+        available_projects = list(user.getProjects())  # The available projects are those which the validator user are joined to.
+        _checkPropertyAsArrayOfStrings("projects", projects, available_projects)
+        _checkPropertyAsArrayOfStrings("roles", roles)
+
         if userId is None:
             userId = AUTH_ADMIN_CLIENT.getUserId(userName)
-            if userId is None: raise Exception("username '%s' not found in auth service" % userName)
+            if userId is None: raise Exception("Username '%s' not found in the auth service." % userName)
 
-        LOG.debug("Creating or updating user: %s, %s, %s" % (userId, userName, userGid))
+        LOG.debug("Creating or updating user in DB: %s, %s, %s" % (userId, userName, userGid))
         with DB(CONFIG.db) as db:
             DBDatasetsOperator(db).createOrUpdateUser(userId, userName, userGid)
+            if userGid is None:
+                userId, userGid = DBDatasetsOperator(db).getUserIDs(userName)
+                if userGid is None: raise Exception()
+
+        if CONFIG.user_management_scripts.job_template_file_path != "":
+            if len(roles) == 0:
+                userGroups = AUTH_ADMIN_CLIENT.getUserGroups(userName)
+                roles = userGroups   # let's take all the groups for now
+            LOG.debug('Launching user creation job...')
+            k8sClient = k8s.K8sClient()
+            ok = k8sClient.add_user_creation_job(userName, userGid, roles, site, projects, CONFIG.user_management_scripts.job_template_file_path)
+            if not ok: 
+                raise K8sException("Unexpected error launching user creation job.")
 
         LOG.debug('User successfully created or updated.')
         bottle.response.status = 201
-    except Exception as e:
+    except (WrongInputException, keycloak.KeycloakAdminAPIException) as e:
+        return setErrorResponse(400, str(e))
+    except (K8sException, Exception) as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
         return setErrorResponse(500, "Unexpected error, may be the input is wrong")

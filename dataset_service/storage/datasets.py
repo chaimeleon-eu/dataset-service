@@ -26,7 +26,7 @@ class DBDatasetsOperator():
                 WHERE id = %s;""", 
                 (username, name, email, userId))
     
-    def createOrUpdateUser(self, userId, username, gid = None):
+    def createOrUpdateUser(self, userId, username, gid: int | None = None):
         self.cursor.execute("SELECT id FROM author WHERE id=%s LIMIT 1;", (userId,))
         row = self.cursor.fetchone()
         if row is None: 

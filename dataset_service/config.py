@@ -73,6 +73,7 @@ class Config:
         self.auth = Config.Auth(config["auth"])
         self.tracer = Config.Tracer(config["tracer"])
         self.zenodo = Config.Zenodo(config["zenodo"])
+        self.user_management_scripts = Config.User_management_scripts(config["user_management_scripts"])
         self.self = Config.Self(config["self"])
 
     class DB:
@@ -110,6 +111,10 @@ class Config:
     class Zenodo:
         def __init__(self, zenodo: dict):
             self.url = zenodo["url"]
+    
+    class User_management_scripts:
+        def __init__(self, user_management_scripts: dict):
+            self.job_template_file_path = user_management_scripts["job_template_file_path"]
 
     class Self:
         def __init__(self, config: dict):
