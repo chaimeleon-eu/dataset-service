@@ -3,6 +3,8 @@ import pandas as pd
 import pprint
 from rdflib import URIRef
 import logging
+from .dataset_ext import DCATResourceNxt, SKOSConcept
+
 
 
 
@@ -25,12 +27,72 @@ def toDCAT(dataset):# Transformaciones de los campos a sus correspondientes data
       else:
          return URIRef("http://publications.europa.eu/resource/authority/access-right/RESTRICTED")
 
+
+   df["title"] = df["name"].apply(lambda x: [x])
+
+   df["description"] = df["description"].apply(lambda x: [x])
+
+   df["contact_point"] = df["contactInfo"].apply(parse_contact_info)
+
+   df["publisher"] = df["project"].apply(lambda x: [x])
+
+##Asegurarnos de que es este realmente el formato correcto 
+   df["theme"] = "http://eurovoc.europa.eu/c_efec98c3"
+   # "http://publications.europa.eu/resource/authority/data-theme/HEAL"
+   df["identifier"] = df["id"].apply( lambda x: [x])
+
    # Apply the access_rights mapping
    df["access_rights"] = df["public"].apply(map_access_rights)
+   #Asegurarnos de que es igual qu eel anterior
+   df["rights"] = df["public"].apply(map_access_rights)
+   #EUCAIM controlled vocabulary: "Authorisation to download the datasets
+# Authorisation to access, view and process in-situ the datasets 
+# Authorisation to remotely process the datasets without the ability to access and visualise data, even remotely."
 
-   df["conforms_to"] = df["license"].apply(lambda x: x["url"])
+   df["applicableLegislation"] = "http://data.europa.eu/eli/reg/2022/868/oj"
+
+## Provenance ahora devuelve un string desde chaimeleon simplemente sacarlo de la api con el mismo nombre
+##   df["provenance"] = ""
+
+## Saber si es válido /HEALTH y ver campo añadido por pau. y ver que tipo 
+   df["type"] = "http://publications.europa.eu/resource/authority/dataset-type/"
+
+   df["version"] = df["version"].apply(lambda x: [x])
+
+   df["ageLow"]  = df["ageLow"].apply(lambda x: [x])
+
+   df["ageHigh"] = df["ageHigh"].apply(lambda x: [x])
+
+   df["nbrOfStudies"] = df["studiesCount"].apply(lambda x: [x])
+
+   df["nbrOfSubjects"] = df["subjectsCount"].apply(lambda x: [x])
+
+## Revisar LegalBasis
+   df["legalBasis"] = "http://data.europa.eu/eli/reg/2022/868/oj"
+
+   df["intendedPurpose"] = df["purpose"].apply(lambda x: [x])
+
+
+## definir el  quality annotation y comprender de donde obtenerlo
+##   df["qualityLabel"] = 
+
+   df["collectionMethod"] = df["collectionMethod"].apply(lambda x: [x])
+
+   # df["conforms_to"] = df["license"].apply(lambda x: x["url"])
+
+   df["sex"] = df["sex"].apply(lambda x: [x])
+
+## REvisar de dónde obtener la condition.//En teoría va en diagnosis. Mensaje pau.
+##  df["condition"] = "http://purl.bioontology.org/ontology/SNOMEDCT/399068003"
+#  Añadir terminos de snomed, si diagnosis devuelve un diagnostico tipo lung devulver la url entera para lung como la del ejemplo, qu een este caso es de prostata
 
    # 'contact_point': debe ser una lista de tipo 'Url' o 'VCard' (uso de VCard para nombre y email)
+##   df["hasImageModality"] = df["modality"].apply(lambda x: [SKOSConcept(prefLabel=x)])
+#transformar de ct pt a modalidad radlex
+# Tiene poco que ver con la url de enola eucaim:hasImageModality <http://www.radlex.org/RID/RID10312
+   
+   df["hasImageBodyPart"] = df["bodyPart"].apply(lambda x: [SKOSConcept(prefLabel=x)])
+   
    def parse_contact_info(contact_info):
       # Registrar el contenido de 'contactInfo' para debug usando el logger existente
       if not contact_info:
@@ -51,124 +113,6 @@ def toDCAT(dataset):# Transformaciones de los campos a sus correspondientes data
          return []  # Retorna lista vacía si hay algún otro error inesperado
 
 
-    # Aplicar la función a la columna 'contactInfo'
-   df["contact_point"] = df["contactInfo"].apply(parse_contact_info)
-   #df["contact_point"] = df["contactInfo"].apply(lambda x: [{"vcard:fn": x.split(" ")[0], "vcard:email": x.split(" ")[1][1:-1]}])
-
-   # 'creator': lista de tipo 'VCard' o 'Agent' (nombre completo y ID del autor)
-   # Esta linea en teoría transforma en formato VCARD, si no funciona poner en formato original ("James Gordon (james@email.com)")
-   # df["creator"] = df.apply(lambda x: [{"vcard:fn": x["authorName"], "vcard:hasUID": x["authorId"]}], axis=1)
-   # df["creator"] = df.apply(
-   #  lambda x: [
-   #      # Fallback to license URL if authorId-based URL is not available
-   #      {"url": x["license"]["url"]} 
-        
-   #      # VCard format with name and identifier (instead of email)
-   #      {
-   #          "vcard:fn": x["authorName"],
-   #          "vcard:hasUID": x["authorId"],
-   #          "vcard:identifier": x["authorId"]  # Replace email with identifier
-   #      },
-        
-   #      # Agent format with name and identifier
-   #      {"name": x["authorName"], "identifier": x["authorId"]}
-   #  ],
-   #  axis=1
-   # )
-
-   # 'description': lista de tipo 'LiteralField'
-   df["description"] = df["description"].apply(lambda x: [x])
-
-   # 'distribution': lista de tipo 'Url' para DOI y URL del dataset
-   #df["distribution"] = "An available distribution of the dataset."#df["pids"].apply(lambda x: [x["urls"]["zenodoDoi"], x["urls"]["custom"]])
-   
-   # df["first"] = "The first resource in an ordered collection or series of resources, to which the current resource belongs."
-   
-   # df["frecuency"] = "The frequency at which a dataset is published."
-   # # 'has_current_version': debe ser tipo 'Url' (URL que apunta a la versión actual)
-   # df["has_current_version"] = "This resource has a more specific, versioned resource with equivalent content [PAV]." #df["nextId"].apply(lambda x: [f"https://myDatasetsDB.com/ds/{x}"])
-
-   # df["has_part"] = "A related resource that is included either physically or logically in the described resource." 
-
-   # df["has_version"] = 'This resource has a more specific, versioned resource'
-
-   # 'identifier': lista de tipo 'rdfs_literal' o string
-   df["identifier"] = df["id"].apply(lambda x: [str(x)])
-
-   # 'in_series': lista de tipo 'Url', apunta a las versiones previas y posteriores
-   df["in_series"] = df.apply(lambda x: [f"https://myDatasetsDB.com/ds/{x['previousId']}", f"https://myDatasetsDB.com/ds/{x['nextId']}"], axis=1)
-
-   # df["is_referenced_by"] = 'A related resource that references, cites, or otherwise points to the described resource.'
-   # # 'license': debe ser tipo 'Url'
-   # df["keyword"] = 'A word or phrase used to describe the resource.'
-
-   # df["landing_page"] = 'A Web page that can be navigated to in a Web browser to gain access to the dataset, its distributions, additional information, and more.'
-   
-   # df["language"] = 'The language of the resource.'
-
-   # df["last"] = 'The last resource in an ordered collection or series of resources, to which the current resource belongs.'
-
-   df["license"] = df["license"].apply(lambda x: x["url"])
-
-   # 'previous': lista de tipo 'Url'
-   df["previous"] = df["previousId"].apply(lambda x: [f"https://myDatasetsDB.com/ds/{x}"])
-
-   # df["previous_version"] = 'The previous version of a resource in a lineage [PAV].'
-   # 'rights': debe ser tipo 'LiteralField' o 'Url'
-
-   # df["publisher"] = 'An entity responsible for making the resource available.'
-
-   # df["qualified_attribution"] = 'Link to an Agent that is responsible for making the resource available.'
-
-   # df["qualified_relation"] = 'Link to a description of a relationship with another resource.'
-
-   # df["relation"] = "A resource with an unspecified relationship to the cataloged resource."
-
-   # df["release_date"] = 'The date of formal issuance (e.g., publication) of the dataset.'
-
-   # df["replaces"] = 'A related resource that is supplanted, displaced, or superseded by the described resource.'
-
-   df["rights"] = df["license"]
-
-   # df["spatial"] = 'Geographic area covered by the dataset.'
-
-   # df["spatial_resolution"] = 'Minimum spatial separation resolvable in a dataset, measured in meters.'
-
-# df["status"] = 'The status of the resource in the context of a particular workflow process [VOCAB-ADMS].'
-   def infer_status(row):
-       # Mapping based on the flags you provided
-      if row["invalidated"]:
-        return URIRef("http://purl.org/adms/status/Withdrawn")  # Dataset is invalidated, mark it as Withdrawn
-      elif row["corrupted"]:
-        return URIRef("http://purl.org/adms/status/Withdrawn")  # Dataset is corrupted, also Withdrawn
-      elif row["draft"] :
-        return URIRef("http://purl.org/adms/status/UnderDevelopment")  # Draft or creating status means still in development
-      elif row["public"]:
-        return URIRef("http://purl.org/adms/status/Completed")  # If public and valid, mark as Completed
-      else:
-        return URIRef("http://purl.org/adms/status/UnderDevelopment")  # Default to UnderDevelopment if none apply
-
-   # Apply the function to the dataframe to generate the status field
-   df["status"] = df.apply(infer_status, axis=1)
-   # df["temporal_coverage"] = 'The temporal period that the dataset covers.'
-
-   # df["temporal_resolution"] = 'Minimum time period resolvable in the dataset.'
-
-   # df["theme"] = 'A main category of the resource. A resource can have multiple themes.'
-
-   # df["title"] = 'A name given to the resource.'
-   df["title"] = df["name"].apply(lambda x: [x])
-
-   # df["type"] = 'The nature or genre of the resource.'
-
-   # df["update_date"] = 'Most recent date on which the resource was changed, updated or modified.'
-
-   #df["version"] = 'The version indicator (name or identifier) of a resource.'
-   df["version"] = df["version"].apply(lambda x: [x])
-
-   # df["version_notes"] = 'A description of changes between this version and the previous version of the resource [VOCAB-ADMS].'
-
-   # df["was_generated_by"] = 'An activity that generated, or provides the business context for, the creation of the dataset.'
 
    # Eliminación de columnas innecesarias y renombrado de columnas
    df.drop(columns=[
@@ -177,17 +121,17 @@ def toDCAT(dataset):# Transformaciones de los campos a sus correspondientes data
       "invalidated", "corrupted", "lastIntegrityCheck", "studiesCount", "subjectsCount", "ageLow", 
       "ageHigh", "ageUnit", "ageNullCount", "sex", "sexCount", "diagnosisYearLow", "diagnosisYearHigh", 
       "diagnosisYearNullCount", "bodyPart", "bodyPartCount", "modality", "modalityCount", 
-      "manufacturer", "manufacturerCount", "seriesTags", "sizeInBytes"
+      "manufacturer", "manufacturerCount", "seriesTags", "sizeInBytes", "description", "version", "type"
    ], inplace=True)
    
    datasets = df.to_dict('records')   
-   dcat_datasets = [DCATDataset(**x) for x in datasets]   
+   dcat_datasets = [DCATResourceNxt(**x) for x in datasets]   
    for item in dcat_datasets:
       serialized_graph = item.to_graph(URIRef(item.identifier[0])).serialize()
       print(serialized_graph)
       serialized_graphs.append(serialized_graph)
    
    
-   dcat_fields = DCATDataset.annotate_model()
+   dcat_fields = DCATResourceNxt.annotate_model()
    pprint.pprint(dcat_fields.fields_description())
    return serialized_graphs

@@ -1586,6 +1586,66 @@ def getDataset(id):
     bottle.response.content_type = "text/turtle"
     return (rdformat)
 
+@app.route('/api/fdp/datasets', method='GET')
+def getDatasetsDCAT():
+    try:
+        # Validar configuración y solicitud
+        if CONFIG is None or not isinstance(bottle.request.query, bottle.FormsDict):
+            raise Exception("Invalid configuration or request.")
+        LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+        
+        # Obtener el token de autorización
+        ret = getTokenFromAuthorizationHeader()
+        if isinstance(ret, str): 
+            return ret  # Devuelve el mensaje de error si aplica
+        
+        user = authorization.User(ret)
+
+        # Configurar filtros de búsqueda
+        searchFilter = authorization.Search_filter(draft=None, public=None, invalidated=None)
+        if 'draft' in bottle.request.query:
+            searchFilter.draft = parse_flag_value(bottle.request.query['draft'])
+        if 'public' in bottle.request.query:
+            searchFilter.public = parse_flag_value(bottle.request.query['public'])
+        if 'invalidated' in bottle.request.query:
+            searchFilter.invalidated = parse_flag_value(bottle.request.query['invalidated'])
+        if 'project' in bottle.request.query:
+            project = str(bottle.request.query['project'])
+            if not project.replace('-', 'a').isalnum():
+                return setErrorResponse(400, "invalid value for parameter 'project', only alphanumeric chars and '-'")
+            searchFilter.setSelectedProjects(set([project]))
+        searchFilter.adjustByUser(user)
+
+        # Configurar parámetros de paginación y búsqueda
+        skip = int(bottle.request.query['skip']) if 'skip' in bottle.request.query else 0
+        limit = int(bottle.request.query['limit']) if 'limit' in bottle.request.query else 30
+        if skip < 0: skip = 0
+        if limit < 0: limit = 0
+        searchString = str(bottle.request.query['searchString']).strip() if 'searchString' in bottle.request.query else ""
+        searchSubject = str(bottle.request.query['searchSubject']).strip() if 'searchSubject' in bottle.request.query else ""
+        sortBy = str(bottle.request.query['sortBy']).strip() if 'sortBy' in bottle.request.query else ""
+        sortDirection = str(bottle.request.query['sortDirection']).strip() if 'sortDirection' in bottle.request.query else ""
+        onlyLastVersions = ('onlyLastVersions' in bottle.request.query and bool(parse_flag_value(bottle.request.query['onlyLastVersions'])))
+
+        # Obtener datasets de la base de datos
+        with DB(CONFIG.db) as db:
+            datasets, total = db.getDatasets(skip, limit, searchString, searchFilter, sortBy, sortDirection, searchSubject, onlyLastVersions)
+
+        # Transformar datasets al formato DCAT usando la función toDCAT
+        serialized_graphs = []
+        for dataset in datasets:
+            serialized_graphs.extend(toDCAT(dataset))  # Usar la función para transformar cada dataset
+
+        # Combinar todos los gráficos DCAT en un único RDF/XML
+        final_rdf = "\n".join(serialized_graphs)
+
+        # Configurar el tipo de respuesta como RDF/XML
+        bottle.response.content_type = "application/rdf+xml"
+        return final_rdf
+
+    except Exception as e:
+        LOG.error(f"Error processing DCAT datasets: {e}")
+        return setErrorResponse(500, "Internal server error while processing DCAT datasets")
 
 @app.route('/api-doc', method='GET')
 def getStaticApiDoc():
