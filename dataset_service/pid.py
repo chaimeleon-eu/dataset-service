@@ -182,6 +182,7 @@ def _generateIndexJson(studies):
 def getZenodoDOI(url, accessToken, dataset, studies, author, dataset_link_format, community, grant):
     zenodo = urllib.parse.urlparse(url)
     if zenodo.hostname is None: raise PidException('Wrong url.')
+    if accessToken == "": raise PidException('Empty Zenodo access token, check the project configuration.')
     connection = http.client.HTTPSConnection(zenodo.hostname, zenodo.port)
     try:
         logging.root.debug('Creating deposition in Zenodo...')
@@ -213,6 +214,7 @@ def getZenodoDOI(url, accessToken, dataset, studies, author, dataset_link_format
 def updateZenodoDeposition(url, accessToken, dataset, author, dataset_link_format, community, grant, deposition_id):
     zenodo = urllib.parse.urlparse(url)
     if zenodo.hostname is None: raise PidException('Wrong url.')
+    if accessToken == "": raise PidException('Empty Zenodo access token, check the project configuration.')
     connection = http.client.HTTPSConnection(zenodo.hostname, zenodo.port)
     try:
         logging.root.debug('Unlocking deposition in Zenodo (changing to editable mode)...')

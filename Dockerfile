@@ -1,4 +1,4 @@
-FROM redocly/cli as apidoc
+FROM redocly/cli AS apidoc
 ARG API_REF_FILE="API-reference-v1.yaml"
 ENV REDOCLY_TELEMETRY=off
 COPY api-docs/$API_REF_FILE /spec/$API_REF_FILE
@@ -21,7 +21,6 @@ RUN redocly lint $API_REF_FILE \
 FROM ubuntu:22.04
 LABEL name="dataset-service-backend"
 LABEL description="https://github.com/chaimeleon-eu/dataset-service"
-LABEL maintainer="palollo@i3m.upv.es"
 
 RUN apt-get update \
  && apt-get install --no-install-recommends -y python3 python3-pip acl wget unzip less \

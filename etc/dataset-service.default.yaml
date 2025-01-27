@@ -25,6 +25,7 @@ auth:
       superadmin_datasets: "superadmin_datasets"
       admin_users: "admin_users"
       admin_datasetAccess: "admin_datasetAccess"
+      admin_projects: "admin_projects"
   client:   # These are the parameters for login (get an auth token) as a service account in the auth service, 
             # in order to access other services like tracer or the keycloak admin API.
     auth_url: "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token"
@@ -51,22 +52,13 @@ zenodo:
   url: "https://sandbox.zenodo.org/"
     # The url of Zenodo service to submit depositions.
     # Usually "https://sandbox.zenodo.org/" for testing, and "https://zenodo.org/" for production.
-  access_token: "XXXXXXXXXXXXXXXXXXXXXXX"
-    # The access token of the Zenodo account used to publish datasets metada.
-  author: ""
-    # The text that will appear as the author in publications.
-    # Example: "CHAIMELEON consortium"
-    # This way you can set a collective authorship, taking into account the data is provided by several sources. 
-    # If you leave it empty, the name of the user who created the dataset will appear as the author of publication.
-  community: ""
-    # The community code which the publications will be related to.
-    # Example: "chaimeleon_h2020"
-    # Leave it empty if you don't want to specify one.
-    # But it is recommended to create one for your project as a collection to easily find all the depositions.
-  grant: ""
-    # The grant code which the publication will be related to.
-    # Example: "10.13039/501100000780::952172"
-    # Leave it empty if you don't want to specify one.
+
+user_management_scripts:
+  job_template_file_path: ""
+    # You can set it to launch a k8s job running a script whenever a user is created (received PUT /users/<userName>)
+    # to create the user in other services of the platform or make some configurations related to the new user.
+    # example: /var/user-management-jobs/job-template.private.yaml
+    # Set it to empty string to disable that feature.
 
 self: 
   name: "dataset-service"
@@ -76,14 +68,14 @@ self:
     main_service:
         level: "DEBUG"
           # Possible levels from the most to the minimum verbose: DEBUG, INFO, WARN, ERROR, FATAL.
-        file_path: "./log/dataset-service.log"
+        file_path: "/dataset-service/log/dataset-service.log"
           # Destination file path.
         max_size: 10485760
           # Max size of file in bytes. When it get the max size it is closed and renamed appending ".1".
           # If the file ending with ".1" already exists, it is renamed to ".2", and so on until the max backup of 3.
     dataset_creation_job:
         level: "DEBUG"
-        file_path: "./log/dataset-creation-job-%s.log"
+        file_path: "/dataset-service/log/dataset-creation-job-%s.log"
           # In this case '%s' will be replaced by the dataset id.
         max_size: 10485760
   static_api_doc_dir_path: "/var/www/api-doc"
@@ -91,7 +83,13 @@ self:
     # It will be served when a request of path "/api-doc" is received.
   static_files_dir_path: "/var/www/dataset-service-ui"
     # Absolute directory path where the web UI static files are.
-    # They will be served when a request of root path ("/") is received.
+    # They will be served when a request of root path ("/") or "/web/..." is received.
+  static_files_logos_dir_path: "/var/www/project-logos"
+    # Absolute directory path where the logos static image files are.
+    # They will be served when a request of path "/project-logos/..." is received.
+  static_files_output_dir_path: "/var/www/output-files"
+    # Absolute directory path where the output static files are deposited to download.
+    # They will be served when a request of path "/output-files/..." is received.
   dev_token: ""
     # Secret token for the POST "/api/set-ui" operation (for developers, to set the web UI static files).
     # If empty token, that operation is not allowed (404 returned), this way you can disable it.
@@ -111,10 +109,6 @@ self:
   eucaim_search_token: ""
     # Secret token for the POST "/datasets/eucaimSearch" operation (custom search for EUCAIM project).
     # If empty token, that operation is not allowed (404 returned), this way you can disable it.
-  default_license_id: ""
-    # The default license assigned to new datasets. The user can change it later.
-    # Example: "1"
-    # Leave it empty if you don't want to specify one license as default.
   series_hash_cache_life_days: 30
     # Time span to avoid read again all the files of a series to calculate the hash.
     # It is very useful during a global integrity check when there are different datasets containing the same studies/series. 

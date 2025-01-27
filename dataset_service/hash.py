@@ -4,7 +4,7 @@ import hashlib
 import json
 import logging
 from datetime import datetime
-from dataset_service.storage import DB
+from .storage import DB, DBDatasetsOperator
 
 class sha3:
     def __init__(self, b: bytes=b''):
@@ -77,7 +77,6 @@ def getHashOfFile(filePath):
 
 
 class datasetHashesOperator:
-
     def __init__(self, dbconfig, series_hash_cache_life_days):
         self.log = logging.root
         self.dbconfig = dbconfig
@@ -85,7 +84,7 @@ class datasetHashesOperator:
 
     def _getHashOfSeries(self, studyId, studyDirPath, seriesDirName, notifyProgress = None):
         with DB(self.dbconfig) as db:
-            seriesHash, last_time_calculated = db.getSeriesHashCache(studyId, seriesDirName)
+            seriesHash, last_time_calculated = DBDatasetsOperator(db).getSeriesHashCache(studyId, seriesDirName)
             if seriesHash != None and last_time_calculated != None \
                and (datetime.now() - last_time_calculated).days <= self.series_hash_cache_life_days: 
                 #logging.root.debug('Cached SHA of series: %s' % seriesDirName)
@@ -99,7 +98,7 @@ class datasetHashesOperator:
             logging.root.warn('Altered SHA of series (in residual cache): %s' % seriesDirName)
         # Anotate the new hash or refresh the last time calculated
         with DB(self.dbconfig) as db:
-            db.setSeriesHashCache(studyId, seriesDirName, newSeriesHash, datetime.now())
+            DBDatasetsOperator(db).setSeriesHashCache(studyId, seriesDirName, newSeriesHash, datetime.now())
         return newSeriesHash
 
     def _getHashOfStudy(self, studyId, seriesList, studyDirPath, notifyProgress = None):

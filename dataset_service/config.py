@@ -73,6 +73,7 @@ class Config:
         self.auth = Config.Auth(config["auth"])
         self.tracer = Config.Tracer(config["tracer"])
         self.zenodo = Config.Zenodo(config["zenodo"])
+        self.user_management_scripts = Config.User_management_scripts(config["user_management_scripts"])
         self.self = Config.Self(config["self"])
 
     class DB:
@@ -110,10 +111,10 @@ class Config:
     class Zenodo:
         def __init__(self, zenodo: dict):
             self.url = zenodo["url"]
-            self.access_token = zenodo["access_token"]
-            self.author = zenodo["author"]
-            self.community = zenodo["community"]
-            self.grant = zenodo["grant"]
+    
+    class User_management_scripts:
+        def __init__(self, user_management_scripts: dict):
+            self.job_template_file_path = user_management_scripts["job_template_file_path"]
 
     class Self:
         def __init__(self, config: dict):
@@ -123,6 +124,8 @@ class Config:
             self.log = Config.Self.Log(config["log"])
             self.static_api_doc_dir_path = config["static_api_doc_dir_path"]
             self.static_files_dir_path = config["static_files_dir_path"]
+            self.static_files_logos_dir_path = config["static_files_logos_dir_path"]
+            self.static_files_output_dir_path = config["static_files_output_dir_path"]
             self.dev_token = config["dev_token"]
             self.datalakeinfo_dir_path = config["datalakeinfo_dir_path"]
             self.datalakeinfo_token = config["datalakeinfo_token"]
@@ -133,7 +136,6 @@ class Config:
             self.studies_tmp_file_name = config["studies_tmp_file_name"]
             self.dataset_link_format = config["dataset_link_format"]
             self.eucaim_search_token = config["eucaim_search_token"]
-            self.default_license_id = config["default_license_id"]
             self.dataset_integrity_check_life_days = config["dataset_integrity_check_life_days"]
             self.series_hash_cache_life_days = config["series_hash_cache_life_days"]
 

@@ -1,6 +1,7 @@
 from dataset_service.POSIX import *
 
 PROJECT_GROUP_PREFIX = "PROJECT-"
+ADMINS_PROJECT_GROUP_PREFIX = "ADMINS-PROJECT-"
 
 class Roles:
     def __init__(self, roles: dict | None):
@@ -10,6 +11,7 @@ class Roles:
         self.superadmin_datasets = roles["superadmin_datasets"]
         self.admin_users = roles["admin_users"]
         self.admin_datasetAccess = roles["admin_datasetAccess"]
+        self.admin_projects = roles["admin_projects"]
 
 class User:
     roles = Roles(None)
@@ -104,20 +106,22 @@ class User:
     def canCheckIntegrityOfDatasets(self):
         return self.isSuperAdminDatasets()
 
+    def getAllowedActionsOnDatasetsForTheUser(self):
+        allowedActions = []
+        if self.canCreateDatasets():
+            allowedActions.append("create")
+        return allowedActions
+    
     def getEditablePropertiesByTheUser(self, dataset):
         editableProperties = []
         if self.canModifyDataset(dataset):
             if dataset["draft"]: 
                 if not dataset["creating"]:
                     editableProperties.append("draft")
-                editableProperties.append("name")
-                editableProperties.append("version")
+                editableProperties.extend(["name", "version", "previousId",
+                                           "description", "provenance", "purpose",
+                                           "type", "collectionMethod"])
                 # editableProperties.append("project")
-                editableProperties.append("description")
-                editableProperties.append("purpose")
-                editableProperties.append("type")
-                editableProperties.append("collectionMethod")
-                editableProperties.append("previousId")
             else:
                 if self.isSuperAdminDatasets():
                     editableProperties.append("public")
@@ -125,8 +129,7 @@ class User:
             editableProperties.append("invalidated")
             if dataset["invalidated"]:
                 editableProperties.append("invalidationReason")
-            editableProperties.append("contactInfo")
-            editableProperties.append("license")
+            editableProperties.extend(["contactInfo", "license"])
             if self.isSuperAdminDatasets():
                 editableProperties.append("authorId")
         return editableProperties
@@ -172,6 +175,43 @@ class User:
     
     def canManageACL(self, dataset):
         return self.canModifyDataset(dataset) or self.canAdminDatasetAccesses()
+
+    def canAdminProjects(self):
+        if self._token is None: return False
+        return User.roles.admin_projects in self._token["appRoles"]
+    
+    def canModifyProject(self, projectCode: str):
+        if self.canAdminProjects(): return True
+        if self._token is None or not "groups" in self._token.keys(): return False
+        prefix_len = len(ADMINS_PROJECT_GROUP_PREFIX)
+        for g in self._token["groups"]:
+            if g.startswith(ADMINS_PROJECT_GROUP_PREFIX) and g[prefix_len:] == projectCode: return True
+        return False
+    
+    def getAllowedActionsOnProjectsForTheUser(self):
+        allowedActions = []
+        if self.canAdminProjects():
+            allowedActions.append("create")
+        return allowedActions
+    
+    def getEditablePropertiesOfProjectByTheUser(self, projectCode: str):
+        editableProperties = []
+        if self.canModifyProject(projectCode):
+            editableProperties.append("name")
+            editableProperties.append("shortDescription")
+            editableProperties.append("externalUrl")
+            editableProperties.append("logoUrl")
+        return editableProperties
+    
+    def getAllowedActionsOnProjectForTheUser(self, projectCode: str):
+        allowedActions = []
+        if self.canModifyProject(projectCode):
+            allowedActions.append("config")
+        # if self.canDeleteProject(projectCode):
+        #     allowedActions.append("delete")
+        # if self.canManageMembers(projectCode):
+        #     allowedActions.append("manageMembers")
+        return allowedActions
 
 
 class Search_filter():

@@ -1,0 +1,43 @@
+# This is the template of the k8s job launched whenever a user is created, updated or deleted.
+# Template variables that will be replaced by the launcher (Dataset-service):
+# __OPERATION__, __TENANT_USERNAME__, __TENANT_GID__, __TENANT_ROLES__, __TENANT_SITE__, __TENANT_PROJECTS__
+# __OPERATION__ will be "create" or "delete".
+# NOTE: the script for create (create-user.sh) should be idempotent, the result should be the same if called multiple times.
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # name: it is set by the caller
+  # namespace: it is set by the caller
+spec:
+  template:
+    spec:
+      volumes:
+        - name: dataset-service-data-volume
+          persistentVolumeClaim:
+            claimName: dataset-service-data
+
+      containers:
+        - name: user-management
+          image: harbor.chaimeleon-eu.i3m.upv.es/chaimeleon-services/dataset-service-user-management:1.0
+          imagePullPolicy: Always
+          command: ["/bin/bash"]
+          args: ["/home/ubuntu/scripts/__OPERATION__-user.sh"]
+          volumeMounts:
+            - mountPath: "/home/ubuntu/scripts"
+              subPath: "user-management-jobs/scripts"
+              name: dataset-service-data-volume
+          env:
+            - name: TENANT_NAME
+              value: "__TENANT_USERNAME__"
+            - name: TENANT_ROLES
+              value: "__TENANT_ROLES__"
+
+            - name: K8S_ENDPOINT
+              value: "https://192.168.13.31:6443"
+            - name: K8S_TOKEN
+              value: "XXXXXXXXXXXXXXXXXXXXXXX"
+              
+      restartPolicy: Never  # no restart container if fails
+  backoffLimit: 0   # no retry to launch pod if fails
+  ttlSecondsAfterFinished: 86400   # auto remove the job 24 hours after finish

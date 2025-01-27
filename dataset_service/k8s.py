@@ -1,12 +1,14 @@
 
 import logging.config
-from kubernetes import client, config
+from kubernetes import client, config, utils
 from kubernetes.client.rest import ApiException
 import logging
-import json
+import json, yaml
+import uuid
 from dataset_service.config import CONFIG_ENV_VAR_NAME
 
 DATASET_CREATION_JOB_PREFIX="creating-dataset-"
+USER_CREATION_JOB_PREFIX="creating-user-"
 
 class K8sClient:
     def __init__(self):
@@ -100,5 +102,37 @@ class K8sClient:
                 logging.root.debug("The job is already deleted or finished.")
                 return True
             logging.root.error("Exception when calling BatchV1Api->delete_namespaced_job: %s\n" % e)
+            return False
+        return True
+
+
+    def add_user_creation_job(self, username: str, userGid: int, roles: list[str], site: str, projects: list[str], job_template_file_path: str):
+        API = client.ApiClient()
+
+        projects_param = ":".join(projects)
+        roles_param = ":".join(roles)
+        try:
+            with open(job_template_file_path) as f:
+                job_template = f.read()
+            job_template = job_template.replace("__OPERATION__", "create")
+            job_template = job_template.replace("__TENANT_USERNAME__", username)
+            job_template = job_template.replace("__TENANT_GID__", str(userGid))
+            job_template = job_template.replace("__TENANT_ROLES__", roles_param)
+            job_template = job_template.replace("__TENANT_SITE__", site)
+            job_template = job_template.replace("__TENANT_PROJECTS__", projects_param)
+            job = yaml.load(job_template, Loader=yaml.SafeLoader)
+        except:
+            logging.root.error("ERROR: User management job template file not found or cannot be loaded from " + job_template_file_path)
+            return False
+        print("User management job template loaded from file: " + job_template_file_path)
+        if not "metadata" in job or not  isinstance(job["metadata"], dict): job["metadata"] = {}
+        random_uuid = str(uuid.uuid4())[:8]
+        job['metadata']['name'] = USER_CREATION_JOB_PREFIX + username + "-" + random_uuid
+        job['metadata']['namespace'] = self.namespace
+        try:
+            api_response = utils.create_from_yaml(API,  yaml_objects=[ job ])
+            #logging.root.debug(api_response)
+        except ApiException as e:
+            logging.root.error("Exception when calling k8s API -> create_from_yaml: %s\n" % e)
             return False
         return True

@@ -25,6 +25,12 @@ def sexToMiabis(sex):
     if sex == "O": return "Undifferentiated"
     raise Exception("Unexpected value")
 
+def diagnosisToOutputFormat(diagnosis):
+    # Body part is not in Miabis, we take the dicom values.
+    # We use 'Unknown' to represent the empty value.
+    if diagnosis is None: return 'Unknown'
+    else: return diagnosis
+
 def bodyPartToOutputFormat(bodyPart):
     # Body part is not in Miabis, we take the dicom values,
     # but we use 'Unknown' to represent the empty value instead of '""' used by dicom.
