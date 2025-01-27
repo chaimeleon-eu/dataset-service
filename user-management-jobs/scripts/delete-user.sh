@@ -15,7 +15,7 @@ set -e
 echo "Running scripts to delete the user '${TENANT_NAME}'."
 echo "ROLES=${TENANT_ROLES}"
 
-if echo ${TENANT_ROLES} | grep -i "data-scientist"; then
+if echo ${TENANT_ROLES} | grep -i "data-scientist" > /dev/null; then
     KUBECTL_CMD="kubectl --server ${K8S_ENDPOINT} --insecure-skip-tls-verify=true --token=${K8S_TOKEN}"
     TENANT_NAMESPACE="user-${TENANT_NAME}"
     echo "NAMESPACE=${TENANT_NAMESPACE}"

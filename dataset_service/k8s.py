@@ -124,7 +124,7 @@ class K8sClient:
         except:
             logging.root.error("ERROR: User management job template file not found or cannot be loaded from " + job_template_file_path)
             return False
-        print("User management job template loaded from file: " + job_template_file_path)
+        logging.root.info("User management job template loaded from file: " + job_template_file_path)
         if not "metadata" in job or not  isinstance(job["metadata"], dict): job["metadata"] = {}
         random_uuid = str(uuid.uuid4())[:8]
         job['metadata']['name'] = USER_CREATION_JOB_PREFIX + username + "-" + random_uuid

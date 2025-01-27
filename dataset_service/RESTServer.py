@@ -1584,7 +1584,7 @@ def putUser(userName):
 
         if userId is None:
             userId = AUTH_ADMIN_CLIENT.getUserId(userName)
-            if userId is None: raise Exception("Username '%s' not found in the auth service." % userName)
+            if userId is None: raise WrongInputException("Username '%s' not found in the auth service." % userName)
 
         LOG.debug("Creating or updating user in DB: %s, %s, %s" % (userId, userName, userGid))
         with DB(CONFIG.db) as db:
@@ -1595,7 +1595,7 @@ def putUser(userName):
 
         if CONFIG.user_management_scripts.job_template_file_path != "":
             if len(roles) == 0:
-                userGroups = AUTH_ADMIN_CLIENT.getUserGroups(userName)
+                userGroups = AUTH_ADMIN_CLIENT.getUserGroups(userId)
                 roles = userGroups   # let's take all the groups for now
             LOG.debug('Launching user creation job...')
             k8sClient = k8s.K8sClient()
