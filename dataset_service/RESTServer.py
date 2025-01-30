@@ -868,7 +868,7 @@ def updateZenodoDeposition(db, dataset):
     if pidUrl != None: 
         i = pidUrl.rfind('.') + 1
         depositionId = pidUrl[i:]
-        projectConfig = db.getProjectConfig(dataset["project"])
+        projectConfig = DBProjectsOperator(db).getProjectConfig(dataset["project"])
         if projectConfig is None: raise Exception()
         author = projectConfig["zenodoAuthor"] if projectConfig["zenodoAuthor"] != '' else dataset["authorName"]
         pid.updateZenodoDeposition(CONFIG.zenodo.url, projectConfig["zenodoAccessToken"], dataset, author,
@@ -1428,8 +1428,8 @@ def _putProjectConfig(projectConfig, projectCode, db):
     if not isinstance(zenodoCommunity, str): raise WrongInputException("'zenodoCommunity' property must be a string.")
     zenodoGrant = projectConfig["zenodoGrant"] if "zenodoGrant" in projectConfig.keys() else ''
     if not isinstance(zenodoGrant, str): raise WrongInputException("'zenodoGrant' property must be a string.")
-    db.setProjectConfig(projectCode, defaultContactInfo, defaultLicenseTitle, defaultLicenseUrl,
-                                     zenodoAccessToken, zenodoAuthor, zenodoCommunity, zenodoGrant)
+    DBProjectsOperator(db).setProjectConfig(projectCode, defaultContactInfo, defaultLicenseTitle, defaultLicenseUrl,
+                                            zenodoAccessToken, zenodoAuthor, zenodoCommunity, zenodoGrant)
 
 
 @app.route('/api/projects/<code>/config', method='PUT')
