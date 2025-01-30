@@ -57,7 +57,7 @@ class dataset_creation_worker:
             self.log.info("Waiting %d seconds for the dataset appearing in DB..." % self.WAIT_FOR_DATASET_INTERVAL_SECONDS)
             time.sleep(self.WAIT_FOR_DATASET_INTERVAL_SECONDS)
             seconds_waiting += self.WAIT_FOR_DATASET_INTERVAL_SECONDS
-            dataset = db.getDataset(self.datasetId)
+            dataset = DBDatasetsOperator(db).getDataset(self.datasetId)
         return dataset
 
     @staticmethod
