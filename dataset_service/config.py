@@ -88,7 +88,7 @@ class Config:
         def __init__(self, auth: dict):
             self.token_validation = Config.Auth.Token_validation(auth["token_validation"])
             self.client = Config.Auth.Client(auth["client"])
-            self.admin_api_url = auth["admin_api_url"]
+            self.admin_api = Config.Auth.Admin_api(auth["admin_api"])
 
         class Token_validation:
             def __init__(self, token_validation: dict):
@@ -103,6 +103,11 @@ class Config:
                 self.auth_url = client["auth_url"]
                 self.client_id = client["client_id"]
                 self.client_secret = client["client_secret"]
+        
+        class Admin_api:
+            def __init__(self, admin_api: dict):
+                self.url = admin_api["url"]
+                self.client_id_to_request_user_tokens = admin_api["client_id_to_request_user_tokens"]
 
     class Tracer:
         def __init__(self, tracer: dict):

@@ -93,7 +93,7 @@ def run(host, port, config: config.Config):
     CONFIG = config
     authorization.User.roles = authorization.Roles(CONFIG.auth.token_validation.roles)
     AUTH_CLIENT = AuthClient(CONFIG.auth.client.auth_url, CONFIG.auth.client.client_id, CONFIG.auth.client.client_secret)
-    AUTH_ADMIN_CLIENT = keycloak.KeycloakAdminAPIClient(AUTH_CLIENT, CONFIG.auth.admin_api_url, CONFIG.auth.client.client_id)
+    AUTH_ADMIN_CLIENT = keycloak.KeycloakAdminAPIClient(AUTH_CLIENT, CONFIG.auth.admin_api.url, CONFIG.auth.admin_api.client_id_to_request_user_tokens)
 
     LOG.info("Obtaining the public key from %s..." % CONFIG.auth.token_validation.token_issuer_public_keys_url)
     LOG.info("kid: %s" % CONFIG.auth.token_validation.kid)
