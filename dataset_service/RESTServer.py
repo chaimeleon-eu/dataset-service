@@ -1676,7 +1676,9 @@ def postDatasetAccessCheck():
         if len(badIds) > 0:
             bottle.response.status = 403
             bottle.response.content_type = "application/json"
-            return json.dumps(badIds)
+            ret = json.dumps(badIds)
+            LOG.debug('Access denied to datasets: ' + ret)
+            return ret
                 
         LOG.debug('Dataset access granted.')
         bottle.response.status = 204

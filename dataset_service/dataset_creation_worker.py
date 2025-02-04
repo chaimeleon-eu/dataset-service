@@ -168,6 +168,7 @@ class dataset_creation_worker:
                 with DB(self.config.db) as db:
                     dbdatasets = DBDatasetsOperator(db)
                     for study in dataset["studies"]:
+                        if not "studyName" in study: study["studyName"] = "-"
                         dbdatasets.createOrUpdateStudy(study, self.datasetId)
 
             if dataset["sizeInBytes"] is None:  # This condition is just to skip collecting again metadata if it's

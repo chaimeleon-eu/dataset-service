@@ -122,5 +122,11 @@ class Dicom:
     def getDiagnosis(self) -> str | None:
         if not PROJECT_NAME_PRIVATE_TAG in self.dcm: return None
         project_name = self.dcm[PROJECT_NAME_PRIVATE_TAG].value
-        return ' '.join(str(project_name).split(' ')[:2])
+        diagnosis = ' '.join(str(project_name).split(' ')[:2])
+        diagnosis.lower().capitalize()
+        if diagnosis in ["Lung cancer", "Colon cancer", "Rectum cancer", "Breast cancer", "Prostate cancer"]: 
+            return diagnosis
+        else:
+            return None
+            
 
