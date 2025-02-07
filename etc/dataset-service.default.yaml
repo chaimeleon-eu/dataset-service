@@ -63,10 +63,19 @@ user_management_scripts:
     # example: /var/user-management-jobs/job-template.private.yaml
     # Set it to empty string to disable that feature.
 
+logos:  # These are the parameters for logos management (currently logos for projects)
+  image_size_px: 500
+    # The logo images will be resized to image_size_px X image_size_px (but preserving aspect ratio) and then stored in PNG format.
+  max_upload_file_size_mb: 8
+    # The limit of file size to be uploaded to set the logo.
+
 self: 
   name: "dataset-service"
   host: "0.0.0.0"
   port: 11000
+  root_url: "https://chaimeleon-eu.i3m.upv.es/dataset-service"
+    # The root url were that service will be exposed.
+    # It is used to build some urls returned by some operations (like the logo url in the details of a project).
   log: 
     main_service:
         level: "DEBUG"

@@ -820,7 +820,6 @@ paths:
                         type: array
                         items:
                           type: object
-                          example: {"MY-PROJECT", "My own project", "/project-logos/729037af-9015-4222-b064-77f3c1bm9d7h.png"}
                           properties:
                             code:
                               $ref: '#/components/schemas/ProjectCode'
@@ -828,9 +827,9 @@ paths:
                               type: string
                               maxLength: 128
                               description: "Long name of the project."
+                              example: "A wonderful project."
                             logoUrl:
-                              type: string
-                              description: "Image path of the logo."
+                              $ref: '#/components/schemas/ProjectLogoUrl'
                       allowedActionsForTheUser:
                         type: array
                         description: |
@@ -870,7 +869,7 @@ paths:
                       description: |
                         Optional URL to an image logo of the project. 
                         The image will be automatically downloaded and stored in the server. 
-                        Set to empty string if there is no logo for the project."
+                        Set to empty string if there is no logo for the project.
                       example: "https://some-project.org/img/logo.png"
                     projectConfig:
                       $ref: '#/components/schemas/ProjectConfig'
@@ -902,9 +901,7 @@ paths:
                       code:
                         $ref: '#/components/schemas/ProjectCode'
                       logoUrl:
-                        type: string
-                        description: "(Optional) Image path of the logo. Empty string if there is no logo for the project."
-                        example: "/project-logos/729037af-9015-4222-b064-77f3c1bm9d7h.png"
+                        $ref: '#/components/schemas/ProjectLogoUrl'
                       editablePropertiesByTheUser:
                         type: array
                         description: |
@@ -1758,6 +1755,13 @@ components:
       maxLength: 16
       description: "The unique code of the project: short name without spaces (usually capital letters and numbers and hyphens instead of spaces)"
       example: "MY-PROJECT"
+    
+    ProjectLogoUrl:
+      type: string
+      description: |
+        (Optional) Image path of the logo. Empty string if there is no logo for the project.
+        The image will have an aspect ratio of 1:1.
+      example: "https://chaimeleon-eu.i3m.upv.es/dataset-service/project-logos/77f3c1bm9d7h.png"
 
     ProjectDetails:
       type: object

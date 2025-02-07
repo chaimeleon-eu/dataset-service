@@ -1046,6 +1046,7 @@ def patchDataset(id):
                 LOG.debug('Notifying to tracer-service...')
                 # Note this tracer call is inside of "with db" because if tracer fails the database changes will be reverted (transaction rollback).
                 tracer.traceDatasetUpdate(AUTH_CLIENT, CONFIG.tracer.url, datasetId, user.uid, trace_details)
+        LOG.debug('Dataset successfully updated.')
         bottle.response.status = 204
     except WrongInputException as e:
         return setErrorResponse(400, str(e))
@@ -1327,7 +1328,8 @@ def getProjects():
         with DB(CONFIG.db) as db:
             projects = DBProjectsOperator(db).getProjects()
         for project in projects:
-            project["logoUrl"] = '/project-logos/' + project["logoFileName"] if project["logoFileName"] != "" else ""
+            logoFileName = project["logoFileName"] if project["logoFileName"] != "" else ""
+            project["logoUrl"] = CONFIG.self.root_url + '/project-logos/' + logoFileName
             del project["logoFileName"]
         ret = {"list": projects, 
                "allowedActionForTheUser": user.getAllowedActionsOnProjectsForTheUser()}
@@ -1344,11 +1346,27 @@ def _checkUserCanModifyProject(code):
             if not DBProjectsOperator(db).existsProject(code) or not user.canModifyProject(code):
                 return setErrorResponse(401, "unauthorized user")
 
-def _obtainAndWriteLogoFile(sourceUrl, destinationFilePath):
+def _obtainAndWriteLogoToPngFile(sourceUrl, destinationFilePath):
+    if CONFIG is None: raise Exception()
     if not isinstance(sourceUrl, str) or not utils.is_valid_url(sourceUrl, empty_path_allowed=False):
         raise WrongInputException("'logoUrl' property must be an URL-formated string.")
     LOG.debug("URL in body: " + sourceUrl )
-    utils.download_url(sourceUrl, destinationFilePath, 8)
+    originalFilePath = destinationFilePath + '.original'
+    try:
+        try:
+            utils.download_url(sourceUrl, originalFilePath, CONFIG.logos.max_upload_file_size_mb)
+        except Exception as e:
+            LOG.exception(e)
+            raise WrongInputException("There was a problem downloading the logo image file. Bad URL?")
+        try:
+            utils.resize_and_encode_logo_file_to_png(originalFilePath, destinationFilePath, CONFIG.logos.image_size_px)
+        except Exception as e:
+            LOG.exception(e)
+            raise WrongInputException("There was a problem processing the logo image file. " 
+                                      "Probably unsupported format, try another or convert by yourself to PNG/JPEG.")
+    finally:
+        # remove original file if exist
+        if os.path.exists(originalFilePath): os.unlink(originalFilePath)
     
     # elif 'logoImage' in projectData.keys():
     #     logoFile = bottle.request.files["logoImage"]
@@ -1371,7 +1389,7 @@ def putProject(code):
     if not 'application/json' in content_types:
         return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
     read_data = None
-    logoFileName = code   # str(uuid.uuid4())
+    logoFileName = code + ".png"   # str(uuid.uuid4())
     destinationFilePath = os.path.join(CONFIG.self.static_files_logos_dir_path, logoFileName)
     try:
         read_data = bottle.request.body.read().decode('UTF-8')
@@ -1388,7 +1406,7 @@ def putProject(code):
             raise WrongInputException("'externalUrl' property must be an URL-formated string.")
         
         if 'logoUrl' in projectData.keys() and projectData["logoUrl"] != "":
-            _obtainAndWriteLogoFile(projectData["logoUrl"], destinationFilePath + ".tmp")
+            _obtainAndWriteLogoToPngFile(projectData["logoUrl"], destinationFilePath + ".tmp")
         else:
             logoFileName = ""
 
@@ -1470,7 +1488,8 @@ def getProject(code):
     with DB(CONFIG.db) as db:
         project = DBProjectsOperator(db).getProject(code)
     if project is None: return setErrorResponse(404, "not found")
-    project["logoUrl"] = '/project-logos/' + project["logoFileName"] if project["logoFileName"] != "" else ""
+    logoFileName = project["logoFileName"] if project["logoFileName"] != "" else ""
+    project["logoUrl"] = CONFIG.self.root_url + '/project-logos/' + logoFileName
     del project["logoFileName"]
     project["editablePropertiesByTheUser"] = user.getEditablePropertiesOfProjectByTheUser(code)
     project["allowedActionsForTheUser"] = user.getAllowedActionsOnProjectForTheUser(code)
@@ -1501,7 +1520,7 @@ def patchProject(code):
     if user.isUnregistered():
         return setErrorResponse(401, "unauthorized user")
     
-    logoFileName = code   # str(uuid.uuid4())
+    logoFileName = code + ".png"  # str(uuid.uuid4())
     destinationFilePath = os.path.join(CONFIG.self.static_files_logos_dir_path, logoFileName)
     try:
         read_data = bottle.request.body.read().decode('UTF-8')
@@ -1528,7 +1547,7 @@ def patchProject(code):
                 dbprojects.setProjectExternalUrl(code, newValue)
             elif property == "logoUrl":
                 if newValue != "":
-                    _obtainAndWriteLogoFile(newValue, destinationFilePath + ".tmp")
+                    _obtainAndWriteLogoToPngFile(newValue, destinationFilePath + ".tmp")
                 else:
                     logoFileName = ""
                 dbprojects.setProjectLogoFileName(code, logoFileName)
@@ -1537,6 +1556,7 @@ def patchProject(code):
             else:
                 return setErrorResponse(400, "invalid property")
 
+        LOG.debug('Project successfully updated.')
         bottle.response.status = 204
     except WrongInputException as e:
         return setErrorResponse(400, str(e))

@@ -74,6 +74,7 @@ class Config:
         self.tracer = Config.Tracer(config["tracer"])
         self.zenodo = Config.Zenodo(config["zenodo"])
         self.user_management_scripts = Config.User_management_scripts(config["user_management_scripts"])
+        self.logos = Config.Logos(config["logos"])
         self.self = Config.Self(config["self"])
 
     class DB:
@@ -121,11 +122,17 @@ class Config:
         def __init__(self, user_management_scripts: dict):
             self.job_template_file_path = user_management_scripts["job_template_file_path"]
 
+    class Logos:
+        def __init__(self, logos: dict):
+            self.image_size_px = logos["image_size_px"]
+            self.max_upload_file_size_mb = logos["max_upload_file_size_mb"]
+
     class Self:
         def __init__(self, config: dict):
             self.name = config["name"]
             self.host = config["host"]
             self.port = config["port"]
+            self.root_url = config["root_url"]
             self.log = Config.Self.Log(config["log"])
             self.static_api_doc_dir_path = config["static_api_doc_dir_path"]
             self.static_files_dir_path = config["static_files_dir_path"]
