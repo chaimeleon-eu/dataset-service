@@ -92,6 +92,7 @@ def run(host, port, config: config.Config):
     global thisRESTServer, LOG, CONFIG, AUTH_PUBLIC_KEY, AUTH_CLIENT, AUTH_ADMIN_CLIENT
     CONFIG = config
     authorization.User.roles = authorization.Roles(CONFIG.auth.token_validation.roles)
+    authorization.User.client_id = CONFIG.auth.token_validation.client_id
     AUTH_CLIENT = AuthClient(CONFIG.auth.client.auth_url, CONFIG.auth.client.client_id, CONFIG.auth.client.client_secret)
     AUTH_ADMIN_CLIENT = keycloak.KeycloakAdminAPIClient(AUTH_CLIENT, CONFIG.auth.admin_api.url, CONFIG.auth.admin_api.client_id_to_request_user_tokens)
 
@@ -164,7 +165,7 @@ def validate_token(token) -> dict:
 
     #AUTH_PUBLIC_KEY = "-----BEGIN PUBLIC KEY-----\n" + CONFIG.auth.token_issuer_public_key + "\n-----END PUBLIC KEY-----"
     decodedToken = jwt.decode(token, AUTH_PUBLIC_KEY.key, algorithms=['RS256'],  
-                              issuer=CONFIG.auth.token_validation.issuer, audience=CONFIG.auth.token_validation.audience, 
+                              issuer=CONFIG.auth.token_validation.issuer, audience=CONFIG.auth.token_validation.client_id, 
                               options={'verify_signature': True, 'require': ["exp", "iat", "iss", "aud"]})
     #LOG.debug(json.dumps(decodedToken))
     return decodedToken

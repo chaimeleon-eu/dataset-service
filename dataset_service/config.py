@@ -95,7 +95,7 @@ class Config:
             def __init__(self, token_validation: dict):
                 self.token_issuer_public_keys_url = token_validation["token_issuer_public_keys_url"]
                 self.kid = token_validation["kid"]
-                self.audience = token_validation["audience"]
+                self.client_id = token_validation["client_id"]
                 self.issuer = token_validation["issuer"]
                 self.roles = token_validation["roles"]
 

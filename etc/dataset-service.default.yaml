@@ -14,8 +14,9 @@ auth:
       # The key ID (kid) is just for selecting which key have to be downloaded from the token_issuer_public_keys_url in the 
       # initialization in order to validate later the coming tokens. 
       # Usually there is only one key, so just go to the URL and copy the kid.
-    audience: ["dataset-service"] 
-      # The accepted values for the "audience" claim.
+    client_id: "dataset-service"
+      # This used for the accepted value in the "audience" claim,
+      # but also for the key to retrive from "resource_access" claim, which contains the user's roles for this application.
       # You should write here the client ID configured in the authentication service for this application (the dataset-service).
     issuer: "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON"
       # The accepted value for the "issuer" claim.
