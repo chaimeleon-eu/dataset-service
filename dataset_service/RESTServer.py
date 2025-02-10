@@ -1858,7 +1858,8 @@ def getDataset(id):
 
     datasetId = id
     with DB(CONFIG.db) as db:
-        dataset = db.getDataset(datasetId)
+        dbdatasets = DBDatasetsOperator(db)
+        dataset = dbdatasets.getDataset(datasetId)
         if dataset is None:
             return setErrorResponse(404,"not found")
     if not user.canViewDatasetDetails(dataset):
@@ -1912,7 +1913,7 @@ def getDatasetsDCAT():
 
         # Obtener datasets de la base de datos
         with DB(CONFIG.db) as db:
-            datasets, total = db.getDatasets(skip, limit, searchString, searchFilter, sortBy, sortDirection, searchSubject, onlyLastVersions)
+            datasets, total = DBDatasetsOperator(db).getDatasets(skip, limit, searchString, searchFilter, sortBy, sortDirection, searchSubject, onlyLastVersions)
 
         # Transformar datasets al formato DCAT usando la función toDCAT
         serialized_graphs = []

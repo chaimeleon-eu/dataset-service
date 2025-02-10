@@ -5,18 +5,20 @@ from enum import Enum
 from pathlib import Path
 from typing import List, Union
 
-from pydantic import BaseModel, Field, AnyHttpUrl, EmailStr, ConfigDict, Field
-from rdflib import DCAT, DCTERMS, ODRL2, PROV, URIRef
+from pydantic import BaseModel, Field, AnyHttpUrl, EmailStr, ConfigDict, Field, AnyUrl
+from rdflib import DCAT, DCTERMS, ODRL2, PROV, URIRef, RDFS
 
 from sempyro import LiteralField, RDFModel
 from sempyro.foaf import Agent
-from sempyro.namespaces import ADMS, ADMSStatus, DCATv3, DQV
+from sempyro.namespaces import ADMS, ADMSStatus, DCATv3
 from sempyro.odrl import ODRLPolicy
 from sempyro.utils.validator_functions import date_handler, force_literal_field
 from sempyro.vcard import VCard
+from typing import Literal, Optional
 
 logger = logging.getLogger("__name__")
 
+DCT  = "http://purl.org/dc/terms/"
 
 class Status(Enum):
     Completed = ADMSStatus.Completed
@@ -25,8 +27,7 @@ class Status(Enum):
     Withdrawn = ADMSStatus.Withdrawn
 
 class SKOSConcept(BaseModel):
-    type: str = Field(default="skos:Concept", const=True)
-    prefLabel: str = Field(alias="skos:prefLabel")
+    prefLabel: str = Field(...)
 
 class AccessRights(Enum):
     public = URIRef("http://publications.europa.eu/resource/authority/access-right/PUBLIC")
@@ -34,17 +35,17 @@ class AccessRights(Enum):
     non_public = URIRef("http://publications.europa.eu/resource/authority/access-right/NON_PUBLIC")
 
 class Address(BaseModel):
-    type: str = Field(default="locn:Address", const=True)
+    type: str = Field(default="locn:Address")
     name: str = Field(alias="foaf:name")
     mbox: EmailStr = Field(alias="foaf:mbox")
     homepage: AnyHttpUrl = Field(alias="foaf:homepage")
 
 class Organization(BaseModel):
-    type: str = Field(default="foaf:Organization", const=True)
+    type: str = Field(default="foaf:Organization")
     address: Address = Field(alias="locn:address")
 
 class Purpose(BaseModel):
-    type: str = Field(default="dpv:Purpose", const=True)
+    type: str = Field(default="dpv:Purpose")
     description: str = Field(alias="dct:description")
 
 class QualityAnnotation(RDFModel):
@@ -53,9 +54,8 @@ class QualityAnnotation(RDFModel):
     Subclase de oa:Annotation, con la motivación oa:motivatedBy dqv:qualityAssessment.
     """
     
-    type: str = Field(
+    type: Literal["dqv:QualityAnnotation"] = Field(
         default="dqv:QualityAnnotation",
-        const=True,
         description="Tipo de anotación de calidad conforme a DQV."
     )
 
@@ -75,6 +75,24 @@ class QualityAnnotation(RDFModel):
         description="Motivación de la anotación, en este caso 'dqv:qualityAssessment'."
     )
 
+class ProvenanceStatementModel(RDFModel):
+    """Un recurso RDF de tipo dct:ProvenanceStatement."""
+
+    label: Optional[str] = Field(
+        default=None,
+        description="Texto explicativo de la procedencia.",
+        rdf_term=RDFS.label,
+        rdf_type="literal"
+    )
+    
+    class Config:
+        # Metadatos para indicar que esta clase representa dct:ProvenanceStatement
+        json_schema_extra = {
+            "$ontology": str(DCTERMS),
+            "$IRI": str(DCTERMS.ProvenanceStatement),
+            "$prefix": "dct"
+        }
+
 
 class DCATResourceNxt(RDFModel, metaclass=ABCMeta):
     """Resource published or curated by a single agent. Abstract class"""
@@ -89,13 +107,13 @@ class DCATResourceNxt(RDFModel, metaclass=ABCMeta):
                               )
     
     title: List[LiteralField] = Field(
-        description="A name given to the resource.",
+        description="A clear and concise name for the dataset.",
         rdf_term=DCTERMS.title,
         rdf_type="rdfs_literal")
 
     description: List[Union[str, LiteralField]] = Field(
         default=None,
-        description="A description of the resource.",
+        description="A detailed description of the dataset's content, purpose, and scope.",
         rdf_term=DCTERMS.description,
         rdf_type="rdfs_literal")
     
@@ -129,24 +147,39 @@ class DCATResourceNxt(RDFModel, metaclass=ABCMeta):
         rdf_term=DCTERMS.accessRights,
         rdf_type="uri")
     
-    rights: List[Union[str, LiteralField]] = Field(
+    rights: str = Field(
         default=None,
         description="Information about rights held in and over the resource.",
         rdf_term=DCTERMS.rights,
         rdf_type="rdfs_literal")
     
-    applicableLegislation: List[Union[str, LiteralField]] = Field(
+    applicableLegislation: str = Field(
         default=None,
         description="The legislation that applies to the resource.",
         rdf_term=DCAT.applicableLegislation,
-        rdf_type="rdfs_literal")
+        rdf_type="uri")
     
-    provenance: List[Union[str, LiteralField]] = Field(
+    # provenance: List[Union[str, LiteralField]] = Field(
+    #     default=None,
+    #     description="A statement concerning the source and lineage of the Dataset.",
+    #     rdf_term=PROV.wasDerivedFrom,
+    #     rdf_type="rdfs_literal")
+    
+    # provenance: List[Union[str, LiteralField]] = Field(
+    #     default=None,
+    #     description=(
+    #         "Information about how the data was created, "
+    #         "processed, including methodologies, tools, and protocols used."
+    #     ),
+    #     rdf_term=DCAT + "provenance",             
+  
+    # )
+    provenance: Optional[List[ProvenanceStatementModel]] = Field(
         default=None,
-        description="A statement concerning the source and lineage of the Dataset.",
-        rdf_term=PROV.wasDerivedFrom,
-        rdf_type="rdfs_literal")
-    
+        description="Información sobre cómo se creó o procesó el recurso.",
+        rdf_term=DCTERMS.provenance
+    )
+
     type: List[SKOSConcept] = Field(
         default=None,
         description="The nature or genre of the resource.",
@@ -170,31 +203,40 @@ class DCATResourceNxt(RDFModel, metaclass=ABCMeta):
         description="The upper age of the intended audience of the resource.",
         rdf_term=DCAT.ageHigh,
         rdf_type="xsd:integer")
-    
-    nbrOfStudies: int = Field(   
+    # mismo qu eel comentario de nbr od subjects AttributeError: term 'studies' not in namespace 'http://purl.org/dc/terms/' habría que hace un "namespace" para eucaim 
+    nbrOfStudies: List[Union[int, LiteralField]] = Field(
         default=None,
-        description="The number of studies in the resource.",
-        rdf_term=DCAT.nbrOfStudies,
-        rdf_type="xsd:integer")
-    
-    nbrOfSubjects: int = Field(
+        description="The number of studies in the dataset.",
+        rdf_term=DCTERMS.subject,
+        rdf_type="xsd:integer"
+    )
+    #EN LAS QUE SON AÑADIDAS POR EUCAIM EN LUGAR DE DCTERMS HABRÍA QUE PONER EUCAIM.subject Y OVIAMENTE INDICANDO LA URL A LA QUE REFERENCIA ANTERIORMENTE
+    nbrOfSubjects: List[Union[int, LiteralField]] = Field(
         default=None,
-        description="The number of subjects in the resource.",
-        rdf_term=DCAT.nbrOfSubjects,
-        rdf_type="xsd:integer")
+        description="The number of subjects in the dataset.",
+        rdf_term=DCTERMS.subject,
+        rdf_type="xsd:integer"
+    )
     
 
-    legalBasis: List[Union[str, LiteralField]] = Field(
+    legalBasis: str = Field(
         default=None,
         description="The legal basis used to justify processing of personal data.",
         rdf_term=DCAT.legalBasis,
-        rdf_type="rdfs_literal")
+        rdf_type="uri")
     
     # intendedPurpose: List[Purpose] = Field(
     #     default=None,
     #     description="free text statement of the purpose of the processing of personal data.",
     #     ##rdf_term="chaimeleon:intendedPurpose",
     #     rdf_type="uri")
+
+    intendedPurpose: List[Purpose] = Field(
+        default_factory=list,
+        description="A free-text statement of the purpose(s) of this dataset.",
+        rdf_term="http://www.w3.org/ns/dpv#hasPurpose",   # dpv:hasPurpose
+        rdf_type="http://www.w3.org/ns/dpv#Purpose"       # indicando que la clase objetivo es dpv:Purpose
+    )
 
     hasQualityAnnotation: List[QualityAnnotation] = Field(
         default=None,
@@ -204,8 +246,8 @@ class DCATResourceNxt(RDFModel, metaclass=ABCMeta):
             "In DQV context, the subject is typically a dcat:Dataset or "
             "dcat:Distribution."
         ),
-        rdf_term=DQV.hasQualityAnnotation,
-        #rdf_term="http://www.w3.org/ns/dqv#hasQualityAnnotation"
+        #rdf_term=DQV.hasQualityAnnotation,
+        rdf_term="http://www.w3.org/ns/dqv#hasQualityAnnotation",
         rdf_type="uri"
     )
     
@@ -240,21 +282,21 @@ class DCATResourceNxt(RDFModel, metaclass=ABCMeta):
         rdf_term="skos:Concept",
         rdf_type="xsd:string")
     
-    imageModality: List[SKOSConcept] = Field(
+    hasImageModality: List[SKOSConcept] = Field(
         default=None,
         description="The imaging modality of the resource.",
         rdf_term="skos:Concept",
         rdf_type="xsd:string")
     
-    bodyPart: List[SKOSConcept] = Field(
+    hasImagebodyPart: List[SKOSConcept] = Field(
         default=None,
         description="The body part(s) involved in the resource.",
         rdf_term="skos:Concept",
         rdf_type="xsd:string")
     
-    accessURL: AnyHttpUrl = Field(
+    accessURL: AnyUrl = Field(
         default=None,
-        description="The URL to access the resource.",
+        description="A URL that gives information about accessing the dataset.",
         rdf_term=DCAT.accessURL,
         rdf_type="uri")
     
