@@ -57,7 +57,7 @@ class dataset_creation_worker:
             self.log.info("Waiting %d seconds for the dataset appearing in DB..." % self.WAIT_FOR_DATASET_INTERVAL_SECONDS)
             time.sleep(self.WAIT_FOR_DATASET_INTERVAL_SECONDS)
             seconds_waiting += self.WAIT_FOR_DATASET_INTERVAL_SECONDS
-            dataset = db.getDataset(self.datasetId)
+            dataset = DBDatasetsOperator(db).getDataset(self.datasetId)
         return dataset
 
     @staticmethod
@@ -168,6 +168,7 @@ class dataset_creation_worker:
                 with DB(self.config.db) as db:
                     dbdatasets = DBDatasetsOperator(db)
                     for study in dataset["studies"]:
+                        if not "studyName" in study: study["studyName"] = "-"
                         dbdatasets.createOrUpdateStudy(study, self.datasetId)
 
             if dataset["sizeInBytes"] is None:  # This condition is just to skip collecting again metadata if it's

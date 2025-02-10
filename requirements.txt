@@ -8,3 +8,4 @@ pyjwt[crypto]==2.8.0      # to validate authentication tokens (crypto is needed 
 pydicom==2.4.4        # to collect metadata from dicom tags
 sempyro==1.4.0       
 xhtml2pdf==0.2.16      # to generate pdf to publish in zenodo
+Pillow==11.1.0       # to resize and encode logos

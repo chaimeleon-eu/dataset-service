@@ -21,6 +21,7 @@ spec:
         - name: user-management
           image: harbor.chaimeleon-eu.i3m.upv.es/chaimeleon-services/dataset-service-user-management:1.0
           imagePullPolicy: Always
+          workingDir: "/home/ubuntu/scripts"
           command: ["/bin/bash"]
           args: ["/home/ubuntu/scripts/__OPERATION__-user.sh"]
           volumeMounts:

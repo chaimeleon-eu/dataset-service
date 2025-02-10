@@ -14,8 +14,9 @@ auth:
       # The key ID (kid) is just for selecting which key have to be downloaded from the token_issuer_public_keys_url in the 
       # initialization in order to validate later the coming tokens. 
       # Usually there is only one key, so just go to the URL and copy the kid.
-    audience: ["dataset-service"] 
-      # The accepted values for the "audience" claim.
+    client_id: "dataset-service"
+      # This used for the accepted value in the "audience" claim,
+      # but also for the key to retrive from "resource_access" claim, which contains the user's roles for this application.
       # You should write here the client ID configured in the authentication service for this application (the dataset-service).
     issuer: "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON"
       # The accepted value for the "issuer" claim.
@@ -34,13 +35,16 @@ auth:
       # The client id of the dataset-service in the authentication service (it is like the "username" of a service account).
     client_secret: "XXXXXXXXXXXXXXXXXXXXXXX"
       # The client secret of the dataset-service client (it is like the "password" when login as a service account).
-  admin_api_url: "https://chaimeleon-eu.i3m.upv.es/auth/admin/realms/CHAIMELEON/"
-    # The URL to the authentication admin api, for querying user groups, etc.
-    # Please note the auth.client params will be used for getting the token to access to this service.
-    # Also note that the following roles must be added to the service account roles 
-    # (and also in the "dedicated scope" of the client if "full scope" is not enabled): 
-    #   "realm-management/query-groups", "realm-management/query-users", 
-    #   "realm-management/view-users", "realm-management/view-clients".
+  admin_api:
+    url: "https://chaimeleon-eu.i3m.upv.es/auth/admin/realms/CHAIMELEON/"
+      # The URL to the authentication admin api, for querying user groups, etc.
+      # Please note the auth.client params will be used to access to this service (authentication admin).
+      # Also note that the following roles must be added to the service account roles 
+      # (and also in the "dedicated scope" of the client if "full scope" is not enabled): 
+      #   "realm-management/query-groups", "realm-management/query-users", 
+      #   "realm-management/view-users", "realm-management/view-clients".
+    client_id_to_request_user_tokens: "dataset-explorer"
+      # The client id of the public client used to get user tokens (when the caller is not the user to be evaluated).
 
 tracer:
   url: "https://chaimeleon-eu.i3m.upv.es/tracer-service/tracer/"
@@ -60,10 +64,19 @@ user_management_scripts:
     # example: /var/user-management-jobs/job-template.private.yaml
     # Set it to empty string to disable that feature.
 
+logos:  # These are the parameters for logos management (currently logos for projects)
+  image_size_px: 500
+    # The logo images will be resized to image_size_px X image_size_px (but preserving aspect ratio) and then stored in PNG format.
+  max_upload_file_size_mb: 8
+    # The limit of file size to be uploaded to set the logo.
+
 self: 
   name: "dataset-service"
   host: "0.0.0.0"
   port: 11000
+  root_url: "https://chaimeleon-eu.i3m.upv.es/dataset-service"
+    # The root url were that service will be exposed.
+    # It is used to build some urls returned by some operations (like the logo url in the details of a project).
   log: 
     main_service:
         level: "DEBUG"

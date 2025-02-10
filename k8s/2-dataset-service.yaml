@@ -46,7 +46,7 @@ spec:
             - containerPort: 11000
               name: dssport
           volumeMounts:
-            - mountPath: "/dataset-service/log"
+            - mountPath: "/var/log/dataset-service"
               subPath: "log"
               name: dataset-service-data-volume
             - mountPath: "/var/user-management-jobs"
@@ -98,8 +98,8 @@ spec:
                   "self": { 
                       "port": 11000, 
                       "log": { 
-                        "main_service": {"level": "DEBUG", "file_path": "./log/dataset-service.log"},
-                        "dataset_creation_job": {"level": "DEBUG", "file_path": "./log/dataset-creation-job-%s.log"}
+                        "main_service": {"level": "DEBUG", "file_path": "/var/log/dataset-service/dataset-service.log"},
+                        "dataset_creation_job": {"level": "DEBUG", "file_path": "/var/log/dataset-service/dataset-creation-job-%s.log"}
                       },
                       "static_files_dir_path": "/var/www/dataset-service-ui",
                       "static_files_logos_dir_path": "/var/www/project-logos",
