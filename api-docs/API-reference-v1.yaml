@@ -227,7 +227,7 @@ paths:
                       This property is intended for let the UI know which actions to show.
                       Possible values are:
                         * `create` - To show the boton/link to the creation form for a new dataset.
-                    example: '["create"]'
+                    example: ["create"]
                     items:
                       type: string
                       enum: 
@@ -276,7 +276,7 @@ paths:
           application/json:
             schema:
               type: object
-              example: '{"property": "public", "value": true}'
+              example: {"property": "public", "value": true}
               properties:
                 property:
                   type: string
@@ -837,7 +837,7 @@ paths:
                           This property is intended for let the UI know which actions to show.
                           Possible values are:
                            * `create` - To show the boton/link to the creation form for a new project.
-                        example: '["create"]'
+                        example: ["create"]
                         items:
                           type: string
                           enum: 
@@ -908,7 +908,7 @@ paths:
                           The properties that can be modified with PATCH operation by the current authenticated user. 
                           The array will be empty if no properties can be modified.
                           The UI can use this property to show which properties are editable.
-                        example: '["name", "shortDescription", "externalUrl", "logoUrl"]'
+                        example: ["name", "shortDescription", "externalUrl", "logoUrl"]
                         items:
                           type: string
                       allowedActionsForTheUser:
@@ -919,7 +919,7 @@ paths:
                           So this property is intended for let the UI know which other actions to show.
                           Possible values are:
                            * `config` - To show the form with the configuration params for the project.
-                        example: '["config"]'
+                        example: ["config"]
                         items:
                           type: string
                           enum: 
@@ -941,7 +941,7 @@ paths:
           application/json:
             schema:
               type: object
-              example: '{"property": "description", "value": "This is an amazing project."}'
+              example: {"property": "description", "value": "This is an amazing project."}
               properties:
                 property:
                   type: string
@@ -1267,7 +1267,7 @@ components:
         type:
           type: array
           description: "Optional for backward compatibility, but should be included in new implementations."
-          example: '["annotated"]'
+          example: ["annotated"]
           items:
             type: string
             enum:
@@ -1278,7 +1278,7 @@ components:
         collectionMethod:
           type: array
           description: "Optional for backward compatibility, but should be included in new implementations."
-          example: '["only-image","disease-specific"]'
+          example: ["only-image","disease-specific"]
           items:
             type: string
             enum:
@@ -1402,7 +1402,7 @@ components:
           description: "Short text with the intended purpose of the dataset."
         type:
           type: array
-          example: '["annotated"]'
+          example: ["annotated"]
           items:
             type: string
             enum:
@@ -1412,7 +1412,7 @@ components:
              - "personal-data"
         collectionMethod:
           type: array
-          example: '["only-image","disease-specific"]'
+          example: ["only-image", "disease-specific"]
           items:
             type: string
             enum:
@@ -1508,7 +1508,7 @@ components:
             The properties that can be modified with PATCH operation by the current authenticated user in the current state of this dataset. 
             The array will be empty if no properties can be modified.
             The UI can use this property to show which properties are editable.
-          example: '["public", "invalidated", "name", "description"]'
+          example: ["public", "invalidated", "name", "description"]
           items:
             type: string
         allowedActionsForTheUser:
@@ -1526,7 +1526,7 @@ components:
              * `relaunchCreationJob` - To do a POST /datasets/{id}/relaunchCreationJob.
              * `viewAccessHistory` - To do a GET /datasets/{id}/accessHistory
              * `manageACL` - To do any operation in /datasets/{id}/acl and /datasets/{id}/acl/{username}
-          example: '["use", "checkIntegrity"]'
+          example: ["use", "checkIntegrity"]
           items:
             type: string
             enum: 
@@ -1547,19 +1547,19 @@ components:
           description: |
             [Miabis] Age of the youngest subject. Null if metadata still not collected or age data empty for all studies.
             Collected from Dicom tag (0010,1010) or from the subject clinical data (inclusion_criteria.age_at_diagnosis or .age_at_baseline).
-          example: '54'
+          example: 54
         ageHigh:
           type: integer
           description: |
             [Miabis] Age of the oldest subject. Null if metadata still not collected or age data empty for all studies.
             Collected from Dicom tag (0010,1010) or from the subject clinical data (inclusion_criteria.age_at_diagnosis).
-          example: '82'
+          example: 82
         ageUnit:
           type: array
           description: |
             [Miabis] Array of two items: unit for ageLow, unit for ageHigh. 
             Empty if metadata still not collected or age data empty for all studies.
-          example: '["years", "years"]'
+          example: ["years", "years"]
           items:
             type: string
         ageNullCount:
@@ -1567,14 +1567,14 @@ components:
           description: |
             The number of studies with unknown age data. 
             Null if metadata still not collected.
-          example: '2'
+          example: 2
         sex:
           type: array
           description: |
             [Miabis] Array of different sex values in the dataset. Empty if metadata still not collected.
             Collected from Dicom tag (0010,0040) or from the subject clinical data (patient_data.gender).
             Miabis standard defines the possible values: "Male", "Female", "Undifferentiated", "Unknown".
-          example: '["Male", "Female", "Unknown"]'
+          example: ["Male", "Female", "Unknown"]
           items:
             type: string
         sexCount:
@@ -1582,7 +1582,7 @@ components:
           description: |
             Array with the number of studies for each item of the previous 'sex' array. 
             Empty if metadata still not collected.
-          example: '[348, 170, 2]'
+          example: [348, 170, 2]
           items:
             type: integer
         diagnosis:
@@ -1591,7 +1591,7 @@ components:
             Array of different diagnosis values in the dataset. Empty if metadata still not collected.
             Collected from Dicom tag (70D1,2000), private tag (project name) defined in CHAIMELEON.
             Possible values: "Prostate cancer", "Breast cancer", "Lung cancer", "Colon cancer", "Rectum cancer", "Unknown".
-          example: '["Colon cancer", "Rectum cancer", "Unknown"]'
+          example: ["Colon cancer", "Rectum cancer", "Unknown"]
           items:
             type: string
         diagnosisCount:
@@ -1599,7 +1599,7 @@ components:
           description: |
             Array with the number of studies for each item of the previous 'diagnosis' array. 
             Empty if metadata still not collected.
-          example: '[348, 170, 2]'
+          example: [348, 170, 2]
           items:
             type: integer
         bodyPart:
@@ -1609,7 +1609,7 @@ components:
             Collected from Dicom tag (0018,0015).
             Dicom standard defines the posible values.
             Additionally the value 'Unknown' will be added at the end if there is any case with empty body part data.
-          example: '["LUNG", "BRAIN", "Unknown"]'
+          example: ["LUNG", "BRAIN", "Unknown"]
           items:
             type: string
         bodyPartCount:
@@ -1617,7 +1617,7 @@ components:
           description: |
             Array with the number of studies for each item of the previous 'bodyPart' array. 
             Empty if metadata still not collected.
-          example: '[348, 170, 2]'
+          example: [348, 170, 2]
           items:
             type: integer
         modality:
@@ -1627,7 +1627,7 @@ components:
             Collected from Dicom tag (0008,0060).
             Dicom standard defines the posible values.
             Additionally the value 'Unknown' will be added at the end if there is any case with empty modality data.
-          example: '["CT", "MR", "Unknown"]'
+          example: ["CT", "MR", "Unknown"]
           items:
             type: string
         modalityCount:
@@ -1635,7 +1635,7 @@ components:
           description: |
             Array with the number of studies for each item of the previous 'modality' array. 
             Empty if metadata still not collected.
-          example: '[348, 170, 2]'
+          example: [348, 170, 2]
           items:
             type: integer
         manufacturer:
@@ -1644,7 +1644,7 @@ components:
             Array of different image equipment manufacturers in the dataset. Empty if metadata still not collected.
             Collected from Dicom tag (0008,0070) and harmonized.
             Additionally the value 'Unknown' will be added at the end if there is any case with empty manufacturer data.
-          example: '["Philips", "Siemens", "Unknown"]'
+          example: ["Philips", "Siemens", "Unknown"]
           items:
             type: string
         manufacturerCount:
@@ -1652,7 +1652,7 @@ components:
           description: |
             Array with the number of studies for each item of the previous 'manufacturer' array. 
             Empty if metadata still not collected.
-          example: '[348, 170, 2]'
+          example: [348, 170, 2]
           items:
             type: integer
         diagnosisYearLow:
@@ -1670,11 +1670,11 @@ components:
           description: |
             The number of studies with unknown year of diagnosis. 
             Null if metadata still not collected.
-          example: '2'
+          example: 2
         seriesTags:
           type: array
           description: "Array of different tags in series of the studies of the dataset."
-          example: '["Axial", "T2W"]'
+          example: ["Axial", "T2W"]
           items:
             type: string
         sizeInBytes:
@@ -1682,7 +1682,7 @@ components:
           description: |
             The total size of files in all the studies and series selected for this dataset plus the eforms file. 
             Null if metadata still not collected.
-          example: '2834502270'
+          example: 2834502270
 
     Study:
       type: object
@@ -1718,7 +1718,7 @@ components:
           description: |
             The total size of files in all the series selected for this study in the dataset. 
             Null if metadata still not collected.
-          example: '182460520'
+          example: 182460520
           
     Series:
       type: object
@@ -1730,7 +1730,7 @@ components:
         tags:
           type: array
           description: 'A list of tags assigned to the series'
-          example: '["Axial", "T2W"]'
+          example: ["Axial", "T2W"]
           items:
             type: string
 
@@ -1798,7 +1798,7 @@ components:
             (Optional, default is empty) The name and link to a default license document assigned to new datasets.
             It is useful when there is a custom license defined for the datasets of the project.
             The creator of a dataset can change later the license of his/her dataset.
-          example: '{"title": "Some Project Common License 1.0", "url": "https://some-project.org/datasets-license.pdf"}'
+          example: {"title": "Some Project Common License 1.0", "url": "https://some-project.org/datasets-license.pdf"}
           allOf:
             - $ref: '#/components/schemas/License'
         zenodoAccessToken:
@@ -1888,7 +1888,7 @@ components:
           description: |
             Specified only in jobs, and when the job has finished, otherwise null.
             The total execution time in minutes (from startTime to endTime).
-          example: "23"
+          example: 23
         startTime:
           type: string
           format: date-time
