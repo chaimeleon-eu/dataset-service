@@ -1,6 +1,7 @@
 import subprocess
 import shlex
 import urllib.parse
+from PIL import Image, UnidentifiedImageError
 
 def execute_cmd(cmd_string, fetch=True):
     '''
@@ -44,3 +45,10 @@ def is_valid_url(url: str, empty_path_allowed: bool = True) -> bool:
         else: return bool(res.path)
     except Exception:
         return False
+
+def resize_and_encode_logo_file_to_png(originFilePath, destinationFilePath, imageSize):
+    with Image.open(originFilePath) as image:
+        SIZE = imageSize, imageSize
+        image.thumbnail(SIZE)
+        image.save(destinationFilePath, 'PNG')
+

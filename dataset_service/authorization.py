@@ -15,6 +15,7 @@ class Roles:
 
 class User:
     roles = Roles(None)
+    client_id = ""
 
     def __init__(self, token: dict | None):
         self._token = token    # it is None if unregistered user
@@ -27,6 +28,8 @@ class User:
     def validateToken(cls, token, serviceAccount):
         if getattr(User.roles, 'use_datasets', None) is None: 
             raise Exception("Please set User.roles before trying to validate a token.")
+        if User.client_id == "": 
+            raise Exception("Please set User.client_id before trying to validate a token.")
         if not "sub" in token.keys(): return False, "sub"
         if not serviceAccount:
             if not "preferred_username" in token.keys(): return False, "preferred_username"
@@ -34,7 +37,7 @@ class User:
             if not "email" in token.keys(): return False, "email"
             #if not "groups" in token.keys(): return False, "groups"   keycloak does not include groups if empty, but still valid token
         try:
-            token["appRoles"] = token["resource_access"]["dataset-service"]["roles"]
+            token["appRoles"] = token["resource_access"][User.client_id]["roles"]
         except:
             #Keycloak removes the roles array if the user don't have any role
             #so let's set empty instead of return error
