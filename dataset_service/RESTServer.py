@@ -1163,7 +1163,7 @@ def getDatasets():
                         "skipped": skip,
                         "limit": limit,
                         "list": datasets,
-                        "allowedActionForTheUser": user.getAllowedActionsOnDatasetsForTheUser()})
+                        "allowedActionsForTheUser": user.getAllowedActionsOnDatasetsForTheUser()})
     
 @app.route('/api/datasets/eucaimSearch', method='POST')
 def eucaimSearchDatasets():
@@ -1332,7 +1332,7 @@ def getProjects():
             project["logoUrl"] = CONFIG.self.root_url + '/project-logos/' + project["logoFileName"] if project["logoFileName"] != "" else ""
             del project["logoFileName"]
         ret = {"list": projects, 
-               "allowedActionForTheUser": user.getAllowedActionsOnProjectsForTheUser()}
+               "allowedActionsForTheUser": user.getAllowedActionsOnProjectsForTheUser()}
     bottle.response.content_type = "application/json"
     return json.dumps(ret)
 
