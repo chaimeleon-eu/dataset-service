@@ -354,8 +354,11 @@ def _checkPropertyAsArrayOfStrings(propName: str, value: list[str], item_possibl
                 raise WrongInputException("unknown item value '%s' in '%s', it should be one of {%s}" \
                                           % (item, propName, ','.join(item_possible_values)))
 
+def _checkPropertyAsObject(propName: str, value: dict):
+    if not isinstance(value, dict): raise WrongInputException("'%s' must be an object.")
+
 def _checkPropertyAsLicense(newValue):
-    if not isinstance(newValue, dict): raise WrongInputException("The license property must be an object.")
+    _checkPropertyAsObject("license", newValue)
     if not "title" in newValue: raise WrongInputException("Missing 'title' in the new license.")
     if not "url" in newValue: raise WrongInputException("Missing 'url' in the new license.")
     if not isinstance(newValue["title"], str): raise WrongInputException("The title of license must be a string.")
@@ -1163,7 +1166,7 @@ def getDatasets():
                         "skipped": skip,
                         "limit": limit,
                         "list": datasets,
-                        "allowedActionForTheUser": user.getAllowedActionsOnDatasetsForTheUser()})
+                        "allowedActionsForTheUser": user.getAllowedActionsOnDatasetsForTheUser()})
     
 @app.route('/api/datasets/eucaimSearch', method='POST')
 def eucaimSearchDatasets():
@@ -1329,11 +1332,10 @@ def getProjects():
         with DB(CONFIG.db) as db:
             projects = DBProjectsOperator(db).getProjects()
         for project in projects:
-            logoFileName = project["logoFileName"] if project["logoFileName"] != "" else ""
-            project["logoUrl"] = CONFIG.self.root_url + '/project-logos/' + logoFileName
+            project["logoUrl"] = CONFIG.self.root_url + '/project-logos/' + project["logoFileName"] if project["logoFileName"] != "" else ""
             del project["logoFileName"]
         ret = {"list": projects, 
-               "allowedActionForTheUser": user.getAllowedActionsOnProjectsForTheUser()}
+               "allowedActionsForTheUser": user.getAllowedActionsOnProjectsForTheUser()}
     bottle.response.content_type = "application/json"
     return json.dumps(ret)
 
@@ -1346,6 +1348,7 @@ def _checkUserCanModifyProject(code):
         with DB(CONFIG.db) as db:
             if not DBProjectsOperator(db).existsProject(code) or not user.canModifyProject(code):
                 return setErrorResponse(401, "unauthorized user")
+    return user
 
 def _obtainAndWriteLogoToPngFile(sourceUrl, destinationFilePath):
     if CONFIG is None: raise Exception()
@@ -1384,7 +1387,8 @@ def putProject(code):
     if CONFIG is None or not isinstance(bottle.request.body, io.IOBase) \
        or not isinstance(bottle.request.files, bottle.FormsDict): raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
-    _checkUserCanModifyProject(code)
+    ret = _checkUserCanModifyProject(code)
+    if isinstance(ret, str): return ret  # return error message
     
     content_types = get_header_media_types('Content-Type')
     if not 'application/json' in content_types:
@@ -1411,11 +1415,14 @@ def putProject(code):
         else:
             logoFileName = ""
 
+        if not 'projectConfig' in projectData.keys(): raise WrongInputException("'projectConfig' property is required.")
+        _checkPropertyAsObject("projectConfig", projectData["projectConfig"])
+
         with DB(CONFIG.db) as db:
             LOG.debug("Creating or updating project: %s" % code)
             DBProjectsOperator(db).createOrUpdateProject(code, name, shortDescription, externalUrl, logoFileName)
             # project configuration is included in this operation also
-            _putProjectConfig(projectData, code, db)
+            _putProjectConfig(projectData["projectConfig"], code, db)
 
         if os.path.exists(destinationFilePath + ".tmp"): 
             os.rename(destinationFilePath + ".tmp", destinationFilePath)
@@ -1455,7 +1462,8 @@ def _putProjectConfig(projectConfig, projectCode, db):
 def putProjectConfig(code):
     if CONFIG is None or not isinstance(bottle.request.body, io.IOBase): raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
-    _checkUserCanModifyProject(code)
+    ret = _checkUserCanModifyProject(code)
+    if isinstance(ret, str): return ret  # return error message
     
     content_types = get_header_media_types('Content-Type')
     if not 'application/json' in content_types:
@@ -1489,8 +1497,7 @@ def getProject(code):
     with DB(CONFIG.db) as db:
         project = DBProjectsOperator(db).getProject(code)
     if project is None: return setErrorResponse(404, "not found")
-    logoFileName = project["logoFileName"] if project["logoFileName"] != "" else ""
-    project["logoUrl"] = CONFIG.self.root_url + '/project-logos/' + logoFileName
+    project["logoUrl"] = CONFIG.self.root_url + '/project-logos/' + project["logoFileName"] if project["logoFileName"] != "" else ""
     del project["logoFileName"]
     project["editablePropertiesByTheUser"] = user.getEditablePropertiesOfProjectByTheUser(code)
     project["allowedActionsForTheUser"] = user.getAllowedActionsOnProjectForTheUser(code)
@@ -1501,7 +1508,8 @@ def getProject(code):
 def getProjectConfig(code):
     if CONFIG is None: raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
-    _checkUserCanModifyProject(code)
+    ret = _checkUserCanModifyProject(code)
+    if isinstance(ret, str): return ret  # return error message
     
     with DB(CONFIG.db) as db:
         dbprojects = DBProjectsOperator(db)
