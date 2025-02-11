@@ -1329,8 +1329,7 @@ def getProjects():
         with DB(CONFIG.db) as db:
             projects = DBProjectsOperator(db).getProjects()
         for project in projects:
-            logoFileName = project["logoFileName"] if project["logoFileName"] != "" else ""
-            project["logoUrl"] = CONFIG.self.root_url + '/project-logos/' + logoFileName
+            project["logoUrl"] = CONFIG.self.root_url + '/project-logos/' + project["logoFileName"] if project["logoFileName"] != "" else ""
             del project["logoFileName"]
         ret = {"list": projects, 
                "allowedActionForTheUser": user.getAllowedActionsOnProjectsForTheUser()}
@@ -1346,6 +1345,7 @@ def _checkUserCanModifyProject(code):
         with DB(CONFIG.db) as db:
             if not DBProjectsOperator(db).existsProject(code) or not user.canModifyProject(code):
                 return setErrorResponse(401, "unauthorized user")
+    return user
 
 def _obtainAndWriteLogoToPngFile(sourceUrl, destinationFilePath):
     if CONFIG is None: raise Exception()
@@ -1384,7 +1384,8 @@ def putProject(code):
     if CONFIG is None or not isinstance(bottle.request.body, io.IOBase) \
        or not isinstance(bottle.request.files, bottle.FormsDict): raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
-    _checkUserCanModifyProject(code)
+    ret = _checkUserCanModifyProject(code)
+    if isinstance(ret, str): return ret  # return error message
     
     content_types = get_header_media_types('Content-Type')
     if not 'application/json' in content_types:
@@ -1455,7 +1456,8 @@ def _putProjectConfig(projectConfig, projectCode, db):
 def putProjectConfig(code):
     if CONFIG is None or not isinstance(bottle.request.body, io.IOBase): raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
-    _checkUserCanModifyProject(code)
+    ret = _checkUserCanModifyProject(code)
+    if isinstance(ret, str): return ret  # return error message
     
     content_types = get_header_media_types('Content-Type')
     if not 'application/json' in content_types:
@@ -1489,8 +1491,7 @@ def getProject(code):
     with DB(CONFIG.db) as db:
         project = DBProjectsOperator(db).getProject(code)
     if project is None: return setErrorResponse(404, "not found")
-    logoFileName = project["logoFileName"] if project["logoFileName"] != "" else ""
-    project["logoUrl"] = CONFIG.self.root_url + '/project-logos/' + logoFileName
+    project["logoUrl"] = CONFIG.self.root_url + '/project-logos/' + project["logoFileName"] if project["logoFileName"] != "" else ""
     del project["logoFileName"]
     project["editablePropertiesByTheUser"] = user.getEditablePropertiesOfProjectByTheUser(code)
     project["allowedActionsForTheUser"] = user.getAllowedActionsOnProjectForTheUser(code)
@@ -1501,7 +1502,8 @@ def getProject(code):
 def getProjectConfig(code):
     if CONFIG is None: raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
-    _checkUserCanModifyProject(code)
+    ret = _checkUserCanModifyProject(code)
+    if isinstance(ret, str): return ret  # return error message
     
     with DB(CONFIG.db) as db:
         dbprojects = DBProjectsOperator(db)
