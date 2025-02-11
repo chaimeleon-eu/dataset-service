@@ -354,8 +354,11 @@ def _checkPropertyAsArrayOfStrings(propName: str, value: list[str], item_possibl
                 raise WrongInputException("unknown item value '%s' in '%s', it should be one of {%s}" \
                                           % (item, propName, ','.join(item_possible_values)))
 
+def _checkPropertyAsObject(propName: str, value: dict):
+    if not isinstance(value, dict): raise WrongInputException("'%s' must be an object.")
+
 def _checkPropertyAsLicense(newValue):
-    if not isinstance(newValue, dict): raise WrongInputException("The license property must be an object.")
+    _checkPropertyAsObject("license", newValue)
     if not "title" in newValue: raise WrongInputException("Missing 'title' in the new license.")
     if not "url" in newValue: raise WrongInputException("Missing 'url' in the new license.")
     if not isinstance(newValue["title"], str): raise WrongInputException("The title of license must be a string.")
@@ -1412,11 +1415,14 @@ def putProject(code):
         else:
             logoFileName = ""
 
+        if not 'projectConfig' in projectData.keys(): raise WrongInputException("'projectConfig' property is required.")
+        _checkPropertyAsObject("projectConfig", projectData["projectConfig"])
+
         with DB(CONFIG.db) as db:
             LOG.debug("Creating or updating project: %s" % code)
             DBProjectsOperator(db).createOrUpdateProject(code, name, shortDescription, externalUrl, logoFileName)
             # project configuration is included in this operation also
-            _putProjectConfig(projectData, code, db)
+            _putProjectConfig(projectData["projectConfig"], code, db)
 
         if os.path.exists(destinationFilePath + ".tmp"): 
             os.rename(destinationFilePath + ".tmp", destinationFilePath)
