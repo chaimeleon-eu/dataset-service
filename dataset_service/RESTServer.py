@@ -1880,7 +1880,7 @@ def getDatasetAccessHistory(id):
                         "list": accesses })
 
 @app.route('/api/fdp/datasets/<id>', method='GET')
-def getDataset(id):
+def getDatasetDCAT(id):
     if CONFIG is None: raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ret = getTokenFromAuthorizationHeader()
@@ -1893,6 +1893,8 @@ def getDataset(id):
         dataset = dbdatasets.getDataset(datasetId)
         if dataset is None:
             return setErrorResponse(404,"not found")
+        if dataset["draft"]:
+            dataset["creating"] = (dbdatasets.getDatasetCreationStatus(datasetId) != None)
     if not user.canViewDatasetDetails(dataset):
         return setErrorResponse(401,"unauthorized user")
     if user.isUnregistered():

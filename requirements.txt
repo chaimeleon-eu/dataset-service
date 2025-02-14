@@ -1,11 +1,10 @@
 bottle==0.13.2      # REST-API framework
 cheroot==10.0.1      # The high-performance, pure-Python HTTP server used by CherryPy
-pandas==2.2.2
 PyYAML==6.0.1
 kubernetes==26.1.0     # to launch jobs like dataset creation job
 psycopg2-binary==2.9.9         # postgres client
 pyjwt[crypto]==2.8.0      # to validate authentication tokens (crypto is needed to get RS256 algorithm)
 pydicom==2.4.4        # to collect metadata from dicom tags
-sempyro==1.4.0       
+sempyro==1.4.0       # to generate the contents for the FDP enpoint (with DCAT-AP specification)
 xhtml2pdf==0.2.16      # to generate pdf to publish in zenodo
 Pillow==11.1.0       # to resize and encode logos
