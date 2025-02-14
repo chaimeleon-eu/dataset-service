@@ -26,7 +26,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 35
+    CURRENT_SCHEMA_VERSION = 36
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -49,6 +49,7 @@ class DB:
             if version < 33: self.updateDB_v32To33()
             if version < 34: self.updateDB_v33To34()
             if version < 35: self.updateDB_v34To35()
+            if version < 36: self.updateDB_v35To36()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -238,8 +239,8 @@ class DB:
             
             CREATE TABLE project (
                 code varchar(16),
-                name varchar(128) NOT NULL,
-                short_description varchar(512) NOT NULL,
+                name varchar(160) NOT NULL,
+                short_description text NOT NULL,
                 external_url varchar(256) NOT NULL DEFAULT '',
                 logo_file_name varchar(64) NOT NULL DEFAULT '',
                 default_contact_info varchar(256) NOT NULL DEFAULT '',
@@ -293,5 +294,10 @@ class DB:
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN diagnosis text NOT NULL DEFAULT '[]'")
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN diagnosis_count text NOT NULL DEFAULT '[]'")
     
+    def updateDB_v35To36(self):
+        logging.root.info("Updating database from v35 to v36...")
+        self.cursor.execute("ALTER TABLE project ALTER COLUMN name TYPE varchar(160)")
+        self.cursor.execute("ALTER TABLE project ALTER COLUMN short_description TYPE text")
+
 #endregion
 

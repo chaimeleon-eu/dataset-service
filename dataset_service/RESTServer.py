@@ -1401,10 +1401,10 @@ def putProject(code):
         LOG.debug("BODY: " + read_data)
         projectData = json.loads(read_data)
         if not 'name' in projectData.keys(): raise WrongInputException("'name' property is required.")
-        _checkPropertyAsString("name", projectData["name"], min_length=3, max_length=128)
+        _checkPropertyAsString("name", projectData["name"], min_length=3, max_length=160)
         name = projectData["name"]
         if not 'shortDescription' in projectData.keys(): raise WrongInputException("'shortDescription' property is required.")
-        _checkPropertyAsString("shortDescription", projectData["shortDescription"], max_length=512)
+        _checkPropertyAsString("shortDescription", projectData["shortDescription"])
         shortDescription = projectData["shortDescription"]
         externalUrl = projectData["externalUrl"] if "externalUrl" in projectData.keys() else ''
         if not isinstance(externalUrl, str) or (externalUrl != '' and not utils.is_valid_url(externalUrl)):
@@ -1544,11 +1544,11 @@ def patchProject(code):
             if property not in user.getEditablePropertiesOfProjectByTheUser(code):
                 return setErrorResponse(400, "the property is not in the editablePropertiesByTheUser list")
             elif property == "name":
-                _checkPropertyAsString("value", newValue, min_length=3, max_length=128)
+                _checkPropertyAsString("value", newValue, min_length=3, max_length=160)
                 dbprojects.setProjectName(code, newValue)
             elif property == "shortDescription":
                 if not isinstance(newValue, str): raise WrongInputException("The value must be string.")
-                _checkPropertyAsString("value", newValue, max_length=512)
+                _checkPropertyAsString("value", newValue)
                 dbprojects.setProjectShortDescription(code, newValue)
             elif property == "externalUrl":
                 if not isinstance(newValue, str) or (newValue != '' and not utils.is_valid_url(newValue)):

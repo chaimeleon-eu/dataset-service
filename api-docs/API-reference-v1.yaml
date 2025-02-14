@@ -1769,12 +1769,11 @@ components:
         name:
           type: string
           minLength: 3
-          maxLength: 128
+          maxLength: 160
           description: "The long name of the project or just the codename but without restrictions of spaces and so on."
           example: "Accelerating the lab to market transition of AI tools for cancer management"
         shortDescription:
           type: string
-          maxLength: 512
           example: "CHAIMELEON will set up an EU-wide structured repository for health imaging data as an open source for artificial intelligence (AI) experimentation in cancer management."
         externalUrl:
           type: string
