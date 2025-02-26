@@ -198,11 +198,11 @@ def getZenodoDOI(url, accessToken, dataset, studies, author, dataset_link_format
         _uploadFile(connection, bucket.path, accessToken, "description.pdf", descriptionFileBytes)
         logging.root.debug('Zenodo uploading success.')
 
-        logging.root.debug('Uploading index.json...')
-        indexFileJsonContentStr = _generateIndexJson(studies)
-        # previous connection can be used: host and port in bucket_url should be the same 
-        _uploadFile(connection, bucket.path, accessToken, "index.json", indexFileJsonContentStr)
-        logging.root.debug('Zenodo uploading success.')
+        # logging.root.debug('Uploading index.json...')
+        # indexFileJsonContentStr = _generateIndexJson(studies)
+        # # previous connection can be used: host and port in bucket_url should be the same 
+        # _uploadFile(connection, bucket.path, accessToken, "index.json", indexFileJsonContentStr)
+        # logging.root.debug('Zenodo uploading success.')
 
         logging.root.debug('Publishing deposition in Zenodo...')
         doi_url = _publishDeposition(connection, zenodo.path, accessToken, deposition_id)

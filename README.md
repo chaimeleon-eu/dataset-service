@@ -601,9 +601,7 @@ zenodo:
   url: "https://sandbox.zenodo.org/"
     # The url of Zenodo service to submit depositions.
     # Usually "https://sandbox.zenodo.org/" for testing, and "https://zenodo.org/" for production.
-  access_token: "XXXXXXXXXXXXXXXXXXXXXXX"
-  community: ""
-  grant: ""
+    # The account used to access and create depositions in Zenodo is configured per project in the project configuration set by PUT "/projects/<code>/config".
 ```
 
 ## Integration with EUCAIM federated search

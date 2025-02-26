@@ -1805,7 +1805,8 @@ components:
           maxLength: 128
           description: |
             (Optional, default is empty) The access token of the Zenodo account used to send datasets metadata when they are published. 
-            You can get one if you register in zenodo.org.
+            You can get one if you register in zenodo.org:
+              in your account settings, go to "Applications", create a "Personal access token" and set the scopes "deposit:actions", "deposit:write".
             If you leave it empty, the datasets from this project will not be able to be published.
           example: "iHU32BZJU8nosIkln89sd4FesEqbhfu4DIHbdsibgaa"
         zenodoAuthor:
