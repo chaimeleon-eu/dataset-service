@@ -83,7 +83,8 @@ def _searchConditionStringToSQL(sr, key_translated, db_column, translate) -> sql
         _ensureValueIsArrayOfString(sr, key_translated)
         value_translated = []
         for s in sr['value']:
-            try: value_translated.append(translate(s))
+            try: 
+                value_translated.append(translate(s))
             except Exception as e:   # capture, warn and continue with the rest of items
                 logging.root.warn("Unknown value item '%s' in condition with key '%s' (%s)." % (s, sr['key'], key_translated))
     elif sr['type'] in ["EQUALS","NOT_EQUALS","CONTAINS"]:
@@ -108,10 +109,10 @@ def _searchConditionNumToSQL(sr, key_translated, db_column, translate) -> sql.Co
             _ensureValueIsRangeOfNum(sr, key_translated)
             if sr['type'] == "LOWER_THAN": 
                 value = sr['value']["max"]  # ignore min
-                type = "LOWER_EQUAL_THAN"
+                sr['type'] = "LOWER_EQUAL_THAN"
             else:  # sr['type'] == "GREATER_THAN"
                 value = sr['value']["min"]  # ignore max
-                type = "GREATER_EQUAL_THAN"
+                sr['type'] = "GREATER_EQUAL_THAN"
         else:
             _ensureValueIsNum(sr, key_translated)
             value = sr['value']
@@ -120,7 +121,7 @@ def _searchConditionNumToSQL(sr, key_translated, db_column, translate) -> sql.Co
         _ensureValueIsNum(sr, key_translated)
         value_translated = translate(sr['value'])
     else: raise SearchValidationException("Unknown type '%s' in condition with key '%s' (%s)." % (sr['type'], sr['key'], key_translated))
-    return _searchConditionNumValueToSQL(db_column, type, value_translated)
+    return _searchConditionNumValueToSQL(db_column, sr['type'], value_translated)
 
 def _sqlSeriesConditionsToSqlStudiesCondition(sqlSeriesCondition: sql.Composable) -> sql.Composable:
     return sql.SQL("""EXISTS (
