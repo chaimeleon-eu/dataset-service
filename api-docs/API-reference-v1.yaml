@@ -89,8 +89,8 @@ paths:
       summary: List datasets
       operationId: listDatasets
       description: |
-        You can list all available datasets in the system or search by name. 
-        If not searchString or empty, then all datasets are listed.
+        You can list all available datasets in the system and optionally add some filters for flags, tags, name, id, author, project, etc.
+        There are also some parameters for pagination and sorting the results.
       parameters:
         - name: draft
           description: |
@@ -122,6 +122,20 @@ paths:
           required: false
           schema:
             type: boolean
+        - name: tags
+          description: |
+            (Optional filter) If set, only datasets with all those tags will be shown.
+            Note as the type is array, you can repeat the parameter in the URL to send more than one tag.
+            Tags can contain alphanumeric characters or '-', and with max length of 20.
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              pattern: '^[a-zA-Z-]+$'
+              maxLength: 20
+            example: ["train-partition", "annotated"]
         - name: project
           description: |
             (Optional filter) If set, only datasets of that project will be shown. 
@@ -132,7 +146,9 @@ paths:
             type: string
             example: MY-PROJECT
         - name: searchString
-          description: "(Optional, default is empty) Pass an optional search string (or substring)(case-insensitive) for the name or id of dataset, or author of dataset."
+          description: |
+            (Optional, default is empty) 
+            Pass an optional search string (or substring)(case-insensitive) for the name, id or author of dataset."
           in: query
           required: false
           schema:
@@ -140,7 +156,8 @@ paths:
         - name: searchSubject
           description: |
             (Optional, default is empty)
-            Pass an optional search string (or substring)(case-insensitive) for the name of a subject (actually the code, cause they are anonymised) which must be contained in the dataset.
+            Pass an optional search string (or substring)(case-insensitive) for the name of a subject (actually the code, cause they are anonymised)
+            which must be contained in the dataset.
             It can be useful for searching datasets to invalidate in case of a subject that must be taken out of the platform.
           in: query
           required: false
@@ -292,6 +309,7 @@ paths:
                    - "name"
                    - "version"
                    - "description"
+                   - "tags"
                    - "provenance"
                    - "purpose"
                    - "type"
@@ -1218,6 +1236,16 @@ components:
         corrupted:
           type: boolean
           description: "It is true when the integrity check has failed (files modified or even deleted). In that case, the dataset should be invalidated."
+        tags:
+          type: array
+          items:
+            type: string
+            pattern: '^[a-zA-Z-]+$'
+            maxLength: 20
+          description: |
+            Free text tags assignable to datasets for better organization and filtering.
+            Tags can contain alphanumeric characters or '-', and with max length of 20.
+          example: ["train-partition", "annotated"]
         studiesCount:
           type: integer
           description: "The number of studies contained in the dataset."
@@ -1394,6 +1422,16 @@ components:
         description:
           type: string
           description: "Long explanation of dataset details, statistics, links, references, improvements/modifications if it's a new version, etc."
+        tags:
+          type: array
+          items:
+            type: string
+            pattern: '^[a-zA-Z-]+$'
+            maxLength: 20
+          description: | 
+            Free text tags assignable to datasets for better organization and filtering.
+            Tags can contain alphanumeric characters or '-', and with max length of 20.
+          example: ["train-partition", "annotated"]
         provenance:
           type: string
           description: "Short text with the provenance of the data."
@@ -1751,6 +1789,7 @@ components:
 
     ProjectCode:
       type: string
+      pattern: '^[a-zA-Z-]+$'
       minLength: 3
       maxLength: 16
       description: "The unique code of the project: short name without spaces (usually capital letters and numbers and hyphens instead of spaces)"

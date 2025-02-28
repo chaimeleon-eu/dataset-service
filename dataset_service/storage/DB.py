@@ -26,7 +26,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 36
+    CURRENT_SCHEMA_VERSION = 37
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -50,6 +50,7 @@ class DB:
             if version < 34: self.updateDB_v33To34()
             if version < 35: self.updateDB_v34To35()
             if version < 36: self.updateDB_v35To36()
+            if version < 37: self.updateDB_v36To37()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -135,9 +136,11 @@ class DB:
                 series_tags text NOT NULL DEFAULT '[]',
                 last_integrity_check timestamp DEFAULT NULL,
                 size_in_bytes bigint DEFAULT NULL,
+                tags varchar(20) ARRAY NOT NULL DEFAULT ARRAY[]::varchar[],
                 constraint pk_dataset primary key (id),
                 constraint fk_author foreign key (author_id) references author(id)
             );
+            CREATE INDEX dataset_tags_index ON dataset USING GIN (tags);
             /* Every dataset has one of this during the creation; it is deleted when the creation successfully finish.
                The creation job writes here the status of the process, so the UI can inform to the user. */
             CREATE TABLE dataset_creation_status (
@@ -298,6 +301,11 @@ class DB:
         logging.root.info("Updating database from v35 to v36...")
         self.cursor.execute("ALTER TABLE project ALTER COLUMN name TYPE varchar(160)")
         self.cursor.execute("ALTER TABLE project ALTER COLUMN short_description TYPE text")
+
+    def updateDB_v36To37(self):
+        logging.root.info("Updating database from v36 to v37...")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN tags varchar(20) ARRAY NOT NULL DEFAULT ARRAY[]::varchar[]")
+        self.cursor.execute("CREATE INDEX dataset_tags_index ON dataset USING GIN (tags)")
 
 #endregion
 

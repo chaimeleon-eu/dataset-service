@@ -14,6 +14,12 @@ In case of increments in the SAFECHANGE part of version, as you know, the change
 ## Upgrade to 3.21
 (Upcoming)
 
+## Upgrade to 3.20.6.
+### Changes in DB:
+Tags property has been added to dataset. 
+DB schema version increased to 37.
+The DB will be automatically migrated and so you will not be able to go back to a previous version.
+
 ## Upgrade to 3.20
 ### Changes in config:
 That parameter is no more required:
