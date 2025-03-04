@@ -533,6 +533,8 @@ def postDataset():
     except (WrongInputException, K8sException) as e:
         if datasetDirName != '': dataset_file_system.remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
         return setErrorResponse(400, str(e))
+    except json.decoder.JSONDecodeError as e:
+        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
     except Exception as e:
         LOG.exception(e)
         if read_data != None:
@@ -1064,6 +1066,8 @@ def patchDataset(id):
         bottle.response.status = 204
     except WrongInputException as e:
         return setErrorResponse(400, str(e))
+    except json.decoder.JSONDecodeError as e:
+        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
     except pid.PidException as e:
         return setErrorResponse(500, str(e))
 
@@ -1213,6 +1217,8 @@ def eucaimSearchDatasets():
         return json.dumps({'collections': result})
     except (WrongInputException, SearchValidationException) as e:
         return setErrorResponse(422, "Request validation error: %s" % e)
+    except json.decoder.JSONDecodeError as e:
+        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
     except Exception as e:
         LOG.exception(e)
         if read_data != None:
@@ -1448,6 +1454,8 @@ def putProject(code):
         bottle.response.status = 201
     except WrongInputException as e:
         return setErrorResponse(400, str(e))
+    except json.decoder.JSONDecodeError as e:
+        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
@@ -1498,6 +1506,8 @@ def putProjectConfig(code):
         bottle.response.status = 201
     except WrongInputException as e:
         return setErrorResponse(400, str(e))
+    except json.decoder.JSONDecodeError as e:
+        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
@@ -1587,6 +1597,8 @@ def patchProject(code):
         bottle.response.status = 204
     except WrongInputException as e:
         return setErrorResponse(400, str(e))
+    except json.decoder.JSONDecodeError as e:
+        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
@@ -1654,6 +1666,8 @@ def putUser(userName):
         bottle.response.status = 201
     except (WrongInputException, keycloak.KeycloakAdminAPIException) as e:
         return setErrorResponse(400, str(e))
+    except json.decoder.JSONDecodeError as e:
+        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
     except (K8sException, Exception) as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
@@ -1729,6 +1743,8 @@ def postDatasetAccessCheck():
                 
         LOG.debug('Dataset access granted.')
         bottle.response.status = 204
+    except json.decoder.JSONDecodeError as e:
+        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
@@ -1801,6 +1817,8 @@ def postDatasetAccess(id):
 
     except LoginException as e:
         return setErrorResponse(500, "Unexpected, error: "+ str(e))
+    except json.decoder.JSONDecodeError as e:
+        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
@@ -1859,6 +1877,8 @@ def endDatasetAccess(id):
 
         LOG.debug('Dataset access successfully ended.')
         bottle.response.status = 204
+    except json.decoder.JSONDecodeError as e:
+        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
