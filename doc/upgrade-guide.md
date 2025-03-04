@@ -14,6 +14,18 @@ In case of increments in the SAFECHANGE part of version, as you know, the change
 ## Upgrade to 3.21
 (Upcoming)
 
+## Upgrade to 3.20.7
+### Changes in config:
+New optional parameter:
+```
+self:
+  eucaim_search_filter_by_tag: ""
+    # By default only published and not invalidated datasets are returned to the EUCAIM search, 
+    # but additionaly you can filter by any tag.
+    # Example: "eucaim-indexed" (only datasets published, not invalidated and with that tag will be included in search results).
+    # Set it to empty string to disable this extra filter.
+```
+
 ## Upgrade to 3.20.6.
 ### Changes in DB:
 Tags property has been added to dataset. 

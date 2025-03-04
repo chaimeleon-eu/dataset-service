@@ -133,7 +133,7 @@ def _sqlSeriesConditionsToSqlStudiesCondition(sqlSeriesCondition: sql.Composable
                             AND {}
                         )""").format(sqlSeriesCondition)
 
-def _searchRequestToSQL(sr) -> tuple[sql.Composable, bool]:
+def _searchRequestToSQL(sr: dict) -> tuple[sql.Composable, bool]:
     if 'operand' in sr:   # it is an OPERATION: AND/OR of CONDITIONs
         if not sr['operand'] in ['AND', 'OR']: raise SearchValidationException("unknown value for 'operand'")
         if not 'children' in sr:                raise SearchValidationException("missing 'children' in operation")
@@ -188,13 +188,16 @@ class DBDatasetsEUCAIMSearcher():
         self.cursor = db.cursor
         self.conn = db.conn
 
-    def eucaimSearchDatasets(self, skip, limit, searchRequest):
+    def eucaimSearchDatasets(self, searchRequest: dict, tagFilter: str = '', skip: int = 0, limit: int = 0):
         whereClause, isSeriesCondition = _searchRequestToSQL(searchRequest)
         if isSeriesCondition:
             whereClause = _sqlSeriesConditionsToSqlStudiesCondition(whereClause)
         if whereClause != sql.SQL(""):
             whereClause = sql.SQL("AND ") + whereClause
-        if limit == 0: limit = 'ALL'
+        if tagFilter != '':
+            whereClause += sql.SQL(" AND {} = ANY(dataset.tags)").format(sql.Literal(tagFilter))
+        skip_sql = str(skip)
+        limit_sql = str(limit) if limit > 0 else 'ALL'
         q = sql.SQL("""
                 SELECT dataset.id, dataset.name, dataset.creation_date, 
                     dataset.draft, dataset.public, dataset.invalidated, 
@@ -207,7 +210,7 @@ class DBDatasetsEUCAIMSearcher():
                 GROUP BY dataset.id
                 ORDER BY dataset.creation_date DESC
                 LIMIT {} OFFSET {};"""
-            ).format(whereClause, sql.SQL(str(limit)), sql.SQL(str(skip)))
+            ).format(whereClause, sql.SQL(limit_sql), sql.SQL(skip_sql))
         logging.root.debug("QUERY: " + q.as_string(self.conn))
         self.cursor.execute(q)
         res = []

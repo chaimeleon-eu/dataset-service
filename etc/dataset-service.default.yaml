@@ -62,7 +62,7 @@ user_management_scripts:
   job_template_file_path: ""
     # You can set it to launch a k8s job running a script whenever a user is created (received PUT /users/<userName>)
     # to create the user in other services of the platform or make some configurations related to the new user.
-    # example: /var/user-management-jobs/job-template.private.yaml
+    # Example: "/var/user-management-jobs/job-template.private.yaml"
     # Set it to empty string to disable that feature.
 
 logos:  # These are the parameters for logos management (currently logos for projects)
@@ -123,6 +123,11 @@ self:
   eucaim_search_token: ""
     # Secret token for the POST "/datasets/eucaimSearch" operation (custom search for EUCAIM project).
     # If empty token, that operation is not allowed (404 returned), this way you can disable it.
+  eucaim_search_filter_by_tag: ""
+    # By default only published and not invalidated datasets are returned to the EUCAIM search, 
+    # but additionaly you can filter by any tag.
+    # Example: "eucaim-indexed" (only datasets published, not invalidated and with that tag will be included in search results).
+    # Set it to empty string to disable this extra filter.
   series_hash_cache_life_days: 30
     # Time span to avoid read again all the files of a series to calculate the hash.
     # It is very useful during a global integrity check when there are different datasets containing the same studies/series. 

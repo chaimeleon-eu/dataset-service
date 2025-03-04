@@ -1209,7 +1209,8 @@ def eucaimSearchDatasets():
         if not isinstance(search_rq['ast'], dict): raise WrongInputException("The value of property 'ast' must be a json object.")
         #parseAST()
         with DB(CONFIG.db) as db:
-            result = DBDatasetsEUCAIMSearcher(db).eucaimSearchDatasets(0, 0, search_rq['ast'])
+            result = DBDatasetsEUCAIMSearcher(db).eucaimSearchDatasets(
+                search_rq['ast'], CONFIG.self.eucaim_search_filter_by_tag, 0, 0)
             
         LOG.debug('Result: '+json.dumps({'collections': result}))
         bottle.response.status = 200
