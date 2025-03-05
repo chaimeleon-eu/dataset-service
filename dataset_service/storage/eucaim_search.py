@@ -83,7 +83,8 @@ def _searchConditionStringToSQL(sr, key_translated, db_column, translate) -> sql
         _ensureValueIsArrayOfString(sr, key_translated)
         value_translated = []
         for s in sr['value']:
-            try: value_translated.append(translate(s))
+            try: 
+                value_translated.append(translate(s))
             except Exception as e:   # capture, warn and continue with the rest of items
                 logging.root.warn("Unknown value item '%s' in condition with key '%s' (%s)." % (s, sr['key'], key_translated))
     elif sr['type'] in ["EQUALS","NOT_EQUALS","CONTAINS"]:
@@ -108,10 +109,10 @@ def _searchConditionNumToSQL(sr, key_translated, db_column, translate) -> sql.Co
             _ensureValueIsRangeOfNum(sr, key_translated)
             if sr['type'] == "LOWER_THAN": 
                 value = sr['value']["max"]  # ignore min
-                type = "LOWER_EQUAL_THAN"
+                sr['type'] = "LOWER_EQUAL_THAN"
             else:  # sr['type'] == "GREATER_THAN"
                 value = sr['value']["min"]  # ignore max
-                type = "GREATER_EQUAL_THAN"
+                sr['type'] = "GREATER_EQUAL_THAN"
         else:
             _ensureValueIsNum(sr, key_translated)
             value = sr['value']
@@ -120,7 +121,7 @@ def _searchConditionNumToSQL(sr, key_translated, db_column, translate) -> sql.Co
         _ensureValueIsNum(sr, key_translated)
         value_translated = translate(sr['value'])
     else: raise SearchValidationException("Unknown type '%s' in condition with key '%s' (%s)." % (sr['type'], sr['key'], key_translated))
-    return _searchConditionNumValueToSQL(db_column, type, value_translated)
+    return _searchConditionNumValueToSQL(db_column, sr['type'], value_translated)
 
 def _sqlSeriesConditionsToSqlStudiesCondition(sqlSeriesCondition: sql.Composable) -> sql.Composable:
     return sql.SQL("""EXISTS (
@@ -132,7 +133,7 @@ def _sqlSeriesConditionsToSqlStudiesCondition(sqlSeriesCondition: sql.Composable
                             AND {}
                         )""").format(sqlSeriesCondition)
 
-def _searchRequestToSQL(sr) -> tuple[sql.Composable, bool]:
+def _searchRequestToSQL(sr: dict) -> tuple[sql.Composable, bool]:
     if 'operand' in sr:   # it is an OPERATION: AND/OR of CONDITIONs
         if not sr['operand'] in ['AND', 'OR']: raise SearchValidationException("unknown value for 'operand'")
         if not 'children' in sr:                raise SearchValidationException("missing 'children' in operation")
@@ -187,13 +188,16 @@ class DBDatasetsEUCAIMSearcher():
         self.cursor = db.cursor
         self.conn = db.conn
 
-    def eucaimSearchDatasets(self, skip, limit, searchRequest):
+    def eucaimSearchDatasets(self, searchRequest: dict, tagFilter: str = '', skip: int = 0, limit: int = 0):
         whereClause, isSeriesCondition = _searchRequestToSQL(searchRequest)
         if isSeriesCondition:
             whereClause = _sqlSeriesConditionsToSqlStudiesCondition(whereClause)
         if whereClause != sql.SQL(""):
             whereClause = sql.SQL("AND ") + whereClause
-        if limit == 0: limit = 'ALL'
+        if tagFilter != '':
+            whereClause += sql.SQL(" AND {} = ANY(dataset.tags)").format(sql.Literal(tagFilter))
+        skip_sql = str(skip)
+        limit_sql = str(limit) if limit > 0 else 'ALL'
         q = sql.SQL("""
                 SELECT dataset.id, dataset.name, dataset.creation_date, 
                     dataset.draft, dataset.public, dataset.invalidated, 
@@ -206,7 +210,7 @@ class DBDatasetsEUCAIMSearcher():
                 GROUP BY dataset.id
                 ORDER BY dataset.creation_date DESC
                 LIMIT {} OFFSET {};"""
-            ).format(whereClause, sql.SQL(str(limit)), sql.SQL(str(skip)))
+            ).format(whereClause, sql.SQL(limit_sql), sql.SQL(skip_sql))
         logging.root.debug("QUERY: " + q.as_string(self.conn))
         self.cursor.execute(q)
         res = []

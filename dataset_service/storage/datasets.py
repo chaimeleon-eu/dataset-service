@@ -251,7 +251,8 @@ class DBDatasetsOperator():
                    dataset.project_code, dataset.version, 
                    dataset.purpose, dataset.type, dataset.collection_method,
                    dataset.invalidation_reason, dataset.corrupted, dataset.provenance,
-                   dataset.diagnosis, dataset.diagnosis_count
+                   dataset.diagnosis, dataset.diagnosis_count,
+                   dataset.tags
             FROM dataset, author 
             WHERE dataset.id=%s AND author.id = dataset.author_id 
             LIMIT 1;""",
@@ -281,7 +282,7 @@ class DBDatasetsOperator():
         ds = dict(id = row[0], name = row[1], version = row[39], project = row[38],
                     previousId = row[2], nextId = row[35], 
                     authorId = row[3], authorName = row[4], authorEmail = row[5], 
-                    creationDate = creationDate, description = row[7], 
+                    creationDate = creationDate, description = row[7], tags = row[48], 
                     provenance = row[45], purpose = row[40], type = row[41], collectionMethod = row[42],
                     license = dict(
                         title = row[8], 
@@ -421,6 +422,11 @@ class DBDatasetsOperator():
         if onlyLastVersions:
             whereClause += sql.SQL(" AND dataset.next_id IS NULL")
         
+        if len(searchFilter.tags) > 0:
+            whereClause += sql.SQL(
+                    " AND dataset.tags @> ARRAY[{}]::VARCHAR[]"
+                ).format(sql.SQL(', ').join(sql.Literal(item) for item in searchFilter.tags))
+        
         default = 'dataset.creation_date DESC'
         if sortBy == 'name':
             dir = 'DESC' if sortDirection == 'descending' else 'ASC'
@@ -449,8 +455,8 @@ class DBDatasetsOperator():
 
         q = sql.SQL("""
                 SELECT dataset.id, dataset.name, author.name, dataset.creation_date, dataset.project_code, 
-                    dataset.draft, dataset.public, dataset.invalidated, dataset.corrupted, 
-                    dataset.studies_count, dataset.subjects_count, dataset.version
+                    dataset.draft, dataset.public, dataset.invalidated, dataset.corrupted,
+                    dataset.studies_count, dataset.subjects_count, dataset.version, dataset.tags
                 FROM dataset, author{}
                 WHERE dataset.author_id = author.id {}
                 ORDER BY {} 
@@ -463,7 +469,7 @@ class DBDatasetsOperator():
             creationDate = str(row[3].astimezone())   # row[3] is a datetime without time zone, just add the local tz.
                                                       # If local tz is UTC, the string "+00:00" is added at the end.
             res.append(dict(id = row[0], name = row[1], version = row[11], authorName = row[2], creationDate = creationDate, project = row[4],
-                            draft = row[5], public = row[6], invalidated = row[7], corrupted = row[8],
+                            draft = row[5], public = row[6], invalidated = row[7], corrupted = row[8], tags = row[12],
                             studiesCount = row[9], subjectsCount = row[10]))
         return res, total
     
@@ -646,6 +652,9 @@ class DBDatasetsOperator():
 
     def setDatasetDescription(self, id, newValue: str):
         self.cursor.execute("UPDATE dataset SET description = %s WHERE id = %s;", (newValue, id))
+    
+    def setDatasetTags(self, id, newValue: list[str]):
+        self.cursor.execute("UPDATE dataset SET tags = %s WHERE id = %s;", (newValue, id))
     
     def setDatasetProvenance(self, id, newValue: str):
         self.cursor.execute("UPDATE dataset SET provenance = %s WHERE id = %s;", (newValue, id))

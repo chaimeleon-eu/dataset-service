@@ -385,7 +385,21 @@ Create the database deployment and service: `kubectl apply -n dataset-service -f
 Create the main deployment and service: `kubectl apply -n dataset-service -f 2-dataset-service.private.yaml`  
 And finally the ingress: `kubectl apply -n dataset-service -f 3-ingress.private.yaml`
 
-### Run locally for testing purposes:
+### Upgrade
+Here you can see the versioning strategy adopted in this project alongside the relevant changes to upgrade for each version:  
+[doc/upgrade-guide.md](doc/upgrade-guide.md)
+
+Thus, to upgrade an existing deployment to a new version we have to differentiate two cases:
+ - If the new version only changes the 3rd component of the version number, then you can directly upgrade without worries. Example: 3.20.1 --> 3.20.5
+ - If the new version changes the 1st or 2nd component of the version number, then you must read carefully the upgrade guide. Example: 3.20.1 --> 3.21
+
+In order to upgrade with Kubernetes just change the image version in the main deployment template file and apply:
+```
+vim 2-dataset-service.private.yaml
+kubectl apply -n dataset-service -f 2-dataset-service.private.yaml
+```
+
+### [Only for developers] Run locally for testing purposes:
 
 Deploy database with docker:
 ```
@@ -601,9 +615,7 @@ zenodo:
   url: "https://sandbox.zenodo.org/"
     # The url of Zenodo service to submit depositions.
     # Usually "https://sandbox.zenodo.org/" for testing, and "https://zenodo.org/" for production.
-  access_token: "XXXXXXXXXXXXXXXXXXXXXXX"
-  community: ""
-  grant: ""
+    # The account used to access and create depositions in Zenodo is configured per project in the project configuration set by PUT "/projects/<code>/config".
 ```
 
 ## Integration with EUCAIM federated search
