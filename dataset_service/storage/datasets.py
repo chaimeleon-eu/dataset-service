@@ -252,7 +252,7 @@ class DBDatasetsOperator():
                    dataset.purpose, dataset.type, dataset.collection_method,
                    dataset.invalidation_reason, dataset.corrupted, dataset.provenance,
                    dataset.diagnosis, dataset.diagnosis_count,
-                   dataset.tags
+                   dataset.tags, dataset.times_used
             FROM dataset, author 
             WHERE dataset.id=%s AND author.id = dataset.author_id 
             LIMIT 1;""",
@@ -304,7 +304,7 @@ class DBDatasetsOperator():
                     modality = json.loads(row[30]), modalityCount = json.loads(row[31]), 
                     manufacturer = json.loads(row[32]), manufacturerCount = json.loads(row[33]), 
                     seriesTags = json.loads(row[34]), 
-                    sizeInBytes = row[37])
+                    sizeInBytes = row[37], timesUsed = row[49])
         if ds["invalidated"]: ds["invalidationReason"] = row[43]
         return ds
 
@@ -456,7 +456,7 @@ class DBDatasetsOperator():
         q = sql.SQL("""
                 SELECT dataset.id, dataset.name, author.name, dataset.creation_date, dataset.project_code, 
                     dataset.draft, dataset.public, dataset.invalidated, dataset.corrupted,
-                    dataset.studies_count, dataset.subjects_count, dataset.version, dataset.tags
+                    dataset.studies_count, dataset.subjects_count, dataset.version, dataset.tags, dataset.times_used
                 FROM dataset, author{}
                 WHERE dataset.author_id = author.id {}
                 ORDER BY {} 
@@ -470,7 +470,7 @@ class DBDatasetsOperator():
                                                       # If local tz is UTC, the string "+00:00" is added at the end.
             res.append(dict(id = row[0], name = row[1], version = row[11], authorName = row[2], creationDate = creationDate, project = row[4],
                             draft = row[5], public = row[6], invalidated = row[7], corrupted = row[8], tags = row[12],
-                            studiesCount = row[9], subjectsCount = row[10]))
+                            studiesCount = row[9], subjectsCount = row[10], timesUsed = row[13]))
         return res, total
     
     def getProjectsForSearchFilter(self, searchFilter: authorization.Search_filter):
