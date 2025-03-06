@@ -334,9 +334,12 @@ def completeDatasetFromCSV(dataset, csvdata):
                 'eForm': eform 
             })
 
-def _checkPropertyAsString(propName:str, value: str, min_length: int = 0, max_length: int = 0, only_alphanum_or_dash: bool = False):
+def _checkPropertyAsString(propName:str, value: str, possible_values: list[str] | None = None, min_length: int = 0, max_length: int = 0, 
+                           only_alphanum_or_dash: bool = False):
     if not isinstance(value, str): 
         raise WrongInputException("'%s' must be a string." % propName)
+    if possible_values != None and not value in possible_values:
+        raise WrongInputException("Unknown value '%s' in '%s', it should be one of {%s}" % (value, propName, ','.join(possible_values)))
     if min_length > 0 and len(value) < min_length:
         raise WrongInputException("Length of '%s' must be %s characters or more." % (propName, min_length))
     if max_length > 0 and len(value) > max_length:
@@ -1329,19 +1332,12 @@ def getProjects():
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
 
-    ###### transitional step 1: while deprecated param 'forNewDataset' still exists and purpose is not provided by client (now mandatory)
-    if 'forNewDataset' in bottle.request.query and bottle.request.query['forNewDataset'].lower() == 'true':
-        purpose = "datasetCreation"
-    else: purpose = "datasetSearchFilter"
-    #######################################################
-
     if 'purpose' in bottle.request.query:
-        if not bottle.request.query['purpose'] in ["datasetCreation", "datasetSearchFilter", "projectList"]:
-            return setErrorResponse(400, "unknown purpose")
-        else: purpose = bottle.request.query['purpose']
-    #else: purpose = "projectList"   transitional step 2: when the client change GET /projects to GET /projects?purpose=datasetSearchFilter
-    #                                uncomment that line
-    #                                and change API DOC to make purpose optional, default=projectList
+        purpose = bottle.request.query['purpose']
+        try: _checkPropertyAsString('purpose', purpose, ["datasetCreation", "datasetSearchFilter", "projectList"])
+        except WrongInputException as e: return setErrorResponse(400, str(e))
+    else: purpose = "projectList"   
+    
     if purpose == "datasetCreation":
         # New datasets only can be assigned to projects which the user has joined to
         ret = list(user.getProjects())

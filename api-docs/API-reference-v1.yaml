@@ -800,25 +800,20 @@ paths:
       parameters:
         - name: purpose
           description: |
+            (Optional, default: projectList)
             List the projects depending on the purpose:
              * `projectList` - List all the projects. Useful for a general list of projects, usually available in the main menu.
              * `datasetCreation` - List the possible values for the property "project" of new dataset (POST /datasets) according to the authenticated user. New datasets only can be assigned to one of the projects the user has joined to.
              * `datasetSearchFilter` - List all available projects which visible datasets can belong to.
                                        Useful to list the possible values for the param "project" in "GET /datasets"
           in: query
-          required: true
+          required: false
           schema:
             type: string
             enum: 
               - "projectList"
               - "datasetCreation"
               - "datasetSearchFilter"
-        - name: forNewDataset
-          description: "(Deprecated, optional, default=false, purpose takes precedence if both params included) List projects which the user has joined to. New datasets only can be assigned to one of them."
-          in: query
-          required: false
-          schema:
-            type: boolean
       responses:
         '200':
           description: |
