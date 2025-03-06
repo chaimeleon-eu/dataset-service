@@ -135,6 +135,7 @@ class User:
             editableProperties.extend(["contactInfo", "license"])
             if self.isSuperAdminDatasets():
                 editableProperties.append("authorId")
+                editableProperties.append("tags")
         return editableProperties
     
     def getAllowedActionsForTheUser(self, dataset, datasetACL):
@@ -223,6 +224,7 @@ class Search_filter():
         self.draft = draft
         self.public = public
         self.invalidated = invalidated
+        self.tags = set()
         # projects for filter public datasets
         self._projectsForPublic = projects.copy() if projects != None else None
         # projects for filter non-public datasets

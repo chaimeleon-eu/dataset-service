@@ -334,28 +334,34 @@ def completeDatasetFromCSV(dataset, csvdata):
                 'eForm': eform 
             })
 
-def _checkPropertyAsString(propName:str, value: str, min_length: int = 0, max_length: int = 0):
+def _checkPropertyAsString(propName:str, value: str, min_length: int = 0, max_length: int = 0, only_alphanum_or_dash: bool = False):
     if not isinstance(value, str): 
         raise WrongInputException("'%s' must be a string." % propName)
     if min_length > 0 and len(value) < min_length:
         raise WrongInputException("Length of '%s' must be %s characters or more." % (propName, min_length))
     if max_length > 0 and len(value) > max_length:
         raise WrongInputException("Max length of '%s' is %s characters." % (propName, max_length))
+    if only_alphanum_or_dash and not value.replace('-','a').isalnum(): 
+        raise WrongInputException("Invalid value for '%s', only alphanumeric characters and '-' are allowed." % (propName))
 
-def _checkPropertyAsArrayOfStrings(propName: str, value: list[str], item_possible_values: list[str] | None = None):
+def _checkPropertyAsArrayOfStrings(propName: str, value: list[str], item_possible_values: list[str] | None = None, item_max_length: int = 0,
+                                   item_only_alphanum_or_dash: bool = False):
     if not isinstance(value, list):
         raise WrongInputException("'%s' must be an array of strings." % propName)
     for item in value:
         if not isinstance(item, str): 
             raise WrongInputException("'%s' must be an array of strings." % propName)
-    if item_possible_values != None:
-        for item in value:
-            if not item in item_possible_values:
-                raise WrongInputException("unknown item value '%s' in '%s', it should be one of {%s}" \
-                                          % (item, propName, ','.join(item_possible_values)))
+        if item_possible_values != None and not item in item_possible_values:
+            raise WrongInputException("Unknown item value '%s' in '%s', it should be one of {%s}" \
+                                        % (item, propName, ','.join(item_possible_values)))
+        if item_max_length > 0 and len(item) > item_max_length:
+            raise WrongInputException("The item value '%s' in '%s' exceeds the max length of %s characters." \
+                                        % (item, propName, item_max_length))
+        if item_only_alphanum_or_dash and not item.replace('-','a').isalnum(): 
+            raise WrongInputException("Invalid item value '%s' in '%s', only alphanumeric characters and '-' are allowed." % (item, propName))
 
 def _checkPropertyAsObject(propName: str, value: dict):
-    if not isinstance(value, dict): raise WrongInputException("'%s' must be an object.")
+    if not isinstance(value, dict): raise WrongInputException("'%s' must be an object." % propName)
 
 def _checkPropertyAsLicense(newValue):
     _checkPropertyAsObject("license", newValue)
@@ -527,6 +533,8 @@ def postDataset():
     except (WrongInputException, K8sException) as e:
         if datasetDirName != '': dataset_file_system.remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
         return setErrorResponse(400, str(e))
+    except json.decoder.JSONDecodeError as e:
+        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
     except Exception as e:
         LOG.exception(e)
         if read_data != None:
@@ -969,6 +977,10 @@ def patchDataset(id):
                 _checkPropertyAsString("value", newValue)
                 dbdatasets.setDatasetDescription(datasetId, newValue)
                 # Don't notify the tracer, this property can be changed only in draft state
+            elif property == "tags":
+                _checkPropertyAsArrayOfStrings("value", newValue, item_max_length=20, item_only_alphanum_or_dash=True)
+                dbdatasets.setDatasetTags(datasetId, newValue)
+                # Don't notify the tracer, this property is just for organizational purpose
             elif property == "provenance":
                 _checkPropertyAsString("value", newValue)
                 dbdatasets.setDatasetProvenance(datasetId, newValue)
@@ -1054,6 +1066,8 @@ def patchDataset(id):
         bottle.response.status = 204
     except WrongInputException as e:
         return setErrorResponse(400, str(e))
+    except json.decoder.JSONDecodeError as e:
+        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
     except pid.PidException as e:
         return setErrorResponse(500, str(e))
 
@@ -1135,28 +1149,34 @@ def getDatasets():
     user = authorization.User(ret)
 
     searchFilter = authorization.Search_filter(draft = None, public = None, invalidated = None)
-    if 'draft' in bottle.request.query:
-        searchFilter.draft = parse_flag_value(bottle.request.query['draft'])
-    if 'public' in bottle.request.query:
-        searchFilter.public = parse_flag_value(bottle.request.query['public'])
-    if 'invalidated' in bottle.request.query:
-        searchFilter.invalidated = parse_flag_value(bottle.request.query['invalidated'])
-    if 'project' in bottle.request.query:
-        project = str(bottle.request.query['project'])
-        if not project.replace('-','a').isalnum(): 
-            return setErrorResponse(400, "invalid value for parameter 'project', only alphanumeric chars and '-'")
-        searchFilter.setSelectedProjects(set([project]))
-    searchFilter.adjustByUser(user)
+    try:
+        if 'draft' in bottle.request.query:
+            searchFilter.draft = parse_flag_value(bottle.request.query['draft'])
+        if 'public' in bottle.request.query:
+            searchFilter.public = parse_flag_value(bottle.request.query['public'])
+        if 'invalidated' in bottle.request.query:
+            searchFilter.invalidated = parse_flag_value(bottle.request.query['invalidated'])
+        if 'tags' in bottle.request.query:
+            tags = bottle.request.query.getall('tags')
+            _checkPropertyAsArrayOfStrings('tags', tags, item_only_alphanum_or_dash=True)
+            searchFilter.tags = set(tags)
+        if 'project' in bottle.request.query:
+            project = bottle.request.query['project']
+            _checkPropertyAsString('project', project, only_alphanum_or_dash=True)
+            searchFilter.setSelectedProjects(set([project]))
+        searchFilter.adjustByUser(user)
 
-    skip = int(bottle.request.query['skip']) if 'skip' in bottle.request.query else 0
-    limit = int(bottle.request.query['limit']) if 'limit' in bottle.request.query else 30
-    if skip < 0: skip = 0
-    if limit < 0: limit = 0
-    searchString =  str(bottle.request.query['searchString']).strip()  if 'searchString' in bottle.request.query else ""
-    searchSubject = str(bottle.request.query['searchSubject']).strip() if 'searchSubject' in bottle.request.query else ""
-    sortBy =        str(bottle.request.query['sortBy']).strip()        if 'sortBy' in bottle.request.query else ""
-    sortDirection = str(bottle.request.query['sortDirection']).strip() if 'sortDirection' in bottle.request.query else ""
-    onlyLastVersions = ('onlyLastVersions' in bottle.request.query and bool(parse_flag_value(bottle.request.query['onlyLastVersions'])))
+        skip = int(bottle.request.query['skip']) if 'skip' in bottle.request.query else 0
+        limit = int(bottle.request.query['limit']) if 'limit' in bottle.request.query else 30
+        if skip < 0: skip = 0
+        if limit < 0: limit = 0
+        searchString =  str(bottle.request.query['searchString']).strip()  if 'searchString' in bottle.request.query else ""
+        searchSubject = str(bottle.request.query['searchSubject']).strip() if 'searchSubject' in bottle.request.query else ""
+        sortBy =        str(bottle.request.query['sortBy']).strip()        if 'sortBy' in bottle.request.query else ""
+        sortDirection = str(bottle.request.query['sortDirection']).strip() if 'sortDirection' in bottle.request.query else ""
+        onlyLastVersions = ('onlyLastVersions' in bottle.request.query and bool(parse_flag_value(bottle.request.query['onlyLastVersions'])))
+    except WrongInputException as e:
+        return setErrorResponse(400, str(e))
     
     with DB(CONFIG.db) as db:
         datasets, total = DBDatasetsOperator(db).getDatasets(skip, limit, searchString, searchFilter, sortBy, sortDirection, searchSubject, onlyLastVersions)
@@ -1189,7 +1209,8 @@ def eucaimSearchDatasets():
         if not isinstance(search_rq['ast'], dict): raise WrongInputException("The value of property 'ast' must be a json object.")
         #parseAST()
         with DB(CONFIG.db) as db:
-            result = DBDatasetsEUCAIMSearcher(db).eucaimSearchDatasets(0, 0, search_rq['ast'])
+            result = DBDatasetsEUCAIMSearcher(db).eucaimSearchDatasets(
+                search_rq['ast'], CONFIG.self.eucaim_search_filter_by_tag, 0, 0)
             
         LOG.debug('Result: '+json.dumps({'collections': result}))
         bottle.response.status = 200
@@ -1197,6 +1218,8 @@ def eucaimSearchDatasets():
         return json.dumps({'collections': result})
     except (WrongInputException, SearchValidationException) as e:
         return setErrorResponse(422, "Request validation error: %s" % e)
+    except json.decoder.JSONDecodeError as e:
+        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
     except Exception as e:
         LOG.exception(e)
         if read_data != None:
@@ -1387,6 +1410,8 @@ def putProject(code):
     if CONFIG is None or not isinstance(bottle.request.body, io.IOBase) \
        or not isinstance(bottle.request.files, bottle.FormsDict): raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    try: _checkPropertyAsString('projectCode', code, min_length=3, max_length=16, only_alphanum_or_dash=True )
+    except WrongInputException as e: return setErrorResponse(400, str(e))
     ret = _checkUserCanModifyProject(code)
     if isinstance(ret, str): return ret  # return error message
     
@@ -1430,6 +1455,8 @@ def putProject(code):
         bottle.response.status = 201
     except WrongInputException as e:
         return setErrorResponse(400, str(e))
+    except json.decoder.JSONDecodeError as e:
+        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
@@ -1480,6 +1507,8 @@ def putProjectConfig(code):
         bottle.response.status = 201
     except WrongInputException as e:
         return setErrorResponse(400, str(e))
+    except json.decoder.JSONDecodeError as e:
+        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
@@ -1569,6 +1598,8 @@ def patchProject(code):
         bottle.response.status = 204
     except WrongInputException as e:
         return setErrorResponse(400, str(e))
+    except json.decoder.JSONDecodeError as e:
+        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
@@ -1636,6 +1667,8 @@ def putUser(userName):
         bottle.response.status = 201
     except (WrongInputException, keycloak.KeycloakAdminAPIException) as e:
         return setErrorResponse(400, str(e))
+    except json.decoder.JSONDecodeError as e:
+        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
     except (K8sException, Exception) as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
@@ -1711,6 +1744,8 @@ def postDatasetAccessCheck():
                 
         LOG.debug('Dataset access granted.')
         bottle.response.status = 204
+    except json.decoder.JSONDecodeError as e:
+        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
@@ -1783,6 +1818,8 @@ def postDatasetAccess(id):
 
     except LoginException as e:
         return setErrorResponse(500, "Unexpected, error: "+ str(e))
+    except json.decoder.JSONDecodeError as e:
+        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
@@ -1841,6 +1878,8 @@ def endDatasetAccess(id):
 
         LOG.debug('Dataset access successfully ended.')
         bottle.response.status = 204
+    except json.decoder.JSONDecodeError as e:
+        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
@@ -1905,31 +1944,34 @@ def getDatasetDCAT(id):
 
 @app.route('/api/fdp/datasets', method='GET')
 def getDatasetsDCAT():
-    try:
-        # Validar configuración y solicitud
-        if CONFIG is None or not isinstance(bottle.request.query, bottle.FormsDict):
-            raise Exception("Invalid configuration or request.")
-        LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
-        
-        # Obtener el token de autorización
-        ret = getTokenFromAuthorizationHeader()
-        if isinstance(ret, str): 
-            return ret  # Devuelve el mensaje de error si aplica
-        
-        user = authorization.User(ret)
+    # Validar configuración y solicitud
+    if CONFIG is None or not isinstance(bottle.request.query, bottle.FormsDict):
+        raise Exception("Invalid configuration or request.")
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    
+    # Obtener el token de autorización
+    ret = getTokenFromAuthorizationHeader()
+    if isinstance(ret, str): 
+        return ret  # Devuelve el mensaje de error si aplica
+    
+    user = authorization.User(ret)
 
-        # Configurar filtros de búsqueda
-        searchFilter = authorization.Search_filter(draft=None, public=None, invalidated=None)
+    # Configurar filtros de búsqueda
+    searchFilter = authorization.Search_filter(draft=None, public=None, invalidated=None)
+    try:
         if 'draft' in bottle.request.query:
             searchFilter.draft = parse_flag_value(bottle.request.query['draft'])
         if 'public' in bottle.request.query:
             searchFilter.public = parse_flag_value(bottle.request.query['public'])
         if 'invalidated' in bottle.request.query:
             searchFilter.invalidated = parse_flag_value(bottle.request.query['invalidated'])
+        if 'tags' in bottle.request.query:
+            tags = bottle.request.query.getall('tags')
+            _checkPropertyAsArrayOfStrings('tags', tags, item_only_alphanum_or_dash=True)
+            searchFilter.tags = set(tags)
         if 'project' in bottle.request.query:
-            project = str(bottle.request.query['project'])
-            if not project.replace('-', 'a').isalnum():
-                return setErrorResponse(400, "invalid value for parameter 'project', only alphanumeric chars and '-'")
+            project = bottle.request.query['project']
+            _checkPropertyAsString('project', project, only_alphanum_or_dash=True)
             searchFilter.setSelectedProjects(set([project]))
         searchFilter.adjustByUser(user)
 
@@ -1943,7 +1985,9 @@ def getDatasetsDCAT():
         sortBy = str(bottle.request.query['sortBy']).strip() if 'sortBy' in bottle.request.query else ""
         sortDirection = str(bottle.request.query['sortDirection']).strip() if 'sortDirection' in bottle.request.query else ""
         onlyLastVersions = ('onlyLastVersions' in bottle.request.query and bool(parse_flag_value(bottle.request.query['onlyLastVersions'])))
-
+    except WrongInputException as e:
+        return setErrorResponse(400, str(e))
+    try:
         # Obtener datasets de la base de datos
         with DB(CONFIG.db) as db:
             datasets, total = DBDatasetsOperator(db).getDatasets(skip, limit, searchString, searchFilter, sortBy, sortDirection, searchSubject, onlyLastVersions)

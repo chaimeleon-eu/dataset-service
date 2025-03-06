@@ -41,7 +41,7 @@ spec:
             readOnly: false
       containers:
         - name: dataset-service-backend
-          image:  harbor.chaimeleon-eu.i3m.upv.es/chaimeleon-services/dataset-service-backend:3.9
+          image:  harbor.chaimeleon-eu.i3m.upv.es/chaimeleon-services/dataset-service-backend:3.20.5
           ports:
             - containerPort: 11000
               name: dssport
@@ -76,7 +76,7 @@ spec:
                       "token_validation": {
                           "token_issuer_public_keys_url": "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/certs",
                           "kid": "T7yU60He9Irc8iNJ7zCBVUQEkXe9yq0XrHLu4fBi1gU",
-                          "audience": ["dataset-service"],
+                          "client_id": "dataset-service",
                           "issuer": "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON"
                       },
                       "client": {
@@ -84,7 +84,10 @@ spec:
                           "client_id": "dataset-service",
                           "client_secret": "XXXXXXXX"
                       },
-                      "admin_api_url": "https://chaimeleon-eu.i3m.upv.es/auth/admin/realms/CHAIMELEON/"
+                      "admin_api": {
+                        "url": "https://chaimeleon-eu.i3m.upv.es/auth/admin/realms/CHAIMELEON/",
+                        "client_id_to_request_user_tokens": "dataset-explorer"
+                      }
                   },
                   "tracer": {
                       "url": "https://chaimeleon-eu.i3m.upv.es/tracer-service/tracer/"
@@ -97,9 +100,16 @@ spec:
                   },
                   "self": { 
                       "port": 11000, 
+                      "root_url": "https://chaimeleon-eu.i3m.upv.es/dataset-service",
                       "log": { 
-                        "main_service": {"level": "DEBUG", "file_path": "/var/log/dataset-service/dataset-service.log"},
-                        "dataset_creation_job": {"level": "DEBUG", "file_path": "/var/log/dataset-service/dataset-creation-job-%s.log"}
+                        "main_service": {
+                          "level": "DEBUG", 
+                          "file_path": "/var/log/dataset-service/dataset-service.log"
+                        },
+                        "dataset_creation_job": {
+                          "level": "DEBUG", 
+                          "file_path": "/var/log/dataset-service/dataset-creation-job-%s.log"
+                        }
                       },
                       "static_files_dir_path": "/var/www/dataset-service-ui",
                       "static_files_logos_dir_path": "/var/www/project-logos",
@@ -108,7 +118,9 @@ spec:
                       "datalakeinfo_token": "XXXXXXXX",
                       "datalake_mount_path": "/mnt/datalake",
                       "datasets_mount_path": "/mnt/datasets",
-                      "eucaim_search_token": "XXXXXXXX"
+                      "eucaim_search_token": "XXXXXXXX",
+                      "series_hash_cache_life_days": 30,
+                      "dataset_integrity_check_life_days": 40
                   }
                 }
           resources:
