@@ -440,6 +440,9 @@ class DBDatasetsOperator():
         elif sortBy == 'subjectsCount':
             dir = 'ASC' if sortDirection == 'ascending' else 'DESC'
             sortByClause = 'dataset.subjects_count %s, %s' % (dir, default)
+        elif sortBy == 'timesUsed':
+            dir = 'ASC' if sortDirection == 'ascending' else 'DESC'
+            sortByClause = 'dataset.times_used %s, %s' % (dir, default)
         else:  # sortBy == 'creationDate' or ''
             dir = 'ASC' if sortDirection == 'ascending' else 'DESC'
             sortByClause = 'dataset.creation_date %s' % dir
