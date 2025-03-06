@@ -1,10 +1,11 @@
 from sempyro.dcat import DCATDataset
 import pprint
 from sempyro import LiteralField, RDFModel
-from rdflib import URIRef
+from rdflib import URIRef, Namespace
 import logging
 from .dataset_ext import DCATResourceNxt, SKOSConcept, ProvenanceStatementModel
 
+SKOS = Namespace("http://www.w3.org/2004/02/skos/core#")
 
 def toDCAT(dataset): # Transformaciones de los campos a sus correspondientes datatypes
    LOG = logging.root
@@ -95,24 +96,59 @@ def toDCAT(dataset): # Transformaciones de los campos a sus correspondientes dat
    dcat_dataset["type"] = "https://www.dublincore.org/specifications/dublin-core/dcmi-terms/#Dataset"
 
    dcat_dataset["version"] = [dataset["version"]]
-   dcat_dataset["ageLow"] = [dataset["ageLow"]]
-   dcat_dataset["ageHigh"] = [dataset["ageHigh"]]
-   dcat_dataset["nbrOfStudies"] = [dataset["studiesCount"]]
-   dcat_dataset["nbrOfSubjects"] = [dataset["subjectsCount"]]
-
+   
+   
+   def extract_age(value):
+    if isinstance(value, list) and value:  # If it's a list and not empty
+        return int(value[0]) if value[0] is not None else None
+    elif isinstance(value, int):  # If it's already an integer
+        return value
+    else:
+        return None 
+    
+   dcat_dataset["ageLow"] = extract_age(dataset.get("ageLow"))
+   dcat_dataset["ageHigh"] = extract_age(dataset.get("ageHigh"))
 ## Revisar LegalBasis
    dcat_dataset["legalBasis"] = "http://data.europa.eu/eli/reg/2022/868/oj"
 
-   dcat_dataset["intendedPurpose"] = [dataset["purpose"]]
+   dcat_dataset["intendedPurpose"] = dataset["purpose"]
 
 ## definir el  quality annotation y comprender de donde obtenerlo
 ##   dcat_dataset["qualityLabel"] = 
+   def convert_collection_method_to_skos(collection_method):
+      """
+      Convierte el valor en la columna 'collectionMethod' a una lista de SKOSConcept.
+      collection_method puede ser None, string o lista de strings.
+      """
+      if not collection_method:
+         return []
+      if isinstance(collection_method, str):
+         return [SKOSConcept(prefLabel=collection_method)]
+      if isinstance(collection_method, list):
+         return [SKOSConcept(prefLabel=cm) for cm in collection_method]
+      raise ValueError(f"Valor inesperado en collectionMethod: {collection_method}")
 
-   dcat_dataset["collectionMethod"] = [dataset["collectionMethod"]]
+   dcat_dataset["collectionMethod"] = convert_collection_method_to_skos(dataset["collectionMethod"])
+
 
    # dcat_dataset["conforms_to"] = dataset["license"]["url"]
 
-   dcat_dataset["sex"] = [dataset["sex"]]
+   def convert_sex_to_skos(sex):
+      """
+      Convierte el valor en la columna 'sex' a una lista de SKOSConcept.
+      sex puede ser None, string o lista de strings.
+      """
+      if not sex:
+         return []
+      if isinstance(sex, str):
+         return [SKOSConcept(prefLabel=sex)]
+      if isinstance(sex, list):
+         return [SKOSConcept(prefLabel=s) for s in sex]
+      raise ValueError(f"Valor inesperado en sex: {sex}")
+
+   dcat_dataset["sex"] = convert_sex_to_skos(dataset["sex"])
+
+
    
    SNOMED_MAPPING = {
       "Prostate cancer": "http://purl.bioontology.org/ontology/SNOMEDCT/399068003",
@@ -168,16 +204,16 @@ def toDCAT(dataset): # Transformaciones de los campos a sus correspondientes dat
    dcat_dataset["accessURL"] = f"https://chaimeleon-eu.i3m.upv.es/dataset-service/datasets/{str(dataset['id'])}/details"
 
    
-   # Eliminación de columnas innecesarias y renombrado de columnas
-   for item in [
-      "authorName", "authorId", "public", "pids", "previousId", "nextId", "contactInfo", "license",
-      "id", "name", "project", "creationDate", "purpose", "collectionMethod", "draft", 
-      "invalidated", "corrupted", "lastIntegrityCheck", "studiesCount", "subjectsCount", "ageLow", 
-      "ageHigh", "ageUnit", "ageNullCount", "sex", "sexCount", "diagnosisYearLow", "diagnosisYearHigh", 
-      "diagnosisYearNullCount", "bodyPart", "bodyPartCount", "modality", "modalityCount",  
-      "manufacturer", "manufacturerCount", "seriesTags", "sizeInBytes", "description", "version", "type", "diagnosis", "diagnosisCount", "intendedPurpose", "hasImageBodyPart"
-   ]: 
-      if item in dcat_dataset: dcat_dataset.pop(item) 
+   # # Eliminación de columnas innecesarias y renombrado de columnas
+   # for item in [
+   #    "authorName", "authorId", "public", "pids", "previousId", "nextId", "contactInfo", "license",
+   #    "id", "name", "project", "creationDate", "purpose", "collectionMethod", "draft", 
+   #    "invalidated", "corrupted", "lastIntegrityCheck", "studiesCount", "subjectsCount", "ageLow", 
+   #    "ageHigh", "ageUnit", "ageNullCount", "sex", "sexCount", "diagnosisYearLow", "diagnosisYearHigh", 
+   #    "diagnosisYearNullCount", "bodyPart", "bodyPartCount", "modality", "modalityCount",  
+   #    "manufacturer", "manufacturerCount", "seriesTags", "sizeInBytes", "description", "version", "type", "diagnosis", "diagnosisCount", "intendedPurpose", "hasImageBodyPart"
+   # ]: 
+   #    if item in dcat_dataset: dcat_dataset.pop(item) 
 
 
    dcat_resource = DCATResourceNxt(**dcat_dataset)

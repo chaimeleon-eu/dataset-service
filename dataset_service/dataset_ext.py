@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List, Union
 
 from pydantic import BaseModel, Field, AnyHttpUrl, EmailStr, ConfigDict, Field, AnyUrl
-from rdflib import DCAT, DCTERMS, ODRL2, PROV, URIRef, RDFS
+from rdflib import DCAT, DCTERMS, ODRL2, PROV, URIRef, RDFS, Namespace
 
 from sempyro import LiteralField, RDFModel
 from sempyro.foaf import Agent
@@ -18,6 +18,7 @@ from typing import Literal, Optional
 
 logger = logging.getLogger("__name__")
 
+SKOS = Namespace("http://www.w3.org/2004/02/skos/core#")
 DCT  = "http://purl.org/dc/terms/"
 
 class Status(Enum):
@@ -180,7 +181,7 @@ class DCATResourceNxt(RDFModel, metaclass=ABCMeta):
         rdf_term=DCTERMS.provenance
     )
 
-    type: List[SKOSConcept] = Field(
+    type: str = Field(
         default=None,
         description="The nature or genre of the resource.",
         rdf_term=DCTERMS.type,
@@ -192,17 +193,19 @@ class DCATResourceNxt(RDFModel, metaclass=ABCMeta):
         rdf_term=DCTERMS.hasVersion,
         rdf_type="rdfs_literal")
     
-    ageLow: int = Field(
+    ageLow: Optional[int] = Field(
         default=None,
         description="The lower age of the intended audience of the resource.",
         rdf_term=DCAT.ageLow,
-        rdf_type="xsd:integer")
+        rdf_type="xsd:integer"
+    )
     
-    ageHigh: int = Field(     
+    ageHigh: Optional[int] = Field(
         default=None,
         description="The upper age of the intended audience of the resource.",
         rdf_term=DCAT.ageHigh,
-        rdf_type="xsd:integer")
+        rdf_type="xsd:integer"
+    )
     # mismo qu eel comentario de nbr od subjects AttributeError: term 'studies' not in namespace 'http://purl.org/dc/terms/' habría que hace un "namespace" para eucaim 
     nbrOfStudies: List[Union[int, LiteralField]] = Field(
         default=None,
@@ -231,7 +234,7 @@ class DCATResourceNxt(RDFModel, metaclass=ABCMeta):
     #     ##rdf_term="chaimeleon:intendedPurpose",
     #     rdf_type="uri")
 
-    intendedPurpose: List[Purpose] = Field(
+    intendedPurpose: str = Field(  # Cambiado de List[Purpose] a str
         default_factory=list,
         description="A free-text statement of the purpose(s) of this dataset.",
         rdf_term="http://www.w3.org/ns/dpv#hasPurpose",   # dpv:hasPurpose
@@ -273,25 +276,25 @@ class DCATResourceNxt(RDFModel, metaclass=ABCMeta):
     sex: List[SKOSConcept] = Field(
         default=None,
         description="The sex of the subjects in the resource.",
-        rdf_term="skos:Concept",
+        rdf_term=SKOS.Concept,
         rdf_type="xsd:string")
 
     condition: List[SKOSConcept] = Field(
         default=None,
         description="The condition of the subjects in the resource.",
-        rdf_term="skos:Concept",
+        rdf_term=SKOS.Concept,
         rdf_type="xsd:string")
     
     hasImageModality: List[SKOSConcept] = Field(
         default=None,
         description="The imaging modality of the resource.",
-        rdf_term="skos:Concept",
+        rdf_term=SKOS.Concept,
         rdf_type="xsd:string")
     
-    hasImagebodyPart: List[SKOSConcept] = Field(
+    hasImageBodyPart: List[SKOSConcept] = Field(
         default=None,
         description="The body part(s) involved in the resource.",
-        rdf_term="skos:Concept",
+        rdf_term=SKOS.Concept,
         rdf_type="xsd:string")
     
     accessURL: AnyUrl = Field(
