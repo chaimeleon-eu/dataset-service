@@ -1,6 +1,5 @@
 import logging
 import psycopg2
-import json
 
 class DB:
     def __init__(self, dbConfig):
@@ -26,7 +25,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 37
+    CURRENT_SCHEMA_VERSION = 38
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -51,6 +50,7 @@ class DB:
             if version < 35: self.updateDB_v34To35()
             if version < 36: self.updateDB_v35To36()
             if version < 37: self.updateDB_v36To37()
+            if version < 38: self.updateDB_v37To38()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -137,6 +137,7 @@ class DB:
                 last_integrity_check timestamp DEFAULT NULL,
                 size_in_bytes bigint DEFAULT NULL,
                 tags varchar(20) ARRAY NOT NULL DEFAULT ARRAY[]::varchar[],
+                times_used integer DEFAULT 0,
                 constraint pk_dataset primary key (id),
                 constraint fk_author foreign key (author_id) references author(id)
             );
@@ -306,6 +307,20 @@ class DB:
         logging.root.info("Updating database from v36 to v37...")
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN tags varchar(20) ARRAY NOT NULL DEFAULT ARRAY[]::varchar[]")
         self.cursor.execute("CREATE INDEX dataset_tags_index ON dataset USING GIN (tags)")
+
+    def updateDB_v37To38(self):
+        logging.root.info("Updating database from v37 to v38...")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN times_used integer DEFAULT 0")
+        # Fill in the new column
+        self.cursor.execute("SELECT id FROM dataset;")
+        ids = [row[0] for row in self.cursor]
+        for id in ids:
+            self.cursor.execute("""
+                UPDATE dataset
+                SET times_used = 
+                    (SELECT COUNT(*) FROM dataset_access_dataset WHERE dataset_id = %s) 
+                WHERE id = %s;""", 
+                (id, id))
 
 #endregion
 

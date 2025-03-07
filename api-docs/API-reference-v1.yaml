@@ -200,6 +200,7 @@ paths:
              - "creationDate"
              - "studiesCount"
              - "subjectsCount"
+             - "timesUsed"
         - name: sortDirection
           description: "(Optional) The list will be sorted in this direction."
           in: query
@@ -1252,6 +1253,9 @@ components:
         subjectsCount:
           type: integer
           description: "The number of different subjects which are related with the studies contained in the dataset."
+        timesUsed:
+          type: integer
+          description: "The number of times that the dataset has been used by any user (mounted in any application or job)."
           
     DatasetCreationObject:
       type: object
@@ -1721,6 +1725,9 @@ components:
             The total size of files in all the studies and series selected for this dataset plus the eforms file. 
             Null if metadata still not collected.
           example: 2834502270
+        timesUsed:
+          type: integer
+          description: "The number of times that the dataset has been used by any user (mounted in any application or job)."
 
     Study:
       type: object

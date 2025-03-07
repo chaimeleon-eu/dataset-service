@@ -17,6 +17,15 @@ class DBDatasetAccessesOperator():
                 VALUES (%s, %s);""", 
                 (datasetAccessId, id)
             )
+            self.updateDatasetTimesUsed(id)
+    
+    def updateDatasetTimesUsed(self, id):
+        self.cursor.execute("""
+            UPDATE dataset
+            SET times_used = 
+                (SELECT COUNT(*) FROM dataset_access_dataset WHERE dataset_id = %s) 
+            WHERE id = %s;""", 
+            (id, id))
 
     def existsDatasetAccess(self, datasetAccessId):
         self.cursor.execute("SELECT id FROM dataset_access WHERE id=%s", (datasetAccessId,))
