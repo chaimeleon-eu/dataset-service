@@ -1918,42 +1918,68 @@ def getDatasetAccessHistory(id):
                         "limit": limit,
                         "list": accesses })
 
-@app.route('/api/fdp/datasets/<id>', method='GET')
-def getDatasetDCAT(id):
-    if CONFIG is None: raise Exception()
-    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
-    ret = getTokenFromAuthorizationHeader()
-    if isinstance(ret, str): return ret  # return error message
-    user = authorization.User(ret)
+def get_dcat_representation(datasetId, user):
+    """
+    Internal function to retrieve and format a single dataset in DCAT format.
+    Used by both getDatasetDCAT and getDatasetsDCAT.
+    """
+    if CONFIG is None:
+        raise Exception()
 
-    datasetId = id
     with DB(CONFIG.db) as db:
         dbdatasets = DBDatasetsOperator(db)
         dataset = dbdatasets.getDataset(datasetId)
         if dataset is None:
-            return setErrorResponse(404,"not found")
+            return setErrorResponse(404, "not found")
         if dataset["draft"]:
             dataset["creating"] = (dbdatasets.getDatasetCreationStatus(datasetId) != None)
     if not user.canViewDatasetDetails(dataset):
-        return setErrorResponse(401,"unauthorized user")
+        return setErrorResponse(401, "unauthorized user")
     if user.isUnregistered():
-        del dataset["authorEmail"]
+        if "authorEmail" in dataset: # check key existence before deletion
+            del dataset["authorEmail"]
     rdformat = toDCAT(dataset)
-    bottle.response.content_type = "text/turtle"
-    return (rdformat)
+    return rdformat
+
+
+@app.route('/api/fdp/datasets/<id>', method='GET')
+def getDatasetDCAT(id):
+    """
+    Endpoint to retrieve a single dataset in DCAT format by ID.
+    """
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    ret = getTokenFromAuthorizationHeader()
+    if isinstance(ret, str): return ret  # return error message
+
+    user = authorization.User(ret)
+    datasetId = id
+
+    rdformat = get_dcat_representation(datasetId, user)
+
+    if isinstance(rdformat, bottle.HTTPResponse): # in case of error response from get_dcat_representation
+        return rdformat
+
+    bottle.response.content_type = "text/turtle" # consistent content type as per original getDatasetDCAT
+    return rdformat
+
 
 @app.route('/api/fdp/datasets', method='GET')
 def getDatasetsDCAT():
+    """
+    Endpoint to retrieve multiple datasets in DCAT format.
+    Now reuses get_dcat_representation for each dataset.
+    """
     # Validar configuración y solicitud
     if CONFIG is None or not isinstance(bottle.request.query, bottle.FormsDict):
         raise Exception("Invalid configuration or request.")
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
-    
+
     # Obtener el token de autorización
     ret = getTokenFromAuthorizationHeader()
-    if isinstance(ret, str): 
+    if isinstance(ret, str):
         return ret  # Devuelve el mensaje de error si aplica
-    
+
     user = authorization.User(ret)
 
     # Configurar filtros de búsqueda
@@ -1987,27 +2013,35 @@ def getDatasetsDCAT():
         onlyLastVersions = ('onlyLastVersions' in bottle.request.query and bool(parse_flag_value(bottle.request.query['onlyLastVersions'])))
     except WrongInputException as e:
         return setErrorResponse(400, str(e))
+
     try:
         # Obtener datasets de la base de datos
         with DB(CONFIG.db) as db:
             datasets, total = DBDatasetsOperator(db).getDatasets(skip, limit, searchString, searchFilter, sortBy, sortDirection, searchSubject, onlyLastVersions)
 
-        # Transformar datasets al formato DCAT usando la función toDCAT
+        LOG.debug("Fetched datasets: %s", datasets)
+        # Transformar datasets al formato DCAT by reusing get_dcat_representation
         serialized_graphs = []
         for dataset in datasets:
-            serialized_graphs.extend(toDCAT(dataset))  # Usar la función para transformar cada dataset
+            rdformat = get_dcat_representation(dataset["id"], user) # use dataset["id"] to get DCAT
+            if isinstance(rdformat, bottle.HTTPResponse): # handle potential errors from get_dcat_representation, skip and log
+                LOG.warning(f"Error getting DCAT representation for dataset id {dataset['id']}: {rdformat.body}") # Log the error for visibility
+                continue # skip this dataset and continue with the next
 
-        # Combinar todos los gráficos DCAT en un único RDF/XML
+            serialized_graphs.append(rdformat)  # Collect the turtle strings directly
+
+        # Combine all the DCAT graphs into a single output (concatenated Turtle strings)
         final_rdf = "\n".join(serialized_graphs)
 
-        # Configurar el tipo de respuesta como RDF/XML
-        bottle.response.content_type = "application/rdf+xml"
+        # Configurar el tipo de respuesta como text/turtle, consistent with single dataset endpoint
+        bottle.response.content_type = "text/turtle"
         return final_rdf
 
     except Exception as e:
-        LOG.error(f"Error processing DCAT datasets: {e}")
+        LOG.exception(e)
         return setErrorResponse(500, "Internal server error while processing DCAT datasets")
-
+    
+    
 @app.route('/api-doc', method='GET')
 def getStaticApiDoc():
     if CONFIG is None: raise Exception()
