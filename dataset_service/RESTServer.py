@@ -2,6 +2,7 @@
 
 import os
 import io
+import shutil
 from enum import Enum
 from datetime import datetime
 from pathlib import Path
@@ -264,8 +265,14 @@ def postSetUI():
         LOG.debug("URL in body: " + sourceUrl )
         utils.download_url(sourceUrl, destinationZipPath)
 
+    # As the new package usually contains different file names in "static" dir, we have to remove the previous one, 
+    # otherwise the files accumulate taking up disk space.
+    shutil.rmtree(os.path.join(CONFIG.self.static_files_dir_path, "static"), ignore_errors=True)
     output, status = utils.execute_cmd("unzip -uo \"" + destinationZipPath + "\" -d \"" + CONFIG.self.static_files_dir_path + "/\"")
-    LOG.debug("UI package successfully updated.")
+    final_msg = "UI package successfully updated." if status == 0 else "Error updating UI package."
+    LOG.debug(final_msg)
+    if not isinstance(output, list): raise Exception("Unexpected type for output variable.")
+    output.append(final_msg)
     return output
 
 @app.route('/datalakeinfo/<file_path:re:.*\.(json)>', method='GET')
