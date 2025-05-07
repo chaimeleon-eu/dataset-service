@@ -1426,7 +1426,7 @@ def putProject(code):
     if CONFIG is None or not isinstance(bottle.request.body, io.IOBase) \
        or not isinstance(bottle.request.files, bottle.FormsDict): raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
-    try: _checkPropertyAsString('projectCode', code, min_length=3, max_length=16, only_alphanum_or_dash=True )
+    try: _checkPropertyAsString('projectCode', code, min_length=2, max_length=16, only_alphanum_or_dash=True )
     except WrongInputException as e: return setErrorResponse(400, str(e))
     ret = _checkUserCanModifyProject(code)
     if isinstance(ret, str): return ret  # return error message
@@ -1938,6 +1938,7 @@ def postDatasetAccess(id):
         image = datasetAccess["image"]
         commandLine = datasetAccess["commandLine"]
         isJob = datasetAccess["isJob"]
+        isJobFromDesktop = datasetAccess["isJobFromDesktop"] if "isJobFromDesktop" in datasetAccess else isJob
         resourcesFlavor = datasetAccess["resourcesFlavor"]
         openchallengeJobType = datasetAccess["openchallengeJobType"]
         datasetAccessId = id
@@ -1958,8 +1959,8 @@ def postDatasetAccess(id):
             userId, userGID = dbdatasets.getUserIDs(userName)
             if userGID is None:
                 return setErrorResponse(400, "The user does not have a GID.")
-            if CONFIG.self.datasets_mount_path != '' and not isJob:
-                # For jobs is not required to set the ACLs because they are already set for desktop and it's a high-cost operation
+            if CONFIG.self.datasets_mount_path != '' and not isJobFromDesktop:
+                # For jobs from desktop (jobman-cli) is not required to set the ACLs because they are already set for desktop and it's a high-cost operation
                 for id in datasetIDs:
                     pathsOfStudies = dbdatasets.getPathsOfStudiesFromDataset(id)
                     LOG.debug('Setting ACLs in dataset %s for GID %s ...' % (id, userGID))
