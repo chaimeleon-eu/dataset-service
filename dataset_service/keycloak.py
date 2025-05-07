@@ -4,6 +4,7 @@ import urllib.error
 import http.client
 import json
 import time
+from datetime import datetime
 from dataset_service import auth
 
 class KeycloakAdminAPIException(Exception):
@@ -88,6 +89,21 @@ class KeycloakAdminAPIClient:
             logging.root.error('KeycloakAdminAPI error. Code: %d %s' % (httpStatusCode, res.reason))
             raise KeycloakAdminAPIException('Internal server error: KeycloakAdminAPI call failed.', httpStatusCode)
         logging.root.debug('KeycloakAdminAPI call success.')
+    
+    def _DELETE_JSON(self, path, content):
+        connection = self._get_connection()
+        headers = self._get_headers()
+        headers['Content-Type'] = 'application/json'
+        try:
+            connection.request("DELETE", self.apiURL.path + path, content, headers)
+            res = connection.getresponse()
+            httpStatusCode = res.status
+        finally:
+            connection.close()
+        if httpStatusCode != 204:
+            logging.root.error('KeycloakAdminAPI error. Code: %d %s' % (httpStatusCode, res.reason))
+            raise KeycloakAdminAPIException('Internal server error: KeycloakAdminAPI call failed.', httpStatusCode)
+        logging.root.debug('KeycloakAdminAPI call success.')
 
     def getClientUID(self, clientId: str) -> str | None:
         logging.root.debug('Getting client UID for clientId "%s" from KeycloakAdminAPI...' % clientId)
@@ -102,38 +118,78 @@ class KeycloakAdminAPIClient:
             logging.root.error('KeycloakAdminAPI response unexpected: %s' % (response))
             raise KeycloakAdminAPIException('Internal server error: KeycloakAdminAPI response unexpected.')
 
-    def getGroups(self, subgroupsOfTheGroup: str = ''):
-        if subgroupsOfTheGroup == '':
-            logging.root.debug('Getting groups from KeycloakAdminAPI...')
-        else: logging.root.debug('Getting subgroups of "%s" from KeycloakAdminAPI...' % subgroupsOfTheGroup)
-        response = self._GET_JSON("groups")
+    def _get_subgroups(self, kcGroups: list, byPath: bool, recursive: bool = True) -> list[str]:
+        groups = []
+        for group in kcGroups:
+            newItem = group["path"] if byPath else group["name"]
+            groups.append(newItem)
+            if recursive and group["subGroupCount"] > 0:  # It is a group of groups
+                response = self._GET_JSON("groups/"+group["id"]+"/children")
+                groups.extend(self._get_subgroups(response, byPath))
+        return groups
+
+    def getGroups(self, userID: str = '', byPath: bool = True, recursive: bool = True):
+        logging.root.debug('Getting groups from KeycloakAdminAPI...')
         try:
-            if subgroupsOfTheGroup == '':
-                responseGroups = response 
-            else:
-                responseGroups = []
-                for group in responseGroups:
-                    if group["name"] == subgroupsOfTheGroup:
-                        responseGroups = group["subGroups"]
-            groups = []
-            for group in responseGroups:
-                groups.append(group["name"])
-            return groups
+            response = self._GET_JSON("groups")
+            return self._get_subgroups(response, byPath)
         except (Exception) as e:
             logging.root.error('KeycloakAdminAPI response unexpected: %s' % (response))
-            raise KeycloakAdminAPIException('Internal server error: unexpected KeycloakAdminAPI response.')
-
-    def getUserGroups(self, userID):
+            raise KeycloakAdminAPIException('Internal server error: KeycloakAdminAPI response unexpected.')
+    
+    def getUserGroups(self, userID: str, byPath: bool = True):
         logging.root.debug('Getting user groups from KeycloakAdminAPI...')
         response = self._GET_JSON("users/"+userID+"/groups")
         groups = []
         try:
             for group in response:
-                groups.append(group["name"])
+                newItem = group["path"] if byPath else group["name"]
+                groups.append(newItem)
             return groups
         except (Exception) as e:
             logging.root.error('KeycloakAdminAPI response unexpected: %s' % (response))
             raise KeycloakAdminAPIException('Internal server error: KeycloakAdminAPI response unexpected.')
+    
+    def _get_child_group_id(self, child_name: str, parent_id: str = 'root') -> str | None:
+        url = "groups" if parent_id == 'root' else "groups/"+parent_id+"/children"
+        url += ("?search="+child_name)
+        response = self._GET_JSON(url)
+        for group in response:
+            if group["name"] == child_name:
+                return group["id"]
+        return None
+
+    def _get_group_id(self, path: str) -> str | None:
+        logging.root.debug('Getting group id from KeycloakAdminAPI...')
+        path = path[1:]
+        levels = path.split('/')
+        previous = 'root'
+        for l in levels:
+            id = self._get_child_group_id(l, previous)
+            if id is None: return None
+            previous = id
+        return id
+
+    def addUserToGroup(self, userId: str, groupPath: str):
+        logging.root.debug('Searching group id with KeycloakAdminAPI...')
+        groupId = self._get_group_id(groupPath)
+        if groupId is None: 
+            logging.root.error("KeycloakAdminAPI error: group path '%s' not found" % (groupPath))
+            raise KeycloakAdminAPIException('Internal server error: group path not found.')
+        
+        logging.root.debug('Adding user to group with KeycloakAdminAPI...')
+        self._PUT_JSON("users/"+userId+"/groups/"+groupId, "{}")
+    
+    def removeUserFromGroup(self, userId: str, groupPath: str):
+        logging.root.debug('Searching group id with KeycloakAdminAPI...')
+        groupId = self._get_group_id(groupPath)
+        if groupId is None: 
+            logging.root.error("KeycloakAdminAPI error: group path '%s' not found" % (groupPath))
+            raise KeycloakAdminAPIException('Internal server error: group path not found.')
+        
+        logging.root.debug('Removing user from group with KeycloakAdminAPI...')
+        self._DELETE_JSON("users/"+userId+"/groups/"+groupId, "{}")
+    
 
     def getUserId(self, username):
         logging.root.debug('Getting user ID from KeycloakAdminAPI...')
@@ -156,12 +212,44 @@ class KeycloakAdminAPIClient:
         # Other alternative method without using that keycloakAdminAPI: use token exchange
         # https://www.keycloak.org/docs/latest/securing_apps/index.html#direct-naked-impersonation
         # Indeed you will need to use one of those alternatives if you need a signed and coded token.
+    
+    DEFAULT_ATTRIBUTES_GROUP = "base-attributes"
+
+    def getUserAttributes(self, userId) -> list[dict]:
+        logging.root.debug('Getting user from KeycloakAdminAPI...')
+        user = self._GET_JSON("users/"+userId+"?userProfileMetadata=true")
+        attributeGroups = {}
+        for attGroup in user["userProfileMetadata"]["groups"]:
+            attributeGroups[attGroup["name"]] = {
+                "displayName": attGroup["displayHeader"],
+                "attributes": []
+            }
+        # Add a default group for the basic attributes
+        if not self.DEFAULT_ATTRIBUTES_GROUP in attributeGroups:
+            attributeGroups[self.DEFAULT_ATTRIBUTES_GROUP] = {
+                "displayName": "Base attributes",
+                "attributes": []
+            }
+        for attProfile in user["userProfileMetadata"]["attributes"]:
+            attName = attProfile["name"]
+            attDisplayName = attProfile["displayName"]
+            attValues = ""
+            if attName in user["attributes"]:
+                attValues = user["attributes"][attName]
+            elif attName in user:  # base attribute
+                attValues = user[attName]
+            attGroup = attProfile["group"] if "group" in attProfile else self.DEFAULT_ATTRIBUTES_GROUP
+            attributeGroups[attGroup]["attributes"].append({
+                "displayName": attDisplayName,
+                "values": attValues
+            })
+        return list(attributeGroups.values())
 
     def getUserAttribute(self, userId, attributeName):
         logging.root.debug('Getting user from KeycloakAdminAPI...')
         user = self._GET_JSON("users/"+userId)
         if attributeName in user["attributes"]:
-            return user["attributes"][attributeName][0] # If the attribute is repeated there will be more than on items, 
+            return user["attributes"][attributeName][0] # If the attribute is repeated there will be more than one items, 
                                                         # but let's return only the first value.
         else: return None
 
@@ -176,3 +264,28 @@ class KeycloakAdminAPIClient:
         user["attributes"][attributeName] = attributeValues
         logging.root.debug('Setting user attribute with KeycloakAdminAPI...')
         self._PUT_JSON("users/"+userId, json.dumps(user))
+
+    def getUsers(self, skip: int = 0, limit: int = 0, searchString: str = '', disabled: bool | None = None):
+        logging.root.debug('Getting users from KeycloakAdminAPI...')
+        firstParam = "" if skip == 0 else "&first="+str(skip)
+        maxParam = "" if limit == 0 else "&max="+str(limit)
+        searchStringParam = "" if searchString == "" else "&search="+searchString
+        enabledParam = "" if disabled is None else "&enabled="+str(not disabled)
+        try:
+            total = self._GET_JSON("users/count?"+searchStringParam+enabledParam)
+            response = self._GET_JSON("users?briefRepresentation=false"+firstParam+maxParam+searchStringParam+enabledParam)
+            users = []
+            for item in response:
+                users.append({
+                    "uid": item["id"],
+                    "username": item["username"],
+                    "email": item["email"] if "email" in item else "",
+                    "name": item["firstName"] + " " + item["lastName"] if "firstName" in item else "",
+                    "creationDate": str(datetime.fromtimestamp(item["createdTimestamp"]/1000).astimezone()),
+                    "disabled": not item["enabled"],
+                    "emailVerified": item["emailVerified"]
+                })
+            return users, total
+        except (Exception) as e:
+            logging.root.error('KeycloakAdminAPI response unexpected: %s' % (response))
+            raise KeycloakAdminAPIException('Internal server error: KeycloakAdminAPI response unexpected.')

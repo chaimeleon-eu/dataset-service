@@ -250,14 +250,10 @@ If fail, a 40X code will be returned with a JSON object in the body containing a
 
 Details: https://chaimeleon-eu.i3m.upv.es/dataset-service/api-doc#tag/users/operation/createUser
 
-Example authenticating previously with a service account:
-```
-$ DSS_TOKEN=$(curl -d "client_id=kubeauthorizer-pod" -d "client_secret=XXXX-XXXX-XXXX" -d "grant_type=client_credentials" \
-                   "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token" | jq -r ".access_token")
-```
+Example of creation and validating a user to assign roles and projects:
 ```
 $ curl -i -X PUT -H "Authorization: bearer $DSS_TOKEN" -H "Content-Type: application/json" \
-       -d '{"uid": "d290f1ee-6c54-4b01-90e6-d701748f0851", "groups": ["data-scientists", "dataset-administrator"]}' \
+       -d '{ "roles": ["data-scientists", "dataset-administrator"], "projects": ["CHAIMELEON"], "siteCode": "UPV"}' \
        "${DSS_ENDPOINT}/users/user1"
 HTTP/1.1 201 Created
 Content-Length: 0
@@ -527,7 +523,7 @@ NOTE: for keycloak it is recommended to create the groups with prefix `PROJECT-`
 even though they appear in the token as a plain list (at same level), so the prefix is required anyway.
 
 There are other special roles:
- - __admin_users__: required for the operations in path '/user'.
+ - __admin_users__: required for the operations in path '/users'.
  - __admin_datasetAccess__: required for the operations in paths '/datasetAccess' and '/datasetAccessCheck'.
  - __admin_projects__: can create and modify all the projects.
 

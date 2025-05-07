@@ -1,8 +1,5 @@
 from dataset_service.POSIX import *
 
-PROJECT_GROUP_PREFIX = "PROJECT-"
-ADMINS_PROJECT_GROUP_PREFIX = "ADMINS-PROJECT-"
-
 class Roles:
     def __init__(self, roles: dict | None):
         if roles is None: return
@@ -16,6 +13,8 @@ class Roles:
 class User:
     roles = Roles(None)
     client_id = ""
+    PROJECT_GROUP_PREFIX = "PROJECT-"
+    PROJECT_ADMINS_GROUP_PREFIX = "ADMINS-PROJECT-"
 
     def __init__(self, token: dict | None):
         self._token = token    # it is None if unregistered user
@@ -157,9 +156,9 @@ class User:
     def getProjects(self) -> set[str]:
         projects = set()
         if self._token is None or not "groups" in self._token.keys(): return projects
-        prefix_len = len(PROJECT_GROUP_PREFIX)
+        prefix_len = len(User.PROJECT_GROUP_PREFIX)
         for g in self._token["groups"]:
-            if g.startswith(PROJECT_GROUP_PREFIX):
+            if g.startswith(User.PROJECT_GROUP_PREFIX):
                 projects.add(g[prefix_len:])
         return projects
 
@@ -187,9 +186,9 @@ class User:
     def canModifyProject(self, projectCode: str):
         if self.canAdminProjects(): return True
         if self._token is None or not "groups" in self._token.keys(): return False
-        prefix_len = len(ADMINS_PROJECT_GROUP_PREFIX)
+        prefix_len = len(User.PROJECT_ADMINS_GROUP_PREFIX)
         for g in self._token["groups"]:
-            if g.startswith(ADMINS_PROJECT_GROUP_PREFIX) and g[prefix_len:] == projectCode: return True
+            if g.startswith(User.PROJECT_ADMINS_GROUP_PREFIX) and g[prefix_len:] == projectCode: return True
         return False
     
     def getAllowedActionsOnProjectsForTheUser(self):

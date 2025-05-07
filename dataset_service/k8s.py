@@ -88,8 +88,8 @@ class K8sClient:
             else: raise e
         return job
 
-    def is_running_dataset_creation_job(self, job):
-        return getattr(job.status, 'succeeded', None) is None and getattr(job.status, 'failed', None) is None
+    def is_running_job(self, job):
+        return not hasattr(job.status, 'succeeded') and not hasattr(job.status, 'failed')
 
     def delete_dataset_creation_job(self, datasetId):
         API = client.BatchV1Api()
@@ -106,7 +106,7 @@ class K8sClient:
         return True
 
 
-    def add_user_creation_job(self, username: str, userGid: int, roles: list[str], site: str, projects: list[str], job_template_file_path: str):
+    def add_user_creation_job(self, username: str, roles: list[str], site: str, projects: list[str], job_template_file_path: str):
         API = client.ApiClient()
 
         projects_param = ":".join(projects)
@@ -116,7 +116,6 @@ class K8sClient:
                 job_template = f.read()
             job_template = job_template.replace("__OPERATION__", "create")
             job_template = job_template.replace("__TENANT_USERNAME__", username)
-            job_template = job_template.replace("__TENANT_GID__", str(userGid))
             job_template = job_template.replace("__TENANT_ROLES__", roles_param)
             job_template = job_template.replace("__TENANT_SITE__", site)
             job_template = job_template.replace("__TENANT_PROJECTS__", projects_param)

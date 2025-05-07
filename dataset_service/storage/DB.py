@@ -25,7 +25,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 38
+    CURRENT_SCHEMA_VERSION = 39
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -51,6 +51,7 @@ class DB:
             if version < 36: self.updateDB_v35To36()
             if version < 37: self.updateDB_v36To37()
             if version < 38: self.updateDB_v37To38()
+            if version < 39: self.updateDB_v38To39()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -82,9 +83,10 @@ class DB:
             CREATE TABLE author (
                 id varchar(64),
                 username varchar(64) DEFAULT NULL,
-                gid integer NOT NULL DEFAULT nextval('gid_sequence'),
+                gid integer DEFAULT NULL,
                 name varchar(128),
                 email varchar(128),
+                site_code varchar(50) NOT NULL DEFAULT '',
                 constraint pk_user primary key (id),
                 constraint un_user unique (username),
                 constraint un_gid unique (gid)
@@ -321,6 +323,12 @@ class DB:
                     (SELECT COUNT(*) FROM dataset_access_dataset WHERE dataset_id = %s) 
                 WHERE id = %s;""", 
                 (id, id))
+    
+    def updateDB_v38To39(self):
+        logging.root.info("Updating database from v38 to v39...")
+        self.cursor.execute("ALTER TABLE author ADD COLUMN site_code varchar(50) NOT NULL DEFAULT ''")
+        self.cursor.execute("ALTER TABLE author ALTER COLUMN gid DROP NOT NULL")
+        self.cursor.execute("ALTER TABLE author ALTER COLUMN gid SET DEFAULT NULL")
 
 #endregion
 

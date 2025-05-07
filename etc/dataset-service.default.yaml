@@ -27,6 +27,8 @@ auth:
       admin_users: "admin_users"
       admin_datasetAccess: "admin_datasetAccess"
       admin_projects: "admin_projects"
+    project_group_prefix: "PROJECT-"
+    project_admins_group_prefix: "ADMINS-PROJECT-"
   client:   # These are the parameters for login (get an auth token) as a service account in the auth service, 
             # in order to access other services like tracer or the keycloak admin API.
     auth_url: "https://chaimeleon-eu.i3m.upv.es/auth/realms/CHAIMELEON/protocol/openid-connect/token"
@@ -37,7 +39,7 @@ auth:
       # The client secret of the dataset-service client (it is like the "password" when login as a service account).
   admin_api:
     url: "https://chaimeleon-eu.i3m.upv.es/auth/admin/realms/CHAIMELEON/"
-      # The URL to the authentication admin api, for querying user groups, etc.
+      # The URL to the authentication admin api, for querying user groups, manage users, create projects as groups.
       # Please note the auth.client params will be used to access to this service (authentication admin).
       # Also note that the following roles must be added to the service account roles 
       # (and also in the "dedicated scope" of the client if "full scope" is not enabled): 
@@ -45,6 +47,18 @@ auth:
       #   "realm-management/view-users", "realm-management/view-clients".
     client_id_to_request_user_tokens: "dataset-explorer"
       # The client id of the public client used to get user tokens (when the caller is not the user to be evaluated).
+    parent_group_of_project_groups: "/PROJECTS"
+      # Whener a new project is created, a new group will be automatically created in the auth service within this parent group.
+      # That way, when a user is joined to a project, in fact it is added to the group, 
+      # an so that group will appear in the user's auth token.
+      # The group name will be the project code prefixed with auth.token_validation.project_group_prefix.
+      # You can set this parameter to empty string to not create automatically a group in the auth service for each new project 
+      # (if you prefer to do it manually).
+  user_management:
+    prefix_for_roles_as_groups: "/"
+    prefix_for_projects_as_groups: "/PROJECTS/PROJECT-"
+    assignable_general_roles: ["application-developer", "authorized-technical-data-manager", "clinical-staff", 
+                               "cloud-services-and-security-management", "data-scientists", "dataset-administrator"]
 
 tracer:
   url: "https://chaimeleon-eu.i3m.upv.es/tracer-service/tracer/"
@@ -56,7 +70,8 @@ zenodo:
   url: "https://sandbox.zenodo.org/"
     # The url of Zenodo service to submit depositions.
     # Usually "https://sandbox.zenodo.org/" for testing, and "https://zenodo.org/" for production.
-    # The account used to access and create depositions in Zenodo is configured per project in the project configuration set by PUT "/projects/<code>/config".
+    # The account used to access and create depositions in Zenodo is configured per project in the project configuration 
+    # set by PUT "/projects/<code>/config".
 
 user_management_scripts:
   job_template_file_path: ""

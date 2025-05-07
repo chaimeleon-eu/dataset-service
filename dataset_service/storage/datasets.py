@@ -26,37 +26,67 @@ class DBDatasetsOperator():
                 WHERE id = %s;""", 
                 (username, name, email, userId))
     
-    def createOrUpdateUser(self, userId, username, gid: int | None = None):
+    def createOrUpdateUser(self, userId, username, site: str | None, gid: int | None = None):
         self.cursor.execute("SELECT id FROM author WHERE id=%s LIMIT 1;", (userId,))
         row = self.cursor.fetchone()
         if row is None: 
-            if gid is None: gidstr0 = sql.SQL(""); gidstr1 = sql.SQL("")
-            else: gidstr0 = sql.SQL(", gid"); gidstr1 = sql.SQL(", ")+sql.Literal(gid)
+            if gid is None: extra_cols = sql.SQL(""); extra_values = sql.SQL("")
+            elif gid == -1: extra_cols = sql.SQL(", gid"); extra_values = sql.SQL(", nextval('gid_sequence')")
+            else: extra_cols = sql.SQL(", gid"); extra_values = sql.SQL(", ")+sql.Literal(gid)
+            if site != None: extra_cols += sql.SQL(", site_code"); extra_values += sql.SQL(", ")+sql.Literal(site)
             self.cursor.execute(sql.SQL("""
                 INSERT INTO author (id, username{}) 
                 VALUES ({}, {}{})
                 ON CONFLICT (id) DO NOTHING;"""
-            ).format(gidstr0, 
-                     sql.Literal(str(userId)), sql.Literal(str(username)), gidstr1))
+            ).format(extra_cols, 
+                sql.Literal(str(userId)), sql.Literal(str(username)), extra_values))
         else: 
-            if gid is None: gidstr = sql.SQL("")
-            else: gidstr = sql.SQL(", gid=")+sql.Literal(gid)
+            if gid is None: extra_sets = sql.SQL("")
+            elif gid == -1: extra_sets = sql.SQL(", gid=nextval('gid_sequence')")
+            else: extra_sets = sql.SQL(", gid=")+sql.Literal(gid)
+            if site != None: extra_sets += sql.SQL(", site_code=")+sql.Literal(site)
             self.cursor.execute(sql.SQL("""
                 UPDATE author SET username = {}{}
                 WHERE id = {};"""
-            ).format(sql.Literal(str(username)), gidstr, 
+            ).format(sql.Literal(str(username)), extra_sets, 
                      sql.Literal(str(userId))))
 
     def existsUserID(self, id):
         self.cursor.execute("SELECT id FROM author WHERE id=%s", (id,))
         return self.cursor.rowcount > 0
 
-    def getUserIDs(self, userName):
-        self.cursor.execute("SELECT id, gid FROM author WHERE username=%s LIMIT 1;", (userName,))
+    def getUserIDs(self, username):
+        self.cursor.execute("SELECT id, gid FROM author WHERE username=%s LIMIT 1;", (username,))
         row = self.cursor.fetchone()
         if row is None: return None, None
         return row[0], row[1]
+    
+    def getUsers(self) -> dict[str, dict]:
+        self.cursor.execute("""
+            SELECT username, gid
+            FROM author;""")
+        #ORDER BY username
+        res = dict()
+        for row in self.cursor:
+            res[row[0]] = dict(gid = row[1])
+        return res #, total
 
+    def getUser(self, username):
+        self.cursor.execute("""
+            SELECT id, username, gid, name, email, site_code
+            FROM author WHERE username=%s LIMIT 1;""", (username,))
+        row = self.cursor.fetchone()
+        if row is None: return None
+        return dict(uid = row[0], username = row[1], gid = row[2],
+                    name = row[3], email = row[4], siteCode = row[5])
+    
+    def getSites(self):
+        self.cursor.execute("""
+            SELECT DISTINCT site_code
+            FROM author
+            ORDER BY site_code;""")
+        return [row[0] for row in self.cursor]
+    
     def createDataset(self, dataset, userId):
         self.cursor.execute("""
             INSERT INTO dataset (id, name, version, project_code, previous_id, author_id, 

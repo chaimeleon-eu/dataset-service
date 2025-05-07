@@ -6,6 +6,7 @@ import shutil
 from enum import Enum
 from datetime import datetime
 from pathlib import Path
+from typing import Iterable
 import bottle
 import logging
 import json
@@ -94,6 +95,8 @@ def run(host, port, config: config.Config):
     CONFIG = config
     authorization.User.roles = authorization.Roles(CONFIG.auth.token_validation.roles)
     authorization.User.client_id = CONFIG.auth.token_validation.client_id
+    authorization.User.PROJECT_GROUP_PREFIX = CONFIG.auth.token_validation.project_group_prefix
+    authorization.User.PROJECT_ADMINS_GROUP_PREFIX = CONFIG.auth.token_validation.project_admins_group_prefix
     AUTH_CLIENT = AuthClient(CONFIG.auth.client.auth_url, CONFIG.auth.client.client_id, CONFIG.auth.client.client_secret)
     AUTH_ADMIN_CLIENT = keycloak.KeycloakAdminAPIClient(AUTH_CLIENT, CONFIG.auth.admin_api.url, CONFIG.auth.admin_api.client_id_to_request_user_tokens)
 
@@ -346,7 +349,7 @@ def _checkPropertyAsString(propName:str, value: str, possible_values: list[str] 
     if not isinstance(value, str): 
         raise WrongInputException("'%s' must be a string." % propName)
     if possible_values != None and not value in possible_values:
-        raise WrongInputException("Unknown value '%s' in '%s', it should be one of {%s}" % (value, propName, ','.join(possible_values)))
+        raise WrongInputException("Unknown value '%s' in '%s', it should be one of {%s}" % (value, propName, ', '.join(possible_values)))
     if min_length > 0 and len(value) < min_length:
         raise WrongInputException("Length of '%s' must be %s characters or more." % (propName, min_length))
     if max_length > 0 and len(value) > max_length:
@@ -354,7 +357,7 @@ def _checkPropertyAsString(propName:str, value: str, possible_values: list[str] 
     if only_alphanum_or_dash and not value.replace('-','a').isalnum(): 
         raise WrongInputException("Invalid value for '%s', only alphanumeric characters and '-' are allowed." % (propName))
 
-def _checkPropertyAsArrayOfStrings(propName: str, value: list[str], item_possible_values: list[str] | None = None, item_max_length: int = 0,
+def _checkPropertyAsArrayOfStrings(propName: str, value: list[str], item_possible_values: Iterable[str] | None = None, item_max_length: int = 0,
                                    item_only_alphanum_or_dash: bool = False):
     if not isinstance(value, list):
         raise WrongInputException("'%s' must be an array of strings." % propName)
@@ -363,7 +366,7 @@ def _checkPropertyAsArrayOfStrings(propName: str, value: list[str], item_possibl
             raise WrongInputException("'%s' must be an array of strings." % propName)
         if item_possible_values != None and not item in item_possible_values:
             raise WrongInputException("Unknown item value '%s' in '%s', it should be one of {%s}" \
-                                        % (item, propName, ','.join(item_possible_values)))
+                                        % (item, propName, ', '.join(item_possible_values)))
         if item_max_length > 0 and len(item) > item_max_length:
             raise WrongInputException("The item value '%s' in '%s' exceeds the max length of %s characters." \
                                         % (item, propName, item_max_length))
@@ -476,7 +479,7 @@ def postDataset():
             LOG.debug("Updating author: %s, %s, %s, %s" % (user.uid, user.username, user.name, user.email))
             dbdatasets.createOrUpdateAuthor(user.uid, user.username, user.name, user.email)
 
-            user_projects = user.getProjects()
+            user_projects = _getProjects(user)
             if 'project' in dataset.keys(): 
                 if not dataset["project"] in user_projects:
                     return setErrorResponse(400, "dataset.project does not exist for the user")
@@ -692,7 +695,7 @@ def relaunchDatasetCreationJob(id):
         k8sClient = k8s.K8sClient()
         job = k8sClient.exist_dataset_creation_job(datasetId)
         if job:
-            if k8sClient.is_running_dataset_creation_job(job):
+            if k8sClient.is_running_job(job):
                 return setErrorResponse(400, "there is a creation job running for this dataset, please stop or delete it before relaunch")
             else: k8sClient.delete_dataset_creation_job(datasetId)
         LOG.debug('Updating status in DB...')
@@ -1331,6 +1334,16 @@ def getLicenses():
     return json.dumps(licenses)
 
 
+def _getProjects(user: authorization.User) -> set[str]:
+    if CONFIG is None: raise Exception()
+    if user.isSuperAdminDatasets(): 
+        allProjects = set()
+        with DB(CONFIG.db) as db:
+            for p in DBProjectsOperator(db).getProjects(): allProjects.add(p["code"])
+        return allProjects
+    else:
+        return user.getProjects()
+
 @app.route('/api/projects', method='GET')
 def getProjects():
     if CONFIG is None or not isinstance(bottle.request.query, bottle.FormsDict): raise Exception()
@@ -1339,15 +1352,15 @@ def getProjects():
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
 
+    purpose = "projectList"
     if 'purpose' in bottle.request.query:
         purpose = bottle.request.query['purpose']
-        try: _checkPropertyAsString('purpose', purpose, ["datasetCreation", "datasetSearchFilter", "projectList"])
+        try: _checkPropertyAsString('purpose', purpose, ["datasetCreation", "userManagement", "datasetSearchFilter", "projectList"])
         except WrongInputException as e: return setErrorResponse(400, str(e))
-    else: purpose = "projectList"   
     
-    if purpose == "datasetCreation":
+    if purpose == "datasetCreation" or purpose == "userManagement":
         # New datasets only can be assigned to projects which the user has joined to
-        ret = list(user.getProjects())
+        ret = list(_getProjects(user))
     elif purpose == "datasetSearchFilter":
         # List all the possible values for "project" filter in GET /datasets
         searchFilter = authorization.Search_filter()
@@ -1610,14 +1623,55 @@ def patchProject(code):
         if os.path.exists(destinationFilePath + ".tmp"): os.unlink(destinationFilePath + ".tmp")
         return setErrorResponse(500, "Unexpected error, may be the input is wrong")
 
+
 @app.route('/api/user/<userName>', method='POST')
 def postUser(userName):
     # Transitional condition while clients change to new PUT operation
     LOG.debug("Received (Transitional) POST %s" % bottle.request.path)
     return putUser(userName)
 
-@app.route('/api/users/<userName>', method='PUT')
-def putUser(userName):
+def _getRolesAndProjectsFromUserId(userId):
+    if CONFIG is None or AUTH_ADMIN_CLIENT is None: raise Exception()
+    groups = AUTH_ADMIN_CLIENT.getUserGroups(userId)
+    roles, projects = [], []
+    roles_prefix_len = len(CONFIG.auth.user_management.prefix_for_roles_as_groups)
+    projects_prefix_len = len(CONFIG.auth.user_management.prefix_for_projects_as_groups)
+    for g in groups:
+        if str(g).startswith(CONFIG.auth.user_management.prefix_for_projects_as_groups):
+            projects.append(g[projects_prefix_len:])
+        elif str(g).startswith(CONFIG.auth.user_management.prefix_for_roles_as_groups):
+            roles.append(g[roles_prefix_len:])
+    return roles, projects
+
+def _updateRolesForUserId(userId, currentRoles, newRoles):
+    if CONFIG is None or AUTH_ADMIN_CLIENT is None: raise Exception()
+    LOG.debug("Current roles of the user: " + json.dumps(currentRoles))
+    LOG.debug("New roles for the user: " + json.dumps(newRoles))
+    for r in currentRoles:
+        if not r in newRoles:
+            LOG.debug("The current role '%s' is not in the new selection, it must be removed. " % r)
+            AUTH_ADMIN_CLIENT.removeUserFromGroup(userId, CONFIG.auth.user_management.prefix_for_roles_as_groups + r)
+    for r in newRoles:
+        if not r in currentRoles:
+            LOG.debug("The role '%s' in the new selection is not previously assigned, it must be added. " % r)
+            AUTH_ADMIN_CLIENT.addUserToGroup(userId, CONFIG.auth.user_management.prefix_for_roles_as_groups + r)
+
+def _updateProjectsForUserId(userId, currentProjects, newProjects):
+    if CONFIG is None or AUTH_ADMIN_CLIENT is None: raise Exception()
+    LOG.debug("Current projects of the user: " + json.dumps(currentProjects))
+    LOG.debug("New projects for the user: " + json.dumps(newProjects))
+    for p in currentProjects:
+        if not p in newProjects:
+            LOG.debug("The current project '%s' is not in the new selection, it must be removed. " % p)
+            AUTH_ADMIN_CLIENT.removeUserFromGroup(userId, CONFIG.auth.user_management.prefix_for_projects_as_groups + p)
+    for p in newProjects:
+        if not p in currentProjects:
+            LOG.debug("The project '%s' in the new selection is not previously assigned, it must be added. " % p)
+            AUTH_ADMIN_CLIENT.addUserToGroup(userId, CONFIG.auth.user_management.prefix_for_projects_as_groups + p)
+
+
+@app.route('/api/users/<username>', method='PUT')
+def putUser(username):
     if CONFIG is None or AUTH_ADMIN_CLIENT is None or not isinstance(bottle.request.body, io.IOBase): raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ret = getTokenFromAuthorizationHeader(serviceAccount=True)
@@ -1634,37 +1688,49 @@ def putUser(userName):
         read_data = bottle.request.body.read().decode('UTF-8')
         LOG.debug("BODY: " + read_data)
         userData = json.loads(read_data)
-        userId = userData["uid"] if "uid" in userData.keys() else None
         #userGroups = userData["groups"]
         userGid = int(userData["gid"]) if "gid" in userData.keys() else None
-        site = userData["site"] if "site" in userData.keys() else ""
-        projects = userData["projects"] if "projects" in userData.keys() else []
-        roles = userData["roles"] if "roles" in userData.keys() else []
+        site = userData["siteCode"] if "siteCode" in userData.keys() else None
+        newProjects = userData["projects"] if "projects" in userData.keys() else None
+        newRoles = userData["roles"] if "roles" in userData.keys() else None
 
-        available_projects = list(user.getProjects())  # The available projects are those which the validator user are joined to.
-        _checkPropertyAsArrayOfStrings("projects", projects, available_projects)
-        _checkPropertyAsArrayOfStrings("roles", roles)
+        if site != None: _checkPropertyAsString("siteCode", site, max_length=50)
+        if newProjects != None:
+            available_projects = _getProjects(user)
+            # The available projects for now are those which the validator user are joined to.
+            _checkPropertyAsArrayOfStrings("projects", newProjects, available_projects)
+        if newRoles != None:
+            _checkPropertyAsArrayOfStrings("roles", newRoles, CONFIG.auth.user_management.assignable_general_roles)
 
-        if userId is None:
-            userId = AUTH_ADMIN_CLIENT.getUserId(userName)
-            if userId is None: raise WrongInputException("Username '%s' not found in the auth service." % userName)
+        userId = AUTH_ADMIN_CLIENT.getUserId(username)
+        if userId is None: raise WrongInputException("Username '%s' not found in the auth service." % username)
 
-        LOG.debug("Creating or updating user in DB: %s, %s, %s" % (userId, userName, userGid))
+        LOG.debug("Creating or updating user in DB: %s, %s, %s" % (userId, username, userGid))
         with DB(CONFIG.db) as db:
-            DBDatasetsOperator(db).createOrUpdateUser(userId, userName, userGid)
-            if userGid is None:
-                userId, userGid = DBDatasetsOperator(db).getUserIDs(userName)
-                if userGid is None: raise Exception()
+            DBDatasetsOperator(db).createOrUpdateUser(userId, username, site, userGid)
+
+            currentRoles, currentProjects = _getRolesAndProjectsFromUserId(userId)
+            if newRoles != None:
+                _updateRolesForUserId(userId, currentRoles, newRoles)
+            if newProjects != None:
+                _updateProjectsForUserId(userId, currentProjects, newProjects)
 
         if CONFIG.user_management_scripts.job_template_file_path != "":
-            if len(roles) == 0:
-                userGroups = AUTH_ADMIN_CLIENT.getUserGroups(userId)
-                roles = userGroups   # let's take all the groups for now
-            LOG.debug('Launching user creation job...')
-            k8sClient = k8s.K8sClient()
-            ok = k8sClient.add_user_creation_job(userName, userGid, roles, site, projects, CONFIG.user_management_scripts.job_template_file_path)
-            if not ok: 
-                raise K8sException("Unexpected error launching user creation job.")
+            # only launch job if any relevant change
+            if newRoles != None or newProjects != None or site != None:
+                if newRoles is None: newRoles = currentRoles
+                if newProjects is None: newProjects = currentProjects
+                if site is None: 
+                    with DB(CONFIG.db) as db:
+                        ret = DBDatasetsOperator(db).getUser(username)
+                        if ret is None: raise Exception()
+                        site = ret["siteCode"]
+                LOG.debug('Launching user creation job...')
+                k8sClient = k8s.K8sClient()
+                ok = k8sClient.add_user_creation_job(username, newRoles, site, newProjects, 
+                                                     CONFIG.user_management_scripts.job_template_file_path)
+                if not ok: 
+                    raise K8sException("Unexpected error launching user creation job.")
 
         LOG.debug('User successfully created or updated.')
         bottle.response.status = 201
@@ -1677,9 +1743,47 @@ def putUser(userName):
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
         return setErrorResponse(500, "Unexpected error, may be the input is wrong")
 
-@app.route('/api/users/<userName>', method='GET')
-def getUser(userName):
-    if CONFIG is None: raise Exception()
+@app.route('/api/users/<username>', method='GET')
+def getUser(username):
+    if CONFIG is None or AUTH_ADMIN_CLIENT is None or not isinstance(bottle.request.query, bottle.FormsDict): raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    ret = getTokenFromAuthorizationHeader(serviceAccount=True)
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
+    if not user.canAdminUsers():
+        return setErrorResponse(401, "unauthorized user")
+    try:
+        scope = "gid"
+        if 'scope' in bottle.request.query:
+            scope = bottle.request.query['scope']
+            _checkPropertyAsString('scope', scope, ["gid", "all"])
+        
+        if scope == "gid":
+            with DB(CONFIG.db) as db:
+                userId, userGid = DBDatasetsOperator(db).getUserIDs(username)
+            if userId is None: return setErrorResponse(404, "user not found")
+            ret = dict(gid = userGid)
+        else:  # scope = all
+            with DB(CONFIG.db) as db:
+                ret = DBDatasetsOperator(db).getUser(username)
+            #if ret is None: return setErrorResponse(404, "user not found")
+            if ret is None: ret = {"username": username}
+            userId = AUTH_ADMIN_CLIENT.getUserId(username)
+            if userId is None: return setErrorResponse(404, "user not found in the auth service")
+            #if "uid" in ret and ret["uid"] != userId: raise Exception("User id from DB is not the same as from the auth service.")
+            ret["roles"], ret["projects"] = _getRolesAndProjectsFromUserId(userId)
+            ret["attributesFromAuthService"] = AUTH_ADMIN_CLIENT.getUserAttributes(userId)
+
+        bottle.response.content_type = "application/json"
+        return json.dumps(ret)
+    except WrongInputException as e:
+        return setErrorResponse(400, str(e))
+    except keycloak.KeycloakAdminAPIException as e:
+        return setErrorResponse(500, str(e))
+
+@app.route('/api/users', method='GET')
+def getUsers():
+    if CONFIG is None or AUTH_ADMIN_CLIENT is None or not isinstance(bottle.request.query, bottle.FormsDict): raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ret = getTokenFromAuthorizationHeader(serviceAccount=True)
     if isinstance(ret, str): return ret  # return error message
@@ -1687,11 +1791,61 @@ def getUser(userName):
     if not user.canAdminUsers():
         return setErrorResponse(401, "unauthorized user")
     
+    try:
+        disabled = None
+        if 'disabled' in bottle.request.query:
+            disabled = parse_flag_value(bottle.request.query['disabled'])
+
+        skip = int(bottle.request.query['skip']) if 'skip' in bottle.request.query else 0
+        limit = int(bottle.request.query['limit']) if 'limit' in bottle.request.query else 30
+        if skip < 0: skip = 0
+        if limit < 0: limit = 0
+        searchString =  str(bottle.request.query['searchString']).strip()  if 'searchString' in bottle.request.query else ""
+    except WrongInputException as e:
+        return setErrorResponse(400, str(e))
+
+    users, total = AUTH_ADMIN_CLIENT.getUsers(skip, limit, searchString, disabled)
+
     with DB(CONFIG.db) as db:
-        userId, userGid = DBDatasetsOperator(db).getUserIDs(userName)
-    if userGid is None: return setErrorResponse(404, "user not found")
+        usersInDB = DBDatasetsOperator(db).getUsers()
+    for u in users:
+        username = u["username"]
+        u["gid"] = usersInDB[username]["gid"] if username in usersInDB else None
+
     bottle.response.content_type = "application/json"
-    return json.dumps(dict(gid = userGid))
+    return json.dumps({ "total": total,
+                        "returned": len(users),
+                        "skipped": skip,
+                        "limit": limit,
+                        "list": users})
+
+@app.route('/api/userRoles', method='GET')
+def getUserRoles():
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    ret = getTokenFromAuthorizationHeader(serviceAccount=True)
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
+    if not user.canAdminUsers():
+        return setErrorResponse(401, "unauthorized user")
+            
+    bottle.response.content_type = "application/json"
+    return json.dumps(CONFIG.auth.user_management.assignable_general_roles)
+
+@app.route('/api/userSites', method='GET')
+def getUserSites():
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    ret = getTokenFromAuthorizationHeader(serviceAccount=True)
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
+    if not user.canAdminUsers():
+        return setErrorResponse(401, "unauthorized user")
+
+    with DB(CONFIG.db) as db:
+        ret = DBDatasetsOperator(db).getSites()
+    bottle.response.content_type = "application/json"
+    return json.dumps(ret)
 
 
 def checkDatasetListAccess(datasetIDs: list, userName: str):
@@ -1798,6 +1952,8 @@ def postDatasetAccess(id):
         with DB(CONFIG.db) as db:
             dbdatasets = DBDatasetsOperator(db)
             userId, userGID = dbdatasets.getUserIDs(userName)
+            if userGID is None:
+                return setErrorResponse(400, "The user does not have a GID.")
             if CONFIG.self.datasets_mount_path != '' and not isJob:
                 # For jobs is not required to set the ACLs because they are already set for desktop and it's a high-cost operation
                 for id in datasetIDs:
