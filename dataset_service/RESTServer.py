@@ -1465,6 +1465,10 @@ def putProject(code):
             # project configuration is included in this operation also
             _putProjectConfig(projectData["projectConfig"], code, db)
 
+            if AUTH_ADMIN_CLIENT != None and CONFIG.auth.admin_api.parent_group_of_project_groups != "":
+                AUTH_ADMIN_CLIENT.createGroup(CONFIG.auth.token_validation.project_group_prefix+code, 
+                                              CONFIG.auth.admin_api.parent_group_of_project_groups)
+
         if os.path.exists(destinationFilePath + ".tmp"): 
             os.rename(destinationFilePath + ".tmp", destinationFilePath)
         LOG.debug('Project successfully created or updated.')

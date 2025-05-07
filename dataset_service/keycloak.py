@@ -90,6 +90,21 @@ class KeycloakAdminAPIClient:
             raise KeycloakAdminAPIException('Internal server error: KeycloakAdminAPI call failed.', httpStatusCode)
         logging.root.debug('KeycloakAdminAPI call success.')
     
+    def _POST_JSON(self, path, content):
+        connection = self._get_connection()
+        headers = self._get_headers()
+        headers['Content-Type'] = 'application/json'
+        try:
+            connection.request("POST", self.apiURL.path + path, content, headers)
+            res = connection.getresponse()
+            httpStatusCode = res.status
+        finally:
+            connection.close()
+        if httpStatusCode != 201:
+            logging.root.error('KeycloakAdminAPI error. Code: %d %s' % (httpStatusCode, res.reason))
+            raise KeycloakAdminAPIException('Internal server error: KeycloakAdminAPI call failed.', httpStatusCode)
+        logging.root.debug('KeycloakAdminAPI call success.')
+    
     def _DELETE_JSON(self, path, content):
         connection = self._get_connection()
         headers = self._get_headers()
@@ -289,3 +304,11 @@ class KeycloakAdminAPIClient:
         except (Exception) as e:
             logging.root.error('KeycloakAdminAPI response unexpected: %s' % (response))
             raise KeycloakAdminAPIException('Internal server error: KeycloakAdminAPI response unexpected.')
+
+    def createGroup(self, name, parentGroupPath: str):
+        parentGroupId = self._get_group_id(parentGroupPath)
+        if parentGroupId is None: 
+            logging.root.error("KeycloakAdminAPI error: group path '%s' not found" % (parentGroupId))
+            raise KeycloakAdminAPIException('Internal server error: parent group path not found.')
+        logging.root.debug('Creating group in KeycloakAdminAPI...')
+        self._POST_JSON("groups/"+parentGroupId+"/children", json.dumps({"name": name}))
