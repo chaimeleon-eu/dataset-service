@@ -1,4 +1,5 @@
 
+from enum import Enum
 import logging.config
 from kubernetes import client, config, utils
 from kubernetes.client.rest import ApiException
@@ -9,6 +10,12 @@ from dataset_service.config import CONFIG_ENV_VAR_NAME
 
 DATASET_CREATION_JOB_PREFIX="creating-dataset-"
 USER_CREATION_JOB_PREFIX="creating-user-"
+
+class Job_state(Enum):
+    RUNNING = 'running'
+    SUCCEEDED = 'succeeded'
+    FAILED = 'failed'
+    UNKNOWN = 'unknown'
 
 class K8sClient:
     def __init__(self):
@@ -91,6 +98,14 @@ class K8sClient:
     def is_running_job(self, job):
         return not hasattr(job.status, 'succeeded') and not hasattr(job.status, 'failed')
 
+    def _get_state_of_job(self, job) -> Job_state:
+        # Assuming it is a job with only one pod, 
+        # let's see if exists the attribute with the number of pods in each state to obtain the state of the job.
+        if hasattr(job.status, 'active') and job.status.active: return Job_state.RUNNING
+        if hasattr(job.status, 'succeeded') and job.status.succeeded: return Job_state.SUCCEEDED
+        if hasattr(job.status, 'failed') and job.status.failed: return Job_state.FAILED
+        return Job_state.UNKNOWN
+
     def delete_dataset_creation_job(self, datasetId):
         API = client.BatchV1Api()
         try:
@@ -128,6 +143,10 @@ class K8sClient:
         random_uuid = str(uuid.uuid4())[:8]
         job['metadata']['name'] = USER_CREATION_JOB_PREFIX + username + "-" + random_uuid
         job['metadata']['namespace'] = self.namespace
+        job['metadata']['labels'] = {
+            'job-type': 'user-creation',
+            'username': username
+        }
         try:
             api_response = utils.create_from_yaml(API,  yaml_objects=[ job ])
             #logging.root.debug(api_response)
@@ -135,3 +154,41 @@ class K8sClient:
             logging.root.error("Exception when calling k8s API -> create_from_yaml: %s\n" % e)
             return False
         return True
+
+    def list_user_creation_jobs(self, username: str):
+        API = client.BatchV1Api()
+        creationJobs = []
+        try:
+            jobList = API.list_namespaced_job(self.namespace, label_selector="job-type=user-creation, username="+username)
+            for j in jobList.items:
+                #if str(j.metadata.name).startswith(USER_CREATION_JOB_PREFIX + username + "-"):
+                creationJobs.append({
+                    "creationDate": j.metadata.creation_timestamp.isoformat(),
+                    "name": j.metadata.name,
+                    "uid": j.spec.selector.match_labels["batch.kubernetes.io/controller-uid"],  # j.metadata.labels["controller-uid"]
+                    "status": str(self._get_state_of_job(j).value)
+                })
+        except ApiException as e:
+            logging.root.error("Exception when calling k8s API -> list_user_creation_jobs: %s\n" % e)
+            raise e
+        return creationJobs
+    
+    def _get_name_of_first_pod_of_job(self, api, job_selector_controller_uid) -> str | None:
+        pod_list = api.list_namespaced_pod(self.namespace, label_selector='controller-uid=' + job_selector_controller_uid)
+        if len(pod_list.items) == 0: return None
+        return pod_list.items[0].metadata.name
+
+    def get_user_creation_job_logs(self, username, selectorUid) -> str | None:
+        API = client.CoreV1Api()
+        try:
+            pod_name = self._get_name_of_first_pod_of_job(API, selectorUid)
+            if pod_name is None or not pod_name.startswith(USER_CREATION_JOB_PREFIX + username + "-"): return None
+            pod = API.read_namespaced_pod_status(pod_name, self.namespace)
+            if not isinstance(pod, client.V1Pod) or not isinstance(pod.status, client.V1PodStatus): return None
+            if pod.status.phase in ['Pending','Unknown']: return None
+            limit_bytes = 1024 * 1024  # 1MB
+            return API.read_namespaced_pod_log(pod_name, self.namespace, limit_bytes=limit_bytes)
+        except ApiException as e:
+            logging.root.error("Exception when calling k8s API -> get_user_creation_job_logs: %s\n" % e)
+            raise e
+

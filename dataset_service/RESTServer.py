@@ -1747,6 +1747,45 @@ def putUser(username):
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
         return setErrorResponse(500, "Unexpected error, may be the input is wrong")
 
+@app.route('/api/users/<username>/managementJobs', method='GET')
+def getUserManagementJobs(username):
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    ret = getTokenFromAuthorizationHeader(serviceAccount=True)
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
+    if not user.canAdminUsers():
+        return setErrorResponse(401, "unauthorized user")
+    
+    # Check the user exists, just for security
+    with DB(CONFIG.db) as db:
+        userId, userGid = DBDatasetsOperator(db).getUserIDs(username)
+        if userId is None: return setErrorResponse(404, "user not found")
+    k8sClient = k8s.K8sClient()
+    jobs = k8sClient.list_user_creation_jobs(username)
+    bottle.response.content_type = "application/json"
+    return json.dumps(jobs)
+
+@app.route('/api/users/<username>/managementJobs/<uid>', method='GET')
+def getUserManagementJobLog(username, uid):
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    ret = getTokenFromAuthorizationHeader(serviceAccount=True)
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
+    if not user.canAdminUsers():
+        return setErrorResponse(401, "unauthorized user")
+    
+    # Check the user exists, just for security
+    with DB(CONFIG.db) as db:
+        userId, userGid = DBDatasetsOperator(db).getUserIDs(username)
+        if userId is None: return setErrorResponse(404, "user not found")
+    k8sClient = k8s.K8sClient()
+    logs = k8sClient.get_user_creation_job_logs(username, uid)
+    if logs is None: return setErrorResponse(404, "not found")
+    bottle.response.content_type = "text/plain"
+    return logs
+
 @app.route('/api/users/<username>', method='GET')
 def getUser(username):
     if CONFIG is None or AUTH_ADMIN_CLIENT is None or not isinstance(bottle.request.query, bottle.FormsDict): raise Exception()

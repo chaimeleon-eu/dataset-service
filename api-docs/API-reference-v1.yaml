@@ -926,6 +926,84 @@ paths:
         '404':
           description: "not found"
 
+  /users/{username}/managementJobs:
+    get:
+      tags: [users]
+      summary: List user management jobs launched for the user
+      operationId: listUserManagementJobs
+      description: ...
+      parameters: 
+        - name: username
+          description: the unique username of the user
+          example: "user1"
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: "Results list"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: objects
+                  properties:
+                    creationDate:
+                      type: string
+                      format: date-time
+                      example: '2016-08-29T09:12:12+00:00'
+                    name:
+                      type: string
+                    uid:
+                      type: string
+                      format: uuid
+                      description: "identifier, it can be used to get the logs"
+                      example: "1761bfd2-2dfa-4640-a5e9-0403d8939f0a"
+                    status:
+                      type: string
+                      enum: 
+                        - "running"
+                        - "succeeded"
+                        - "failed"
+                        - "unknown"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/{username}/managementJobs/{uid}:
+    get:
+      tags: [users]
+      summary: Get job logs
+      operationId: getUserManagementJobLog
+      description: Get the logs of a user management job
+      parameters:
+        - name: username
+          description: "The username of the user"
+          example: "user1"
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: uid
+          description: "The UID of the job"
+          example: "1761bfd2-2dfa-4640-a5e9-0403d8939f0a"
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: "successful operation"
+          content:
+            text/plain:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: "not found"
+
   /userRoles:
     get:
       tags: [users]
