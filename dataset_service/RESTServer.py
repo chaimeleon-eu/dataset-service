@@ -1698,7 +1698,7 @@ def putUser(username):
         newProjects = userData["projects"] if "projects" in userData.keys() else None
         newRoles = userData["roles"] if "roles" in userData.keys() else None
 
-        if site != None: _checkPropertyAsString("siteCode", site, max_length=50)
+        if site != None: _checkPropertyAsString("siteCode", site, min_length=2, max_length=50)
         if newProjects != None:
             available_projects = _getProjects(user)
             # The available projects for now are those which the validator user are joined to.

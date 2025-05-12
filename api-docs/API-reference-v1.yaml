@@ -833,6 +833,7 @@ paths:
                     type: string
                 siteCode:
                   type: string
+                  minLength: 2
                   maxLength: 50
                   description: |
                     (Optional) The ID of site which the user belongs to.
@@ -948,7 +949,7 @@ paths:
               schema:
                 type: array
                 items:
-                  type: objects
+                  type: object
                   properties:
                     creationDate:
                       type: string
@@ -1374,22 +1375,6 @@ paths:
       responses:
         '201':
           description: item created, access granted
-#         content:
-#           application/json:
-#             schema:
-#               type: object
-#               properties:
-#                 status_code:
-#                   type: string
-#                   description: HTTP status code
-#                 msg:
-#                   type: string
-#                   description: descriptive message
-#                 datasetAccessId:
-#                   type: string
-#                   format: uuid
-#                   description: the id of the datasetAccess created
-#                   example: "00e821c4-e92b-48f7-a034-ba2df547e2bf"
         '403':
           description: access denied
         '401':
@@ -2083,6 +2068,7 @@ components:
             type: string
         siteCode:
           type: string
+          minLength: 2
           maxLength: 50
           description: The site code. 
             It is usually used when creating the user account in the Case Explorer (QP-Insights),
@@ -2212,11 +2198,11 @@ components:
           example: "b"
         toolName:
           type: string
-          description: "The name of application, framework, docker image or helm chart used to analyze or process the datasets"
+          description: "The name of application, framework, docker image or helm chart used to analyze or process the datasets."
           example: "jupyter-tensorflow"
         toolVersion:
           type: string
-          description: "The version of application, framework, docker image or helm chart used to analyze or process the datasets"
+          description: "The version of application, framework, docker image or helm chart used to analyze or process the datasets."
           example: "2.2.9"
         image:
           type: string

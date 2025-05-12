@@ -168,6 +168,7 @@ class K8sClient:
                     "uid": j.spec.selector.match_labels["batch.kubernetes.io/controller-uid"],  # j.metadata.labels["controller-uid"]
                     "status": str(self._get_state_of_job(j).value)
                 })
+            creationJobs.sort(key=lambda x:x["creationDate"], reverse=True)
         except ApiException as e:
             logging.root.error("Exception when calling k8s API -> list_user_creation_jobs: %s\n" % e)
             raise e
