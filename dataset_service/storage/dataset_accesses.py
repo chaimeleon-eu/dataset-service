@@ -5,18 +5,23 @@ class DBDatasetAccessesOperator():
     def __init__(self, db: DB):
         self.cursor = db.cursor
 
-    def createDatasetAccess(self, datasetAccessId, datasetIDs, userGID, accessType, toolName, toolVersion, image, cmdLine, creationTime, resourcesFlavor, openchallengeJobType):
+    def createDatasetAccess(self, datasetAccessId, datasetIDs, userGID, accessType, instanceName,
+                            toolName, toolVersion, image, cmdLine, creationTime, 
+                            resourcesFlavor, openchallengeJobType):
         self.cursor.execute("""
-            INSERT INTO dataset_access (id, user_gid, access_type, tool_name, tool_version, image, cmd_line, creation_time, resource_flavor, openchallenge_job_type, closed) 
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, FALSE);""", 
-            (datasetAccessId, userGID, accessType, toolName, toolVersion, image, cmdLine, creationTime, resourcesFlavor, openchallengeJobType)
+            INSERT INTO dataset_access (id, user_gid, access_type, instance_name, 
+                                        tool_name, tool_version, image, cmd_line, creation_time, 
+                                        resource_flavor, openchallenge_job_type, closed) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, FALSE);""", 
+            (datasetAccessId, userGID, accessType, instanceName, 
+             toolName, toolVersion, image, cmdLine, creationTime, 
+             resourcesFlavor, openchallengeJobType)
         )
         for id in datasetIDs:
             self.cursor.execute("""
                 INSERT INTO dataset_access_dataset (dataset_access_id, dataset_id) 
                 VALUES (%s, %s);""", 
-                (datasetAccessId, id)
-            )
+                (datasetAccessId, id))
             self.updateDatasetTimesUsed(id)
     
     def updateDatasetTimesUsed(self, id):
@@ -60,7 +65,8 @@ class DBDatasetAccessesOperator():
 
     def getOpenDatasetAccesses(self, datasetId):
         self.cursor.execute("""
-            SELECT author.username, dataset_access.tool_name, dataset_access.tool_version, dataset_access.id
+            SELECT author.username, dataset_access.tool_name, dataset_access.tool_version, 
+                   dataset_access.id, dataset_access.instance_name
             FROM dataset_access, dataset_access_dataset, author
             WHERE dataset_access_dataset.dataset_id = %s
                   AND dataset_access_dataset.dataset_access_id = dataset_access.id 
@@ -68,7 +74,8 @@ class DBDatasetAccessesOperator():
                   AND dataset_access.user_gid = author.gid;""", (datasetId,))
         res = []
         for row in self.cursor:
-            res.append(dict(username = row[0], toolName = row[1], toolVersion = row[2], datasetAccessId = row[3]))
+            res.append(dict(username = row[0], instanceName = row[4], 
+                            toolName = row[1], toolVersion = row[2], datasetAccessId = row[3]))
         return res
 
     def getDatasetAccesses(self, datasetId, limit = 0, skip = 0):
@@ -86,7 +93,7 @@ class DBDatasetAccessesOperator():
                    dataset_access.tool_name, dataset_access.tool_version, dataset_access.image, 
                    dataset_access.resource_flavor, 
                    dataset_access.start_time, dataset_access.end_time, dataset_access.end_status, 
-                   dataset_access.cmd_line, dataset_access.openchallenge_job_type
+                   dataset_access.cmd_line, dataset_access.openchallenge_job_type, dataset_access.instance_name
             FROM dataset_access, dataset_access_dataset, author
             WHERE dataset_access_dataset.dataset_id = %s
                   AND dataset_access_dataset.dataset_access_id = dataset_access.id 
@@ -104,7 +111,7 @@ class DBDatasetAccessesOperator():
             startTime = str(startTime.astimezone()) if startTime != None else None
             endTime = str(endTime.astimezone()) if endTime != None else None
             res.append(dict(creationTime = creationTime, username = row[1], accessType = row[2], 
-                            toolName = row[3], toolVersion = row[4], image = row[5],
+                            instanceName = row[12], toolName = row[3], toolVersion = row[4], image = row[5],
                             resourcesFlavor = row[6], duration = duration,
                             startTime = startTime, endTime = endTime, endStatus = row[9],
                             cmdLine = row[10], openchallengeJobType = row[11]))

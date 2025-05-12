@@ -1364,6 +1364,10 @@ paths:
                     type: string
                     format: uuid
                     example: "00e821c4-e92b-48f7-a034-ba2df547e2bf"
+                instanceName:
+                  type: string
+                  description: the name of the k8s object where the access is requested (deployment or job)
+                  example: "my-job"
                 toolName:
                   type: string
                   description: the name of application, framework, docker image or helm chart used to analyze or process the datasets
@@ -2196,6 +2200,10 @@ components:
           description: |
             The type of access: 'i' for interactive (for example: a desktop or web service) and 'b' for batch (a job).
           example: "b"
+        instanceName:
+          type: string
+          description: "The name of the k8s object where the access was requested (deployment or job)."
+          example: "my-job"
         toolName:
           type: string
           description: "The name of application, framework, docker image or helm chart used to analyze or process the datasets."

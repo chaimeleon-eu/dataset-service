@@ -1972,6 +1972,7 @@ def postDatasetAccess(id):
         datasetAccess = json.loads(read_data)
         userName = datasetAccess["userName"]
         datasetIDs = datasetAccess["datasets"]
+        instanceName = datasetAccess["instanceName"] if "instanceName" in datasetAccess else ""
         toolName = datasetAccess["toolName"]
         toolVersion = datasetAccess["toolVersion"]
         image = datasetAccess["image"]
@@ -1982,6 +1983,7 @@ def postDatasetAccess(id):
         openchallengeJobType = datasetAccess["openchallengeJobType"]
         datasetAccessId = id
 
+        instanceName = instanceName[:64]
         toolName = toolName[:256]
         toolVersion = toolVersion[:256]
         image = image[:256]
@@ -2006,7 +2008,7 @@ def postDatasetAccess(id):
                     datasetDirName = id
                     dataset_file_system.give_access_to_dataset(CONFIG.self.datasets_mount_path, datasetDirName, CONFIG.self.datalake_mount_path, pathsOfStudies, userGID)
 
-            DBDatasetAccessesOperator(db).createDatasetAccess(datasetAccessId, datasetIDs, userGID, accessType, toolName, toolVersion, image, commandLine, 
+            DBDatasetAccessesOperator(db).createDatasetAccess(datasetAccessId, datasetIDs, userGID, accessType, instanceName, toolName, toolVersion, image, commandLine, 
                                                               datetime.now(), resourcesFlavor, openchallengeJobType)
             LOG.debug("############### %s # %s # %s # %s # %s" % (datasetAccessId, datasetIDs, userGID, image, commandLine))
 

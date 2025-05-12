@@ -25,7 +25,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 39
+    CURRENT_SCHEMA_VERSION = 40
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -52,6 +52,7 @@ class DB:
             if version < 37: self.updateDB_v36To37()
             if version < 38: self.updateDB_v37To38()
             if version < 39: self.updateDB_v38To39()
+            if version < 40: self.updateDB_v39To40()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -212,6 +213,7 @@ class DB:
                 id varchar(40),
                 user_gid integer,
                 access_type char(1) DEFAULT '',
+                instance_name varchar(64) DEFAULT '',
                 tool_name varchar(256),
                 tool_version varchar(256),
                 image varchar(256) DEFAULT '',
@@ -329,6 +331,10 @@ class DB:
         self.cursor.execute("ALTER TABLE author ADD COLUMN site_code varchar(50) NOT NULL DEFAULT ''")
         self.cursor.execute("ALTER TABLE author ALTER COLUMN gid DROP NOT NULL")
         self.cursor.execute("ALTER TABLE author ALTER COLUMN gid SET DEFAULT NULL")
+
+    def updateDB_v39To40(self):
+        logging.root.info("Updating database from v39 to v40...")
+        self.cursor.execute("ALTER TABLE dataset_access ADD COLUMN instance_name varchar(64) DEFAULT ''")
 
 #endregion
 
