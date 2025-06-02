@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List, Union
 
 from pydantic import BaseModel, Field, AnyHttpUrl, EmailStr, ConfigDict, Field, AnyUrl
-from rdflib import DCAT, DCTERMS, ODRL2, PROV, URIRef, RDFS, Namespace
+from rdflib import DCAT, ODRL2, PROV, URIRef, RDFS, Namespace, DCTERMS
 
 from sempyro import LiteralField, RDFModel
 from sempyro.foaf import Agent
@@ -76,23 +76,34 @@ class QualityAnnotation(RDFModel):
         description="Motivación de la anotación, en este caso 'dqv:qualityAssessment'."
     )
 
-class ProvenanceStatementModel(RDFModel):
-    """Un recurso RDF de tipo dct:ProvenanceStatement."""
+# class ProvenanceStatementModel(RDFModel):
+#     """Un recurso RDF de tipo dct:ProvenanceStatement."""
 
-    label: Optional[str] = Field(
-        default=None,
-        description="Texto explicativo de la procedencia.",
-        rdf_term=RDFS.label,
-        rdf_type="literal"
-    )
-    
+#     label: str = Field(
+#         default=None,
+#         description="Texto explicativo de la procedencia.",
+#         rdf_term=RDFS.label,
+#         rdf_type="rdfs_literal"
+#     )
+
+
+        
+class ProvenanceStatement(BaseModel):
+    # Aquí indicamos que este objeto será interpretado como un dct:ProvenanceStatement
     class Config:
         # Metadatos para indicar que esta clase representa dct:ProvenanceStatement
         json_schema_extra = {
-            "$ontology": str(DCTERMS),
+            "$ontology": "https://www.w3.org/TR/vocab-dcat-3/",
+            "$namespace": str(DCAT),  # Asegúrate de usar la URI correcta para el namespace DCAT
             "$IRI": str(DCTERMS.ProvenanceStatement),
-            "$prefix": "dct"
+            "$prefix": "dcat"
         }
+    label: str = Field(
+        default=None,
+        description="Texto explicativo de la procedencia.",
+        rdf_term=RDFS.label,
+        rdf_type="rdfs_literal"
+    )
 
 
 class DCATResourceNxt(RDFModel, metaclass=ABCMeta):
@@ -118,6 +129,13 @@ class DCATResourceNxt(RDFModel, metaclass=ABCMeta):
         rdf_term=DCTERMS.description,
         rdf_type="rdfs_literal")
     
+    provenance: List[Union[ProvenanceStatement]] = Field(
+        default=None,
+        description="Information about how the data was created, or processed, including methodologies, tools, and protocols used.",
+        rdf_term=DCTERMS.provenance,
+        rdf_type="rdfs_literal"
+    )
+
     contact_point: List[Union[AnyHttpUrl, VCard, Agent]] = Field(
         default=None,
         description="Relevant contact information for the cataloged resource. Use of vCard is recommended",
@@ -175,11 +193,7 @@ class DCATResourceNxt(RDFModel, metaclass=ABCMeta):
     #     rdf_term=DCAT + "provenance",             
   
     # )
-    provenance: Optional[List[ProvenanceStatementModel]] = Field(
-        default=None,
-        description="Información sobre cómo se creó o procesó el recurso.",
-        rdf_term=DCTERMS.provenance
-    )
+
 
     type: str = Field(
         default=None,
@@ -234,11 +248,12 @@ class DCATResourceNxt(RDFModel, metaclass=ABCMeta):
     #     ##rdf_term="chaimeleon:intendedPurpose",
     #     rdf_type="uri")
 
+### TO DO CAMBIAR TERM Y TYPE 
     intendedPurpose: str = Field(  # Cambiado de List[Purpose] a str
         default_factory=list,
-        description="A free-text statement of the purpose(s) of this dataset.",
-        rdf_term="http://www.w3.org/ns/dpv#hasPurpose",   # dpv:hasPurpose
-        rdf_type="http://www.w3.org/ns/dpv#Purpose"       # indicando que la clase objetivo es dpv:Purpose
+        description="The primary objective for which the dataset was created.",
+        rdf_term="https://w3id.org/dpv#hasPurpose",
+        rdf_type="https://w3id.org/dpv#Purposeclass"
     )
 
     hasQualityAnnotation: List[QualityAnnotation] = Field(
@@ -250,7 +265,7 @@ class DCATResourceNxt(RDFModel, metaclass=ABCMeta):
             "dcat:Distribution."
         ),
         #rdf_term=DQV.hasQualityAnnotation,
-        rdf_term="http://www.w3.org/ns/dqv#hasQualityAnnotation",
+        rdf_term="https://www.w3.org/TR/vocab-dqv/#dqv:QualityAnnotation",
         rdf_type="uri"
     )
     
@@ -273,7 +288,7 @@ class DCATResourceNxt(RDFModel, metaclass=ABCMeta):
 
 
     
-    sex: List[SKOSConcept] = Field(
+    birthsex: List[SKOSConcept] = Field(
         default=None,
         description="The sex of the subjects in the resource.",
         rdf_term=SKOS.Concept,

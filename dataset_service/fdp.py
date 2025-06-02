@@ -1,17 +1,19 @@
+import uuid
 from sempyro.dcat import DCATDataset
 import pprint
 from sempyro import LiteralField, RDFModel
 from rdflib import URIRef, Namespace
 import logging
-from .dataset_ext import DCATResourceNxt, SKOSConcept, ProvenanceStatementModel
-
+from .dataset_ext import DCATResourceNxt, SKOSConcept
+import json
+from typing import List
 SKOS = Namespace("http://www.w3.org/2004/02/skos/core#")
 
 def toDCAT(dataset): # Transformaciones de los campos a sus correspondientes datatypes
    LOG = logging.root
    LOG.info(f"Translating dataset: {dataset}")
    dcat_dataset = dict()
-
+###https://healthdcat-ap.github.io/###
 # ->> 'access_rights': debe ser un valor de tipo 'AccessRights' en formato URI ((NO TENEMOS URI SIMILAR EN EL DATASET)) EL CAMPO PUBLIC ES BOOLEANO
    # dcat_dataset["access_rights"] = "http://purl.org/accessrights/Public" if dataset["public"] else "http://purl.org/accessrights/Restricted"
 
@@ -53,19 +55,48 @@ def toDCAT(dataset): # Transformaciones de los campos a sus correspondientes dat
    #    if 'name' in values:
    #       # Creamos el LiteralField con la string que ya existe en 'name'
    #       values['title'] = [LiteralField(value=values['name'])]
-      return values
+         
    
    dcat_dataset["title"] = [LiteralField(value=dataset["name"])]
    dcat_dataset["description"] = [dataset["description"]]
+   provenance_value = dataset["provenance"]
+   if isinstance(provenance_value, str):
+      LOG.warning(f"Ha entrado al IF de PROVENANCE: {provenance_value}")
+      # Here, we're assuming the string should be mapped to the 'label' field.
+      dcat_dataset["provenance"] = {"label": provenance_value}
+   else:
+      dcat_dataset["provenance"] = provenance_value
+
+   dcat_dataset["intendedPurpose"] = dataset["purpose"]
+   # dcat_dataset["imageCreationYear"] = dataset["creationDate"] #falta startDate y end date, necesito un periodo; Pau está mirando en los dicom para sacar start date
+   # dcat_dataset["graphicalCoverage"] = 
    dcat_dataset["contact_point"] = parse_contact_info(dataset["contactInfo"])
 
-   #ESPERANDO SRESPUESTA VALIA
+
+   # Añadir tal cual los campos del ejemplo de valia hardcodeados para los de chaimeleon,
+   # pero revisar en el eucaim node porque sí que hay datos de distintos proveedores y hay que ver de dónde sacar 
+   # todos estos parámetros 
    # dcat_dataset["publisher"] = [dataset["project"]]
+# dct:publisher [ a foaf:Organization;
+#     locn:address [ a locn:Address;
+#     foaf:name “HULAFE";
+#     foaf:mbox <mailto:info.chaimeleon-eu@i3m.upv.es>;
+#     foaf:homepage <https://www.upv.es>;
+# ];
+# ];
 
 ##Asegurarnos de que es este realmente el formato correcto
 ################## ENVIAR PREGUNTA A VALIA theme 
-   # dcat_dataset["theme"] = "http://eurovoc.europa.eu/c_efec98c3"
-   # "http://publications.europa.eu/resource/authority/data-theme/HEAL"
+   # dcat_dataset["theme"] = "http://publications.europa.eu/resource/authority/data-theme/HEAL"
+# Suponiendo que SKOSConcept tiene un argumento 'uri' para inicializar la URL
+   theme_uri = "http://publications.europa.eu/resource/authority/data-theme/HEAL"
+   dcat_dataset["theme"] = [
+      SKOSConcept(
+         uri=theme_uri,
+         prefLabel=theme_uri
+      )
+   ]
+
    dcat_dataset["identifier"] = [dataset["id"]]
 
    # Apply the access_rights mapping
@@ -80,17 +111,23 @@ def toDCAT(dataset): # Transformaciones de los campos a sus correspondientes dat
 
 ## Provenance ahora devuelve un string desde chaimeleon simplemente sacarlo de la api con el mismo nombre
    # dcat_dataset["provenance"] = [dataset["provenance"]]
+   # def to_provenance_statements(provenance):
+   #  """
+   #  Convierte el valor de 'provenance' (que es el label) en una instancia de ProvenanceStatementModel.
+   #  No se asigna un identificador.
+   #  """
+   #  if not provenance:
+   #      return None  # O devuelve "" o [] según lo que espere el resto de la aplicación
 
-   def to_provenance_statements(text):
-      """
-      Transforma un string (o None) en una lista de ProvenanceStatementModel.
-      """
-      if not text:
-         return None  # O [] si prefieres devolver una lista vacía
-    # text es un string, creamos una instancia con label=text.
-      return [ProvenanceStatementModel(label=text)]
+   #  if isinstance(provenance, str):
+   #      return ProvenanceStatementModel(
+   #          label=provenance
+   #      )
 
-   dcat_dataset["provenance"] = to_provenance_statements(dataset["provenance"])
+   #  raise ValueError(f"Valor inesperado en provenance: {provenance}")
+
+# Asignación al diccionario dcat_dataset:
+
 
 ## Saber si es válido /HEALTH y ver campo añadido por pau. y ver que tipo 
    dcat_dataset["type"] = "https://www.dublincore.org/specifications/dublin-core/dcmi-terms/#Dataset"
@@ -111,9 +148,9 @@ def toDCAT(dataset): # Transformaciones de los campos a sus correspondientes dat
 ## Revisar LegalBasis
    dcat_dataset["legalBasis"] = "http://data.europa.eu/eli/reg/2022/868/oj"
 
-   dcat_dataset["intendedPurpose"] = dataset["purpose"]
 
-## definir el  quality annotation y comprender de donde obtenerlo
+
+## TO DO definir el  quality annotation y comprender de donde obtenerlo
 ##   dcat_dataset["qualityLabel"] = 
    def convert_collection_method_to_skos(collection_method):
       """
@@ -146,7 +183,7 @@ def toDCAT(dataset): # Transformaciones de los campos a sus correspondientes dat
          return [SKOSConcept(prefLabel=s) for s in sex]
       raise ValueError(f"Valor inesperado en sex: {sex}")
 
-   dcat_dataset["sex"] = convert_sex_to_skos(dataset["sex"])
+   dcat_dataset["birthsex"] = convert_sex_to_skos(dataset["sex"])
 
 
    
@@ -217,9 +254,23 @@ def toDCAT(dataset): # Transformaciones de los campos a sus correspondientes dat
 
 
    dcat_resource = DCATResourceNxt(**dcat_dataset)
+
+   for field, value in iter(dcat_resource):
+     if value:
+        LOG.debug("#field# " + json.dumps(field) )
+        if not isinstance(value, List):
+            value = [value]
+        for item in value:
+            if issubclass(type(item), RDFModel):
+                LOG.debug("#fieldvalueitem# " )#+ json.dumps(item))
+                for k in item.model_config:
+                    LOG.debug("#k# " + k)
+                    LOG.debug("#v# " + json.dumps(item.model_config[k]))
+
    serialized_graph = dcat_resource.to_graph(URIRef(dcat_resource.identifier[0])).serialize()
    LOG.info(serialized_graph)
    
    dcat_fields = DCATResourceNxt.annotate_model()
    LOG.info(dcat_fields.fields_description())
    return serialized_graph
+
