@@ -1,7 +1,9 @@
 # This is the template of the k8s job launched whenever a user is created, updated or deleted.
 # Template variables that will be replaced by the launcher (Dataset-service):
-# __OPERATION__, __TENANT_USERNAME__, __TENANT_GID__, __TENANT_ROLES__, __TENANT_SITE__, __TENANT_PROJECTS__
+#   __OPERATION__, __TENANT_USERNAME__, __TENANT_ROLES__, __TENANT_SITE__, __TENANT_PROJECTS__
 # __OPERATION__ will be "create" or "delete".
+# __TENANT_ROLES__ will be a list of roles separated by ":". Example: "dataset-administrator:data-scientists"
+# __TENANT_PROJECTS__ will be a list of projects separated by ":". Example: "CHAIMELEON:PRIMAGE"
 # NOTE: the script for create (create-user.sh) should be idempotent, the result should be the same if called multiple times.
 
 apiVersion: batch/v1
@@ -33,6 +35,10 @@ spec:
               value: "__TENANT_USERNAME__"
             - name: TENANT_ROLES
               value: "__TENANT_ROLES__"
+            - name: TENANT_SITE
+              value: "__TENANT_SITE__"
+            - name: TENANT_PROJECTS
+              value: "__TENANT_PROJECTS__"
 
             - name: K8S_ENDPOINT
               value: "https://192.168.13.31:6443"

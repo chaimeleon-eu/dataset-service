@@ -90,6 +90,7 @@ class Config:
             self.token_validation = Config.Auth.Token_validation(auth["token_validation"])
             self.client = Config.Auth.Client(auth["client"])
             self.admin_api = Config.Auth.Admin_api(auth["admin_api"])
+            self.user_management = Config.Auth.User_management(auth["user_management"])
 
         class Token_validation:
             def __init__(self, token_validation: dict):
@@ -98,6 +99,8 @@ class Config:
                 self.client_id = token_validation["client_id"]
                 self.issuer = token_validation["issuer"]
                 self.roles = token_validation["roles"]
+                self.project_group_prefix = token_validation["project_group_prefix"]
+                self.project_admins_group_prefix = token_validation["project_admins_group_prefix"]
 
         class Client:
             def __init__(self, client: dict):
@@ -109,6 +112,13 @@ class Config:
             def __init__(self, admin_api: dict):
                 self.url = admin_api["url"]
                 self.client_id_to_request_user_tokens = admin_api["client_id_to_request_user_tokens"]
+                self.parent_group_of_project_groups = admin_api["parent_group_of_project_groups"]
+
+        class User_management:
+            def __init__(self, user_management: dict):
+                self.assignable_general_roles = user_management["assignable_general_roles"]
+                self.prefix_for_roles_as_groups = user_management["prefix_for_roles_as_groups"]
+                self.prefix_for_projects_as_groups = user_management["prefix_for_projects_as_groups"]
 
     class Tracer:
         def __init__(self, tracer: dict):

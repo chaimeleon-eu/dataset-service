@@ -11,8 +11,47 @@ Where increment in:
 All versions with relevant changes are listed in this document with the changes required and not required for migration to each version.
 In case of increments in the SAFECHANGE part of version, as you know, the changes are not strictly required but some of them are included also here and recommended to read in case you want to take advantage of the new functionality.
 
-## Upgrade to 3.21
-(Upcoming)
+Note SAFECHANGE version means it's always safe to upgrade, but not always to downgrade. 
+Indeed whenever the DB schema version is increased an error will appear in the log if you try to downgrade.
+
+## Upgrade to 3.21.0
+### Changes in API:
+In GET /projects, 
+  - the parameter `forNewDatasets` was deprecated and now removed
+  - and the parameter `purpose` is not mandatory now, just optional (default: projectList).
+### Changes in config:
+New optional parameters to configure the management of groups in the auth service for the projects and roles:
+```
+auth:
+  token_validation:
+    project_group_prefix: "PROJECT-"
+    project_admins_group_prefix: "ADMINS-PROJECT-"
+  admin_api:
+    parent_group_of_project_groups: "/PROJECTS"
+      # Whener a new project is created, a new group will be automatically created in the auth service within this parent group.
+      # That way, when a user is joined to a project, in fact it is added to the group, 
+      # an so that group will appear in the user's auth token.
+      # The group name will be the project code prefixed with auth.token_validation.project_group_prefix.
+      # You can set this parameter to empty string to not create automatically a group in the auth service for each new project 
+      # (if you prefer to do it manually).
+  user_management:
+    prefix_for_roles_as_groups: "/"
+    prefix_for_projects_as_groups: "/PROJECTS/PROJECT-"
+    assignable_general_roles: ["application-developer", "authorized-technical-data-manager", "clinical-staff", 
+                               "cloud-services-and-security-management", "data-scientists", "dataset-administrator"]
+```
+### Changes in DB:
+In the `author` table:
+ - `site_code` column has been added, it will be initialized to empty string for all existent rows, you may want to adjust it for each row.  
+ - `gid` column is NULL by default now.  
+DB schema version increased to 39.
+The DB will be automatically migrated and so you will not be able to go back to a previous version.
+
+## Upgrade to 3.20.8
+### Changes in DB:
+`times_used` column has been added to `dataset` table.  
+DB schema version increased to 38.
+The DB will be automatically migrated and so you will not be able to go back to a previous version.
 
 ## Upgrade to 3.20.7
 ### Changes in config:
@@ -28,7 +67,7 @@ self:
 
 ## Upgrade to 3.20.6.
 ### Changes in DB:
-Tags property has been added to dataset. 
+`tags` column has been added to `dataset` table.  
 DB schema version increased to 37.
 The DB will be automatically migrated and so you will not be able to go back to a previous version.
 
