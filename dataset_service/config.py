@@ -73,7 +73,7 @@ class Config:
         self.auth = Config.Auth(config["auth"])
         self.tracer = Config.Tracer(config["tracer"])
         self.zenodo = Config.Zenodo(config["zenodo"])
-        self.user_management_scripts = Config.User_management_scripts(config["user_management_scripts"])
+        self.on_event_scripts = Config.On_event_scripts(config["on_event_scripts"])
         self.logos = Config.Logos(config["logos"])
         self.self = Config.Self(config["self"])
 
@@ -128,9 +128,11 @@ class Config:
         def __init__(self, zenodo: dict):
             self.url = zenodo["url"]
     
-    class User_management_scripts:
-        def __init__(self, user_management_scripts: dict):
-            self.job_template_file_path = user_management_scripts["job_template_file_path"]
+    class On_event_scripts:
+        def __init__(self, on_event_scripts: dict):
+            self.user_management_job_template_file_path = on_event_scripts["user_management_job_template_file_path"]
+            self.site_management_job_template_file_path = on_event_scripts["site_management_job_template_file_path"]
+            self.project_management_job_template_file_path = on_event_scripts["project_management_job_template_file_path"]
 
     class Logos:
         def __init__(self, logos: dict):

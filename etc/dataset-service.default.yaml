@@ -46,11 +46,14 @@ auth:
       #   "realm-management/query-groups", "realm-management/query-users", 
       #   "realm-management/view-users", "realm-management/view-clients".
     client_id_to_request_user_tokens: "dataset-explorer"
-      # The client id of the public client used to get user tokens (when the caller is not the user to be evaluated).
+      # The id of the public client used to get user tokens (impersonation).
+      # This is when the caller is trusted (e.j: the k8s operator), it uses a service account to authenticate itself,
+      # but a user token is required for the operation (i.e to check the access of a user to a dataset: 
+      # the user token is required to obtain the roles and projects). So the token will be get for that user in that client.
     parent_group_of_project_groups: "/PROJECTS"
       # Whener a new project is created, a new group will be automatically created in the auth service within this parent group.
       # That way, when a user is joined to a project, in fact it is added to the group, 
-      # an so that group will appear in the user's auth token.
+      # and so that group will appear in the user's auth token.
       # The group name will be the project code prefixed with auth.token_validation.project_group_prefix.
       # You can set this parameter to empty string to not create automatically a group in the auth service for each new project 
       # (if you prefer to do it manually).
@@ -73,11 +76,21 @@ zenodo:
     # The account used to access and create depositions in Zenodo is configured per project in the project configuration 
     # set by PUT "/projects/<code>/config".
 
-user_management_scripts:
-  job_template_file_path: ""
+on_event_scripts:
+  user_management_job_template_file_path: ""
     # You can set it to launch a k8s job running a script whenever a user is created (received PUT /users/<userName>)
     # to create the user in other services of the platform or make some configurations related to the new user.
-    # Example: "/var/user-management-jobs/job-template.private.yaml"
+    # Example: "/var/on-event-jobs/user-management-job-template.private.yaml"
+    # Set it to empty string to disable that feature.
+  site_management_job_template_file_path: ""
+    # You can set it to launch a k8s job running a script whenever a site is created or updated (received PUT /sites/<code>)
+    # to create the site in other services of the platform or make some configurations related to the new site.
+    # Example: "/var/on-event-jobs/site-management-job-template.private.yaml"
+    # Set it to empty string to disable that feature.
+  project_management_job_template_file_path: ""
+    # You can set it to launch a k8s job running a script whenever a project is created or updated (received PUT /projects/<code>)
+    # to create the project in other services of the platform or make some configurations related to the new project.
+    # Example: "/var/on-event-jobs/project-management-job-template.private.yaml"
     # Set it to empty string to disable that feature.
 
 logos:  # These are the parameters for logos management (currently logos for projects)
@@ -134,7 +147,7 @@ self:
   dataset_link_format: "https://chaimeleon-eu.i3m.upv.es/dataset-service/datasets/%s/details"
     # Url format of public available details of a dataset (using the endpoint of the WebUI, the Dataset-explorer)
     # It is used for the url returned in the dataset creation POST, 
-    # and also for the links incluided in the publication submited to Zenodo.
+    # and also for the links included in the publication submited to Zenodo.
   eucaim_search_token: ""
     # Secret token for the POST "/datasets/eucaimSearch" operation (custom search for EUCAIM project).
     # If empty token, that operation is not allowed (404 returned), this way you can disable it.

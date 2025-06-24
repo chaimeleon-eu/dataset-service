@@ -1719,7 +1719,7 @@ def putUser(username):
             if newProjects != None:
                 _updateProjectsForUserId(userId, currentProjects, newProjects)
 
-        if CONFIG.user_management_scripts.job_template_file_path != "":
+        if CONFIG.on_event_scripts.user_management_job_template_file_path != "":
             # only launch job if any relevant change
             if newRoles != None or newProjects != None or site != None:
                 if newRoles is None: newRoles = currentRoles
@@ -1732,7 +1732,7 @@ def putUser(username):
                 LOG.debug('Launching user creation job...')
                 k8sClient = k8s.K8sClient()
                 ok = k8sClient.add_user_creation_job(username, newRoles, site, newProjects, 
-                                                     CONFIG.user_management_scripts.job_template_file_path)
+                                                     CONFIG.on_event_scripts.user_management_job_template_file_path)
                 if not ok: 
                     raise K8sException("Unexpected error launching user creation job.")
 

@@ -49,8 +49,8 @@ spec:
             - mountPath: "/var/log/dataset-service"
               subPath: "log"
               name: dataset-service-data-volume
-            - mountPath: "/var/user-management-jobs"
-              subPath: "user-management-jobs"
+            - mountPath: "/var/on-event-jobs"
+              subPath: "on-event-jobs"
               name: dataset-service-data-volume
             - mountPath: "/var/www/dataset-service-ui"
               subPath: "ui"
@@ -95,21 +95,23 @@ spec:
                   "zenodo": {
                       "url": "https://zenodo.org/"
                   },
-                  "user_management_scripts": {
-                      "job_template_file_path": ""
+                  "on_event_scripts": {
+                      "user_management_job_template_file_path": "",
+                      "site_management_job_template_file_path": "",
+                      "project_management_job_template_file_path": ""
                   },
                   "self": { 
                       "port": 11000, 
                       "root_url": "https://chaimeleon-eu.i3m.upv.es/dataset-service",
                       "log": { 
-                        "main_service": {
-                          "level": "DEBUG", 
-                          "file_path": "/var/log/dataset-service/dataset-service.log"
-                        },
-                        "dataset_creation_job": {
-                          "level": "DEBUG", 
-                          "file_path": "/var/log/dataset-service/dataset-creation-job-%s.log"
-                        }
+                          "main_service": {
+                              "level": "DEBUG", 
+                              "file_path": "/var/log/dataset-service/dataset-service.log"
+                          },
+                          "dataset_creation_job": {
+                              "level": "DEBUG", 
+                              "file_path": "/var/log/dataset-service/dataset-creation-job-%s.log"
+                          }
                       },
                       "static_files_dir_path": "/var/www/dataset-service-ui",
                       "static_files_logos_dir_path": "/var/www/project-logos",

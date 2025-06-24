@@ -1,5 +1,5 @@
 # This is the template of the k8s job launched whenever a user is created, updated or deleted.
-# Template variables that will be replaced by the launcher (Dataset-service):
+# Template variables that will be replaced by the launcher (the Dataset-service):
 #   __OPERATION__, __TENANT_USERNAME__, __TENANT_ROLES__, __TENANT_SITE__, __TENANT_PROJECTS__
 # __OPERATION__ will be "create" or "delete".
 # __TENANT_ROLES__ will be a list of roles separated by ":". Example: "dataset-administrator:data-scientists"
@@ -21,14 +21,14 @@ spec:
 
       containers:
         - name: user-management
-          image: harbor.chaimeleon-eu.i3m.upv.es/chaimeleon-services/dataset-service-user-management:1.0
+          image: harbor.chaimeleon-eu.i3m.upv.es/chaimeleon-services/dataset-service-on-event-jobs:1.0
           imagePullPolicy: Always
           workingDir: "/home/ubuntu/scripts"
           command: ["/bin/bash"]
           args: ["/home/ubuntu/scripts/__OPERATION__-user.sh"]
           volumeMounts:
             - mountPath: "/home/ubuntu/scripts"
-              subPath: "user-management-jobs/scripts"
+              subPath: "on-event-jobs/scripts"
               name: dataset-service-data-volume
           env:
             - name: TENANT_NAME

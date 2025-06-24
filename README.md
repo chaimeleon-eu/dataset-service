@@ -415,9 +415,9 @@ docker exec -it my-postgres bash
     exit
 ```
 
-## [Optional] Add scripts to be executed on user creation/deletion
+## [Optional] Add scripts to be executed on some events
 
-See [here](user-management-jobs/README.md).
+See [here](on-event-jobs/README.md).
 
 
 ## Configuration

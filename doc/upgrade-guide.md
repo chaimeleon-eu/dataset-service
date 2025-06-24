@@ -14,6 +14,28 @@ In case of increments in the SAFECHANGE part of version, as you know, the change
 Note SAFECHANGE version means it's always safe to upgrade, but not always to downgrade. 
 Indeed whenever the DB schema version is increased an error will appear in the log if you try to downgrade.
 
+## Upgrade to 3.22.0
+### Changes in config:
+The previous parameter `user_management_scripts` has been changed to `on_event_scripts`to be more general and so include different templates to launch k8s jobs on different events:
+```
+on_event_scripts:
+  user_management_job_template_file_path: ""
+    # You can set it to launch a k8s job running a script whenever a user is created (received PUT /users/<userName>)
+    # to create the user in other services of the platform or make some configurations related to the new user.
+    # Example: "/var/on-event-jobs/user-management-job-template.private.yaml"
+    # Set it to empty string to disable that feature.
+  site_management_job_template_file_path: ""
+    # You can set it to launch a k8s job running a script whenever a site is created or updated (received PUT /sites/<code>)
+    # to create the site in other services of the platform or make some configurations related to the new site.
+    # Example: "/var/on-event-jobs/site-management-job-template.private.yaml"
+    # Set it to empty string to disable that feature.
+  project_management_job_template_file_path: ""
+    # You can set it to launch a k8s job running a script whenever a project is created or updated (received PUT /projects/<code>)
+    # to create the project in other services of the platform or make some configurations related to the new project.
+    # Example: "/var/on-event-jobs/project-management-job-template.private.yaml"
+    # Set it to empty string to disable that feature.
+```
+
 ## Upgrade to 3.21.0
 ### Changes in API:
 In GET /projects, 
