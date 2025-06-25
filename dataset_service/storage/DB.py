@@ -25,7 +25,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 40
+    CURRENT_SCHEMA_VERSION = 41
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -53,6 +53,7 @@ class DB:
             if version < 38: self.updateDB_v37To38()
             if version < 39: self.updateDB_v38To39()
             if version < 40: self.updateDB_v39To40()
+            if version < 41: self.updateDB_v40To41()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -79,6 +80,16 @@ class DB:
             VALUES ('%d')
             ON CONFLICT (id) DO UPDATE
                 SET schema_version = excluded.schema_version;
+            
+            CREATE TABLE site (
+                code varchar(16),
+                name varchar(50) NOT NULL,
+                country varchar(40) NOT NULL,
+                url varchar(256) NOT NULL DEFAULT '',
+                contact_name varchar(128) NOT NULL DEFAULT '',
+                contact_email varchar(128) NOT NULL DEFAULT '',
+                constraint pk_site primary key (code)
+            );
                 
             CREATE SEQUENCE gid_sequence increment 1 start 2000;
             CREATE TABLE author (
@@ -87,10 +98,11 @@ class DB:
                 gid integer DEFAULT NULL,
                 name varchar(128),
                 email varchar(128),
-                site_code varchar(50) NOT NULL DEFAULT '',
+                site_code varchar(16) DEFAULT NULL,
                 constraint pk_user primary key (id),
                 constraint un_user unique (username),
-                constraint un_gid unique (gid)
+                constraint un_gid unique (gid),
+                constraint fk_site foreign key (site_code) references site(code)
             );
             CREATE TABLE dataset (
                 id varchar(40),
@@ -336,5 +348,29 @@ class DB:
         logging.root.info("Updating database from v39 to v40...")
         self.cursor.execute("ALTER TABLE dataset_access ADD COLUMN instance_name varchar(64) DEFAULT ''")
 
+    def updateDB_v40To41(self):
+        logging.root.info("Updating database from v40 to v41...")
+        self.cursor.execute("""
+            CREATE TABLE site (
+                code varchar(16),
+                name varchar(50) NOT NULL,
+                country varchar(40) NOT NULL,
+                url varchar(256) NOT NULL DEFAULT '',
+                contact_name varchar(128) NOT NULL DEFAULT '',
+                contact_email varchar(128) NOT NULL DEFAULT '',
+                constraint pk_site primary key (code)
+            );""")
+        self.cursor.execute("ALTER TABLE author ALTER COLUMN site_code TYPE varchar(16)")
+        self.cursor.execute("ALTER TABLE author ALTER COLUMN site_code SET DEFAULT NULL")
+        # Correct rows with empty site_code 
+        self.cursor.execute("UPDATE author set site_code = NULL where site_code='';")
+        # fill in the new table with the current sites
+        self.cursor.execute("SELECT DISTINCT site_code FROM author;")
+        sites = [row[0] for row in self.cursor]
+        for site in sites:
+            self.cursor.execute("INSERT INTO site (code, name, country) VALUES (%s, '', '');", (site))
+        # Add foreign key to author
+        self.cursor.execute("UPDATE author ADD constraint fk_site foreign key (site_code) references site(code);")
+        
 #endregion
 

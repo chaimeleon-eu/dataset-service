@@ -819,7 +819,7 @@ paths:
                   type: array
                   description: |
                     (Optional) Array of the roles to be assigned to the user.
-                    If not provided the previous array will be kept (if new user, just an empty array). 
+                    If not provided the previous array will be kept (if new user, just an empty array will be assigned). 
                   example: ["dataset-administrator", "data-scientists"]
                   items:
                     type: string
@@ -827,17 +827,19 @@ paths:
                   type: array
                   description: |
                     (Optional) Array of the projects to be assigned to the user.
-                    If not provided the previous array will be kept (if new user, just an empty array). 
+                    If not provided the previous array will be kept (if new user, just an empty array will be assigned). 
                   example: ["CHAIMELEON"]
                   items:
                     type: string
                 siteCode:
                   type: string
                   minLength: 2
-                  maxLength: 50
+                  maxLength: 16
                   description: |
-                    (Optional) The ID of site which the user belongs to.
-                    If not provided the previous value will be kept (if new user, just an empty string).
+                    (Optional) The code of site which the user belongs to.
+                    If not provided, the previous value will be kept (if new user, just null will be assigned).
+                    It can be null, which means no site 
+                    (usually the site is mandatory only for some roles, those who upload data).
       responses:
         '201':
           description: item created
@@ -1023,12 +1025,14 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /userSites:
+  /sites:
     get:
-      tags: [users]
-      summary: List users sites.
-      operationId: listUserSites
-      description: "List all available sites for users."
+      tags: [sites]
+      summary: List sites
+      operationId: listSites
+      description: |
+        List all available sites for users (uploaders) and studies (provenance site). 
+        Usually the provenance site of a study is the site of the user who uploaded it.
       responses:
         '200':
           description: "successfully retrieved the list of sites"
@@ -1037,9 +1041,64 @@ paths:
               schema:
                 type: array
                 items:
-                  type: string
+                  type: object
+                  properties:
+                    code:
+                      $ref: '#/components/schemas/SiteCode'
+                    name:
+                      type: string
+                      example: 'Hospital Universitario La Fe'
         '401':
           $ref: '#/components/responses/Unauthorized'
+
+  /sites/{code}:
+    put:
+      tags: [sites]
+      summary: Create or update site
+      operationId: createSite
+      description: Creates a new site or updates if already exists.
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/SiteCode'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SiteDetails'
+      responses:
+        '201':
+          description: site created or updated
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    get:
+      tags: [sites]
+      summary: Get the details of a site
+      operationId: getSite
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/SiteCode'
+      responses:
+        '200':
+          description: "successfully retrieved the details of the site"
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SiteDetails'
+                  - type: object
+                    properties:
+                      code:
+                        $ref: '#/components/schemas/SiteCode'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: "not found"
 
   /projects:
     get:
@@ -2073,13 +2132,51 @@ components:
         siteCode:
           type: string
           minLength: 2
-          maxLength: 50
-          description: The site code. 
-            It is usually used when creating the user account in the Case Explorer (QP-Insights),
-            so it should correspond to one of the sites created there.
-            It is important when the user has the role of data uploader, 
-            because that user will be able to manage the data uploaded by any other user but from same site.
+          maxLength: 16
+          description: |
+            (Optional) The code of site which the user belongs to.
+            It can be null, which means no site 
+            (usually the site is mandatory only for some roles, those who upload data).
           example: "UPV"
+
+    SiteCode:
+      type: string
+      pattern: '^[a-zA-Z-]+$'
+      minLength: 2
+      maxLength: 16
+      description: "The unique code of the site: short name without spaces (usually capital letters and numbers and hyphens instead of spaces)"
+      example: "HULAFE"
+
+    SiteDetails:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 50
+          description: "The name of the site."
+          example: "Hospital Universitario La Fe"
+        country:
+          type: string
+          minLength: 3
+          maxLength: 40
+          description: "The country of the site."
+          example: "Spain"
+        url:
+          type: string
+          maxLength: 256
+          description: "(Optional, default is empty) URL to the site's web page."
+          example: "https://www.iislafe.es/"
+        contactName:
+          type: string
+          maxLength: 128
+          description: "(Optional, default is empty) Name of the responsible person of the site."
+          example: "James Gordon"
+        contactEmail:
+          type: string
+          maxLength: 128
+          description: "(Optional, default is empty) E-mail address of the responsible person of the site."
+          example: "james@email.com"
 
     ProjectCode:
       type: string

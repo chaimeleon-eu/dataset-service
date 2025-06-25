@@ -376,6 +376,11 @@ def _checkPropertyAsArrayOfStrings(propName: str, value: list[str], item_possibl
 def _checkPropertyAsObject(propName: str, value: dict):
     if not isinstance(value, dict): raise WrongInputException("'%s' must be an object." % propName)
 
+def _checkPropertyAsUrl(propName: str, value: str, min_length: int = 0, max_length: int = 0):
+    _checkPropertyAsString(propName, value, min_length=min_length, max_length=max_length)
+    if not utils.is_valid_url(value):
+        raise WrongInputException("The value for '%s' is not valid URL-formated string." % (propName))
+
 def _checkPropertyAsLicense(newValue):
     _checkPropertyAsObject("license", newValue)
     if not "title" in newValue: raise WrongInputException("Missing 'title' in the new license.")
@@ -1694,11 +1699,13 @@ def putUser(username):
         userData = json.loads(read_data)
         #userGroups = userData["groups"]
         userGid = int(userData["gid"]) if "gid" in userData.keys() else None
-        site = userData["siteCode"] if "siteCode" in userData.keys() else None
+        siteCode = userData["siteCode"] if "siteCode" in userData.keys() else ''
         newProjects = userData["projects"] if "projects" in userData.keys() else None
         newRoles = userData["roles"] if "roles" in userData.keys() else None
 
-        if site != None: _checkPropertyAsString("siteCode", site, min_length=2, max_length=50)
+        if siteCode != '' and siteCode != None: 
+            # Special values: empty string means no change, None means no site assigned to the user
+            _checkPropertyAsString("siteCode", siteCode, min_length=2, max_length=16)
         if newProjects != None:
             available_projects = _getProjects(user)
             # The available projects for now are those which the validator user are joined to.
@@ -1711,7 +1718,7 @@ def putUser(username):
 
         LOG.debug("Creating or updating user in DB: %s, %s, %s" % (userId, username, userGid))
         with DB(CONFIG.db) as db:
-            DBDatasetsOperator(db).createOrUpdateUser(userId, username, site, userGid)
+            DBDatasetsOperator(db).createOrUpdateUser(userId, username, siteCode, userGid)
 
             currentRoles, currentProjects = _getRolesAndProjectsFromUserId(userId)
             if newRoles != None:
@@ -1721,17 +1728,17 @@ def putUser(username):
 
         if CONFIG.on_event_scripts.user_management_job_template_file_path != "":
             # only launch job if any relevant change
-            if newRoles != None or newProjects != None or site != None:
+            if newRoles != None or newProjects != None or siteCode != '':
                 if newRoles is None: newRoles = currentRoles
                 if newProjects is None: newProjects = currentProjects
-                if site is None: 
+                if siteCode == '': 
                     with DB(CONFIG.db) as db:
                         ret = DBDatasetsOperator(db).getUser(username)
                         if ret is None: raise Exception()
-                        site = ret["siteCode"]
+                        siteCode = ret["siteCode"]
                 LOG.debug('Launching user creation job...')
                 k8sClient = k8s.K8sClient()
-                ok = k8sClient.add_user_creation_job(username, newRoles, site, newProjects, 
+                ok = k8sClient.add_user_creation_job(username, newRoles, siteCode, newProjects, 
                                                      CONFIG.on_event_scripts.user_management_job_template_file_path)
                 if not ok: 
                     raise K8sException("Unexpected error launching user creation job.")
@@ -1877,6 +1884,11 @@ def getUserRoles():
 
 @app.route('/api/userSites', method='GET')
 def getUserSites():
+    sites = json.loads(getSites())
+    return json.dumps([s["code"] for s in sites])
+
+@app.route('/api/sites', method='GET')
+def getSites():
     if CONFIG is None: raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ret = getTokenFromAuthorizationHeader(serviceAccount=True)
@@ -1889,6 +1901,79 @@ def getUserSites():
         ret = DBDatasetsOperator(db).getSites()
     bottle.response.content_type = "application/json"
     return json.dumps(ret)
+
+@app.route('/api/sites/<code>', method='GET')
+def getSite(code):
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    ret = getTokenFromAuthorizationHeader(serviceAccount=True)
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
+    if not user.canAdminUsers():
+        return setErrorResponse(401, "unauthorized user")
+    try:
+        with DB(CONFIG.db) as db:
+            ret = DBDatasetsOperator(db).getSite(code)
+        if ret is None: return setErrorResponse(404, "site not found")
+        bottle.response.content_type = "application/json"
+        return json.dumps(ret)
+    except WrongInputException as e:
+        return setErrorResponse(400, str(e))
+
+@app.route('/api/sites/<code>', method='PUT')
+def putSite(code):
+    if CONFIG is None or not isinstance(bottle.request.body, io.IOBase): raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    ret = getTokenFromAuthorizationHeader(serviceAccount=True)
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
+    if not user.canAdminUsers():
+        return setErrorResponse(401, "unauthorized user")
+
+    content_types = get_header_media_types('Content-Type')
+    if not 'application/json' in content_types:
+        return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
+    read_data = None
+    try:
+        read_data = bottle.request.body.read().decode('UTF-8')
+        LOG.debug("BODY: " + read_data)
+        siteData = json.loads(read_data)
+        if not 'name' in siteData.keys(): raise WrongInputException("'name' property is required.")
+        name = siteData["name"]
+        _checkPropertyAsString("name", name, min_length=3, max_length=50)
+        if not 'country' in siteData.keys(): raise WrongInputException("'country' property is required.")
+        country = siteData["country"]
+        _checkPropertyAsString("country", country, min_length=3, max_length=40)
+        url = siteData["url"] if "url" in siteData.keys() else ''
+        if url != '': _checkPropertyAsUrl("url", url, max_length=256)
+        contact_name = siteData["contact_name"] if "contact_name" in siteData.keys() else ''
+        _checkPropertyAsString("contact_name", contact_name, max_length=128)
+        contact_email = siteData["contact_email"] if "contact_email" in siteData.keys() else ''
+        _checkPropertyAsString("contact_email", contact_email, max_length=128)
+
+        LOG.debug("Creating or updating site in DB.")
+        with DB(CONFIG.db) as db:
+            DBDatasetsOperator(db).createOrUpdateSite(code, name, country, url, contact_name, contact_email)
+
+        if CONFIG.on_event_scripts.site_management_job_template_file_path != "":
+            LOG.debug('Launching site creation job...')
+            k8sClient = k8s.K8sClient()
+            ok = k8sClient.add_site_creation_job(code, name, country, contact_name, contact_email, 
+                                                 CONFIG.on_event_scripts.site_management_job_template_file_path)
+            if not ok: 
+                raise K8sException("Unexpected error launching site creation job.")
+            #ok = k8sClient.wait_for_the_end_of_job()
+
+        LOG.debug('Site successfully created or updated.')
+        bottle.response.status = 201
+    except (WrongInputException, keycloak.KeycloakAdminAPIException) as e:
+        return setErrorResponse(400, str(e))
+    except json.decoder.JSONDecodeError as e:
+        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
+    except (K8sException, Exception) as e:
+        LOG.exception(e)
+        if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
+        return setErrorResponse(500, "Unexpected error, may be the input is wrong")
 
 
 def checkDatasetListAccess(datasetIDs: list, userName: str):

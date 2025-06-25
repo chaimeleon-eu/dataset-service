@@ -10,6 +10,7 @@ from dataset_service.config import CONFIG_ENV_VAR_NAME
 
 DATASET_CREATION_JOB_PREFIX="creating-dataset-"
 USER_CREATION_JOB_PREFIX="creating-user-"
+SITE_CREATION_JOB_PREFIX="creating-site-"
 
 class Job_state(Enum):
     RUNNING = 'running'
@@ -30,6 +31,10 @@ class K8sClient:
     def add_dataset_creation_job(self, datasetId):
         API = client.BatchV1Api()
         deployment = self._get_deployment_of_dataset_service_backend()
+        if not isinstance(deployment, client.V1Deployment) or not isinstance(deployment.spec, client.V1DeploymentSpec) \
+            or not isinstance(deployment.spec.template, client.V1PodTemplateSpec) \
+            or not isinstance(deployment.spec.template.spec, client.V1PodSpec) \
+            or not isinstance(deployment.spec.template.spec.containers, list): return False
         volumes = deployment.spec.template.spec.volumes
         container_image = deployment.spec.template.spec.containers[0].image
         container_volume_mounts = deployment.spec.template.spec.containers[0].volume_mounts
@@ -126,17 +131,18 @@ class K8sClient:
 
         projects_param = ":".join(projects)
         roles_param = ":".join(roles)
+        site_param = "" if site is None else site
         try:
             with open(job_template_file_path) as f:
                 job_template = f.read()
             job_template = job_template.replace("__OPERATION__", "create")
             job_template = job_template.replace("__TENANT_USERNAME__", username)
             job_template = job_template.replace("__TENANT_ROLES__", roles_param)
-            job_template = job_template.replace("__TENANT_SITE__", site)
+            job_template = job_template.replace("__TENANT_SITE__", site_param)
             job_template = job_template.replace("__TENANT_PROJECTS__", projects_param)
             job = yaml.load(job_template, Loader=yaml.SafeLoader)
         except:
-            logging.root.error("ERROR: User management job template file not found or cannot be loaded from " + job_template_file_path)
+            logging.root.error("ERROR: User management job template file not found or wrong content: " + job_template_file_path)
             return False
         logging.root.info("User management job template loaded from file: " + job_template_file_path)
         if not "metadata" in job or not  isinstance(job["metadata"], dict): job["metadata"] = {}
@@ -193,3 +199,33 @@ class K8sClient:
             logging.root.error("Exception when calling k8s API -> get_user_creation_job_logs: %s\n" % e)
             raise e
 
+    def add_site_creation_job(self, code: str, name: str, country: str, contact_name: str, contact_email: str, job_template_file_path: str):
+        API = client.ApiClient()
+        try:
+            with open(job_template_file_path) as f:
+                job_template = f.read()
+            job_template = job_template.replace("__SITE_CODE__", code)
+            job_template = job_template.replace("__SITE_NAME__", name)
+            job_template = job_template.replace("__SITE_COUNTRY__", country)
+            job_template = job_template.replace("__SITE_CONTACT_PERSON_NAME__", contact_name)
+            job_template = job_template.replace("__SITE_CONTACT_PERSON_EMAIL__", contact_email)
+            job = yaml.load(job_template, Loader=yaml.SafeLoader)
+        except:
+            logging.root.error("ERROR: Site management job template file not found or wrong content: " + job_template_file_path)
+            return False
+        logging.root.info("Site management job template loaded from file: " + job_template_file_path)
+        if not "metadata" in job or not isinstance(job["metadata"], dict): job["metadata"] = {}
+        random_uuid = str(uuid.uuid4())[:8]
+        job['metadata']['name'] = SITE_CREATION_JOB_PREFIX + code.lower() + "-" + random_uuid
+        job['metadata']['namespace'] = self.namespace
+        job['metadata']['labels'] = {
+            'job-type': 'site-creation',
+            'code': code
+        }
+        try:
+            api_response = utils.create_from_yaml(API,  yaml_objects=[ job ])
+            #logging.root.debug(api_response)
+        except ApiException as e:
+            logging.root.error("Exception when calling k8s API -> create_from_yaml: %s\n" % e)
+            return False
+        return True

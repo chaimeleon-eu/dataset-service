@@ -4,6 +4,7 @@
 # __OPERATION__ will be "create" or "delete".
 # __TENANT_ROLES__ will be a list of roles separated by ":". Example: "dataset-administrator:data-scientists"
 # __TENANT_PROJECTS__ will be a list of projects separated by ":". Example: "CHAIMELEON:PRIMAGE"
+# __TENANT_SITE__ can be empty if the user has no site assigned (usually the site is mandatory only for some roles, those who upload data).
 # NOTE: the script for create (create-user.sh) should be idempotent, the result should be the same if called multiple times.
 
 apiVersion: batch/v1
