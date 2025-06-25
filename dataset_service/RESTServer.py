@@ -266,7 +266,8 @@ def postSetUI():
     else:
         sourceUrl = bottle.request.body.read().decode('UTF-8')
         LOG.debug("URL in body: " + sourceUrl )
-        utils.download_url(sourceUrl, destinationZipPath)
+        try: utils.download_url(sourceUrl, destinationZipPath)
+        except Exception as ex: raise ex
 
     # As the new package usually contains different file names in "static" dir, we have to remove the previous one, 
     # otherwise the files accumulate taking up disk space.
@@ -1415,21 +1416,10 @@ def _obtainAndWriteLogoToPngFile(sourceUrl, destinationFilePath):
     finally:
         # remove original file if exist
         if os.path.exists(originalFilePath): os.unlink(originalFilePath)
-    
-    # elif 'logoImage' in projectData.keys():
-    #     logoFile = bottle.request.files["logoImage"]
-    #     name, ext = os.path.splitext(logoFile.filename)
-    #     if not ext in ['.png']:
-    #         return setErrorResponse(400, 'File extension not allowed, supported formats: png')
-    #     logoFile.file.read().decode('UTF-8').splitlines()
-    #     logoFile.save(destinationPath + ".tmp")
-    #     imageType = checkImageAndGetType()
-    #     return True
 
 @app.route('/api/projects/<code>', method='PUT')
 def putProject(code):
-    if CONFIG is None or not isinstance(bottle.request.body, io.IOBase) \
-       or not isinstance(bottle.request.files, bottle.FormsDict): raise Exception()
+    if CONFIG is None or not isinstance(bottle.request.body, io.IOBase): raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     try: _checkPropertyAsString('projectCode', code, min_length=2, max_length=16, only_alphanum_or_dash=True )
     except WrongInputException as e: return setErrorResponse(400, str(e))
@@ -1539,6 +1529,67 @@ def putProjectConfig(code):
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
         return setErrorResponse(500, "Unexpected error, may be the input is wrong")
 
+@app.route('/api/projects/<code>/logo', method='PUT')
+def putProjectLogo(code):
+    if CONFIG is None \
+       or not isinstance(bottle.request.query, bottle.FormsDict) \
+       or not isinstance(bottle.request.files, bottle.FormsDict) \
+       or not isinstance(bottle.request.body, io.IOBase): 
+        raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    ret = _checkUserCanModifyProject(code)
+    if isinstance(ret, str): return ret  # return error message
+    
+    content_types = get_header_media_types('Content-Type')
+    LOG.debug("Content-type: %s" % json.dumps(content_types))
+    logoFileName = code + ".png"   # str(uuid.uuid4())
+    destinationFilePath = os.path.join(CONFIG.self.static_files_logos_dir_path, logoFileName)
+    try:
+        if not 'multipart/form-data' in content_types: return WrongInputException("Invalid 'Content-Type' header, required 'multipart/form-data'")
+        #if not "logo" in bottle.request.files: return WrongInputException("There is no any part in the body with the name 'logo' ")
+        #logoFile = bottle.request.files["logo"]
+        if len(bottle.request.files) == 0:
+            LOG.debug("Special case: remove the logo")
+            logoFileName = ""
+        else:
+            logoFile = list(bottle.request.files.values())[0]  # simply take the first (it should be only one)
+            LOG.debug("Part headers: %s" % json.dumps(dict(logoFile.headers)))
+            LOG.debug("Part content-type: %s" % logoFile.content_type)
+            LOG.debug("Part content-length: %s" % logoFile.content_length)
+            if logoFile.content_length > CONFIG.logos.max_upload_file_size_mb * 1024 * 1024:
+                raise WrongInputException("The file is bigger than the max file size for logos (%d MB)." % CONFIG.logos.max_upload_file_size_mb)
+            originalFilePath = destinationFilePath + ".tmp.original"
+            try:
+                logoFile.save(originalFilePath)
+                utils.resize_and_encode_logo_file_to_png(originalFilePath, destinationFilePath + ".tmp", CONFIG.logos.image_size_px)
+            except Exception as e:
+                LOG.exception(e)
+                raise WrongInputException("There was a problem processing the logo image file. " 
+                                          "Probably unsupported format, try another or convert by yourself to PNG/JPEG.")
+            finally:
+                # remove original file if exist
+                if os.path.exists(originalFilePath): os.unlink(originalFilePath)
+        # if 'text/plain' in content_types:
+        #     sourceUrl = bottle.request.body.read().decode('UTF-8')
+        #     LOG.debug("URL in body: " + sourceUrl )
+        #     if sourceUrl != "":
+        #         _obtainAndWriteLogoToPngFile(sourceUrl, destinationFilePath + ".tmp")
+        #     else:
+        #         logoFileName = ""
+
+        with DB(CONFIG.db) as db:
+            dbprojects = DBProjectsOperator(db)
+            dbprojects.setProjectLogoFileName(code, logoFileName)
+            if os.path.exists(destinationFilePath + ".tmp"): 
+                os.rename(destinationFilePath + ".tmp", destinationFilePath)
+
+        LOG.debug('Project logo successfully updated.')
+        bottle.response.status = 201
+    except WrongInputException as e:
+        return setErrorResponse(400, str(e))
+    except Exception as e:
+        LOG.exception(e)
+        return setErrorResponse(500, "Unexpected error, may be the input is wrong")
 
 @app.route('/api/projects/<code>', method='GET')
 def getProject(code):

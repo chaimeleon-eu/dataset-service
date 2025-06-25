@@ -1249,6 +1249,8 @@ paths:
                            - "config"
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: "not found"
     patch:
       tags: [projects]
       summary: Change a property of a project by its code
@@ -1289,6 +1291,41 @@ paths:
           description: "Bad request content."
         '404':
           description: "Not found."
+
+  /projects/{code}/logo:
+    put:
+      tags: [projects]
+      summary: Put project logo
+      operationId: putProjectLogo
+      description: |
+        Upload an image file for the project's logo.
+        Or remove the current logo with empty string.
+        Alternatively you can copy the image from any URL with PATCH /projects/{code} {"property": "logoUrl", "value": "http://..."}
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ProjectCode'
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                logo:
+                  type: string
+                  format: binary
+                  description: |
+                    The contents of the file to upload.
+                    Empty string to remove the logo of the project.
+      responses:
+        '201':
+          description: project logo updated
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '400': 
+          description: "Bad request content."
 
   /projects/{code}/config:
     put:

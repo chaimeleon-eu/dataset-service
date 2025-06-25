@@ -240,6 +240,46 @@ content-length: 297
  "allowedActionsForTheUser": ["config"]}
 ```
 
+### Create a project
+
+PUT /projects/{code}
+
+With the authorization header and the project properties within the body in JSON format. 
+If success, the code 201 will be returned. 
+If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
+
+Details: https://chaimeleon-eu.i3m.upv.es/dataset-service/api-doc#tag/projects/operation/createProject
+
+Example:
+```
+$ curl -i -X PUT -H "Authorization: bearer $DSS_TOKEN" -H "Content-Type: application/json" \
+       -d '{ "name": "My cool project", "shortDescription": "...", "projectConfig": {}}' \
+       "${DSS_ENDPOINT}/projects/MY-COOL-PROJECT"
+HTTP/1.1 201 Created
+Content-Length: 0
+Content-Type: text/html; charset=UTF-8
+```
+
+### Upload logo for a project
+
+PUT /projects/{code}/logo
+
+With the authorization header and the image file within the body in multipart/form-data format. 
+If success, the code 201 will be returned. 
+If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
+
+Details: https://chaimeleon-eu.i3m.upv.es/dataset-service/api-doc#tag/projects/operation/putProjectLogo
+
+Example:
+```
+$ curl -i -X PUT -H "Authorization: bearer $DSS_TOKEN" \
+       -F logo=@"logo.png" \
+       "${DSS_ENDPOINT}/projects/MY-COOL-PROJECT/logo"
+HTTP/2 201
+Content-Length: 0
+Content-Type: text/html; charset=UTF-8
+```
+
 ### Create a user
 
 PUT /users/{userName}
