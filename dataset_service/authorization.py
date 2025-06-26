@@ -76,9 +76,14 @@ class User:
     def canCreateDatasets(self):
         return self._token != None and User.roles.admin_datasets in self._token["appRoles"]
 
-    def canRelaunchDatasetCreation(self, dataset):
-        return self._token != None and User.roles.superadmin_datasets in self._token["appRoles"] \
-            and "creating" in dataset and dataset["creating"]
+    def canRestartCreationOfDataset(self, dataset):
+        return self.isSuperAdminDatasets() and "creating" in dataset and dataset["creating"]
+    
+    def canReadjustFilePermissionsOfDatasets(self):
+        return self.isSuperAdminDatasets()
+    
+    def canRecollectMetadataOfDatasets(self):
+        return self.isSuperAdminDatasets()
 
     def canDeleteDataset(self, dataset):
         if self._token is None: return False
@@ -145,8 +150,12 @@ class User:
             allowedActions.append("delete")
         if self.canCheckIntegrityOfDatasets():
             allowedActions.append("checkIntegrity")
-        if self.canRelaunchDatasetCreation(dataset):
-            allowedActions.append("relaunchCreationJob")
+        if self.canRestartCreationOfDataset(dataset):
+            allowedActions.append("restartCreation")
+        if self.canReadjustFilePermissionsOfDatasets():
+            allowedActions.append("readjustFilePermissions")
+        if self.canRecollectMetadataOfDatasets():
+            allowedActions.append("recollectMetadata")
         if self.canAdminDatasetAccesses():
             allowedActions.append("viewAccessHistory")
         if self.canManageACL(dataset):

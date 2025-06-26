@@ -563,8 +563,8 @@ def postDataset():
         #return setErrorResponse(500, "Unexpected error, may be the input is wrong\n%s" % str(e))
 
 
-@app.route('/api/datasets/<id>/adjustFilePermissionsInDatalake', method='POST')
-def postDataset_adjustFilePermissionsInDatalake(id):
+@app.route('/api/datasets/<id>/readjustFilePermissions', method='POST')
+def readjustFilePermissions(id):
     '''
     Note: this method is only for admins, to readjust permissions in case they have been changed for any reason.
     '''
@@ -573,7 +573,7 @@ def postDataset_adjustFilePermissionsInDatalake(id):
     ret = getTokenFromAuthorizationHeader()
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
-    if not user.isSuperAdminDatasets():
+    if not user.canReadjustFilePermissionsOfDatasets():
         return setErrorResponse(401, "unauthorized user")
 
     datasetId = id
@@ -630,7 +630,7 @@ def recollectMetadataForDataset(id):
     ret = getTokenFromAuthorizationHeader()
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
-    if not user.isSuperAdminDatasets():
+    if not user.canRecollectMetadataOfDatasets():
         return setErrorResponse(401, "unauthorized user")
 
     datasetId = id
@@ -655,7 +655,7 @@ def recollectMetadataForAllDatasets():
     ret = getTokenFromAuthorizationHeader()
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
-    if not user.isSuperAdminDatasets():
+    if not user.canRecollectMetadataOfDatasets():
         return setErrorResponse(401, "unauthorized user")
 
     with DB(CONFIG.db) as db:
@@ -676,7 +676,7 @@ def recollectMetadataForAllDatasets():
     bottle.response.content_type = "application/json"
     return json.dumps(results)
 
-@app.route('/api/datasets/<id>/relaunchCreationJob', method='POST')
+@app.route('/api/datasets/<id>/restartCreation', method='POST')
 def relaunchDatasetCreationJob(id):
     '''
     Note: this method is only for admins and for special case when a creation job is interrupted (and fail) for any reason.
@@ -696,7 +696,7 @@ def relaunchDatasetCreationJob(id):
         if dataset is None: return setErrorResponse(404, "not found")
         if dataset["draft"]:
             dataset["creating"] = (dbdatasets.getDatasetCreationStatus(datasetId) != None)
-        if not user.canRelaunchDatasetCreation(dataset):
+        if not user.canRestartCreationOfDataset(dataset):
             return setErrorResponse(401, "unauthorized user")
         k8sClient = k8s.K8sClient()
         job = k8sClient.exist_dataset_creation_job(datasetId)

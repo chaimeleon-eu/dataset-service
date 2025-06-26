@@ -488,15 +488,63 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /datasets/{id}/relaunchCreationJob:
+  /datasets/{id}/restartCreation:
     post:
       tags: [datasets]
       summary: Relaunch the creation job of a dataset
       operationId: relaunchDatasetCreationJob
       description: |
-        (This operation is intended only for the superadmin_datasets role; check if "allowedActionsForTheUser" contains "relaunchCreationJob".)
+        (This operation is intended only for the superadmin_datasets role; check if "allowedActionsForTheUser" contains "restartCreation".)
         When a creation job is interrupted (and fail) for any reason and the admin fix the problem,
         then another creation job can be launched in k8s with this operation in order to restart and complete the process of creation.
+      parameters:
+        - name: id
+          description: the id of the dataset
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: "successful operation"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: "not found"
+
+  /datasets/{id}/readjustFilePermissions:
+    post:
+      tags: [datasets]
+      summary: Readjust the file permissions of a dataset
+      operationId: readjustFilePermissions
+      description: |
+        (This operation is intended only for the superadmin_datasets role; check if "allowedActionsForTheUser" contains "readjustFilePermissions".)
+        When the permissions in files or directories of a dataset in datalake are changed (for example if reuploaded a study),
+        then a job can be launched in k8s with this operation in order to readjust these permissions.
+      parameters:
+        - name: id
+          description: the id of the dataset
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: "successful operation"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: "not found"
+
+  /datasets/{id}/recollectMetadata:
+    post:
+      tags: [datasets]
+      summary: Recollect the metadata of a dataset
+      operationId: recollectMetadataForDataset
+      description: |
+        (This operation is intended only for the superadmin_datasets role; check if "allowedActionsForTheUser" contains "recollectMetadata".)
+        When a the service is updated to a new version which adds new metadata fields,
+        then a job can be launched in k8s with this operation in order to rescan for collecting metadata again and fill all the fields.
       parameters:
         - name: id
           description: the id of the dataset
@@ -1894,7 +1942,9 @@ components:
                        The k8s operator will be able to do a POST /datasetAccess/{id} for this user on this dataset.
              * `delete` - To do a DELETE /datasets/{id}.
              * `checkIntegrity` - To do a POST /datasets/{id}/checkIntegrity.
-             * `relaunchCreationJob` - To do a POST /datasets/{id}/relaunchCreationJob.
+             * `restartCreation` - To do a POST /datasets/{id}/restartCreation.
+             * `readjustFilePermissions` - To do a POST /datasets/{id}/readjustFilePermissions.
+             * `recollectMetadata` - To do a POST /datasets/{id}/recollectMetadata.
              * `viewAccessHistory` - To do a GET /datasets/{id}/accessHistory
              * `manageACL` - To do any operation in /datasets/{id}/acl and /datasets/{id}/acl/{username}
           example: ["use", "checkIntegrity"]
@@ -1904,7 +1954,9 @@ components:
              - "use"
              - "delete"
              - "checkIntegrity"
-             - "relaunchCreationJob"
+             - "restartCreation"
+             - "readjustFilePermissions"
+             - "recollectMetadata"
              - "viewAccessHistory"
              - "manageACL"
         studiesCount:
