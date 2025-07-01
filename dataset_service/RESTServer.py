@@ -497,8 +497,8 @@ def postDataset():
                 if previousDataset is None:
                     return setErrorResponse(400, "dataset.previousId does not exist")
                 if not user.canModifyDataset(previousDataset):
-                    return setErrorResponse(401, "the dataset selected as previous (%s) "
-                                               + "must be editable by the user (%s)" % (previousDataset["id"], user.username))
+                    return setErrorResponse(401, "the dataset selected as previous (%s) " % previousDataset["id"]
+                                               + "must be editable by the user (%s)" % user.username)
             else:
                 dataset["previousId"] = None
 
@@ -1681,6 +1681,77 @@ def patchProject(code):
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
         # delete if exist temporal image logo file
         if os.path.exists(destinationFilePath + ".tmp"): os.unlink(destinationFilePath + ".tmp")
+        return setErrorResponse(500, "Unexpected error, may be the input is wrong")
+
+@app.route('/api/projects/<code>/subprojects', method='GET')
+def getSubprojects(code):
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    try: _checkPropertyAsString('projectCode', code, min_length=2, max_length=16, only_alphanum_or_dash=True )
+    except WrongInputException as e: return setErrorResponse(400, str(e))
+    ret = _checkUserCanModifyProject(code)
+    if isinstance(ret, str): return ret  # return error message
+    user = ret
+    
+    with DB(CONFIG.db) as db:
+        subprojects = DBProjectsOperator(db).getSubprojects(code)
+    ret = {"list": subprojects, 
+           "allowedActionsForTheUser": user.getAllowedActionsOnSubprojectsForTheUser(code)}
+    bottle.response.content_type = "application/json"
+    return json.dumps(ret)
+
+@app.route('/api/projects/<code>/subprojects/<subcode>', method='PUT')
+def putSubproject(code, subcode):
+    if CONFIG is None or not isinstance(bottle.request.body, io.IOBase): raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    try: 
+        _checkPropertyAsString('projectCode', code, min_length=2, max_length=16, only_alphanum_or_dash=True )
+        _checkPropertyAsString('subprojectCode', subcode, min_length=2, max_length=16, only_alphanum_or_dash=True )
+    except WrongInputException as e: return setErrorResponse(400, str(e))
+    ret = _checkUserCanModifyProject(code)
+    if isinstance(ret, str): return ret  # return error message
+    user = ret
+    if not user.canAdminProjects(): return setErrorResponse(401, "unauthorized user")
+    
+    content_types = get_header_media_types('Content-Type')
+    if not 'application/json' in content_types:
+        return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
+    read_data = None
+    try:
+        read_data = bottle.request.body.read().decode('UTF-8')
+        LOG.debug("BODY: " + read_data)
+        projectData = json.loads(read_data)
+        if not 'name' in projectData.keys(): raise WrongInputException("'name' property is required.")
+        _checkPropertyAsString("name", projectData["name"], min_length=3, max_length=50)
+        name = projectData["name"]
+        if not 'description' in projectData.keys(): raise WrongInputException("'description' property is required.")
+        _checkPropertyAsString("description", projectData["description"], max_length=80)
+        description = projectData["description"]
+        externalId = projectData["externalId"] if "externalId" in projectData.keys() else ''
+        _checkPropertyAsString("externalId", externalId, max_length=40)
+        
+        with DB(CONFIG.db) as db:
+            LOG.debug("Creating or updating subproject: %s" % code)
+            DBProjectsOperator(db).createOrUpdateSubproject(code, subcode, name, description, externalId)
+        
+        if CONFIG.on_event_scripts.subproject_management_job_template_file_path != "":
+            LOG.debug('Launching project creation job...')
+            k8sClient = k8s.K8sClient()
+            ok = k8sClient.add_subproject_creation_job(code, subcode, name, description, externalId, 
+                                                       CONFIG.on_event_scripts.subproject_management_job_template_file_path)
+            if not ok: 
+                raise K8sException("Unexpected error launching site creation job.")
+            #ok = k8sClient.wait_for_the_end_of_job()
+
+        LOG.debug('Subproject successfully created or updated.')
+        bottle.response.status = 201
+    except WrongInputException as e:
+        return setErrorResponse(400, str(e))
+    except json.decoder.JSONDecodeError as e:
+        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
+    except Exception as e:
+        LOG.exception(e)
+        if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
         return setErrorResponse(500, "Unexpected error, may be the input is wrong")
 
 

@@ -4,7 +4,7 @@
 Events: 
   - user creation/deletion
   - site creation/update
-  - project creation/update
+  - subproject creation/update
 
 ## Custom scripts
 

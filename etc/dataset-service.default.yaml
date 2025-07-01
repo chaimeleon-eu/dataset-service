@@ -87,10 +87,11 @@ on_event_scripts:
     # to create the site in other services of the platform or make some configurations related to the new site.
     # Example: "/var/on-event-jobs/site-management-job-template.private.yaml"
     # Set it to empty string to disable that feature.
-  project_management_job_template_file_path: ""
-    # You can set it to launch a k8s job running a script whenever a project is created or updated (received PUT /projects/<code>)
-    # to create the project in other services of the platform or make some configurations related to the new project.
-    # Example: "/var/on-event-jobs/project-management-job-template.private.yaml"
+  subproject_management_job_template_file_path: ""
+    # You can set it to launch a k8s job running a script whenever a subproject is created or updated 
+    # (received PUT /projects/<code>/subprojects/<subcode>) to create the subproject in other services of the platform 
+    # or make some configurations related to the new subproject.
+    # Example: "/var/on-event-jobs/subproject-management-job-template.private.yaml"
     # Set it to empty string to disable that feature.
 
 logos:  # These are the parameters for logos management (currently logos for projects)

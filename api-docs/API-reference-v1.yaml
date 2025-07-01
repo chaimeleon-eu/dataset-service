@@ -1290,11 +1290,13 @@ paths:
                           So this property is intended for let the UI know which other actions to show.
                           Possible values are:
                            * `config` - To show the form with the configuration params for the project.
-                        example: ["config"]
+                           * `viewSubprojects` - To show the list of current subprojects in the project.
+                        example: ["config", "viewSubprojects"]
                         items:
                           type: string
                           enum: 
                            - "config"
+                           - "viewSubprojects"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -1415,6 +1417,86 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProjectConfig'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /projects/{code}/subprojects:
+    get:
+      tags: [projects]
+      summary: List subprojects of a project
+      operationId: listSubprojects
+      description: |
+        List the subprojects of a project.
+        Subprojects are just subsets of cases within a project.
+        The users have to select a subproject when they upload images putting the corresponding ID (externalId here) in a dicom tag.
+        Subprojects are stored here for two reasons:
+         - to create them in the case explorer (an on-event job is launched for that)
+         - to check that all the images in a dataset have a dicom tag with an existent subproject here (matching with an externalId)
+           and that subproject is related to the project where the dataset is created.
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ProjectCode'
+      responses:
+        '200':
+          description: "Successfully retrieved the list of subprojects."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  list:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        code:
+                          $ref: '#/components/schemas/SubprojectCode'
+                      allOf:
+                        - $ref: '#/components/schemas/Subproject'
+                  allowedActionsForTheUser:
+                    type: array
+                    description: |
+                      The actions that the current authenticated user can do on subprojects. 
+                      This property is intended for let the UI know which actions to show.
+                      Possible values are:
+                        * `create` - To show the boton/link to the creation form for a new subproject.
+                        * `edit` - To show the boton/link to the edit form for each subproject of the list.
+                    example: ["create", "edit"]
+                    items:
+                      type: string
+                      enum: 
+                        - "create"
+                        - "edit"
+
+  /projects/{code}/subprojects/{subcode}:
+    put:
+      tags: [projects]
+      summary: Create or update subproject
+      operationId: putSubproject
+      description: Creates a new subproject or updates if already exists.
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ProjectCode'
+        - name: subcode
+          in: path
+          required: true
+          description: "The code which identifies the subproject."
+          schema:
+            $ref: '#/components/schemas/SubprojectCode'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Subproject'
+      responses:
+        '201':
+          description: project created or updated
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -2351,7 +2433,34 @@ components:
           description: |
             (Optional, default is empty) The grant code which the dataset publications will be related to.
           example: "10.13039/501100000780::952172"
-      
+
+    SubprojectCode:
+      description: "The code which identifies the subproject."
+      example: LUNG-CANCER
+      allOf:
+        - $ref: '#/components/schemas/ProjectCode'
+
+    Subproject:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 50
+          description: "The name of the subproject."
+          example: "Lung cancer"
+        description:
+          type: string
+          maxLength: 80
+          description: "Short description of the subproject."
+          example: "The lung cancer cases of the project."
+        externalId:
+          type: string
+          maxLength: 40
+          description: |
+            The id of the subproject in the case explorer, 
+            i.e. the value of the dicom tag (70D1, 2000) in the images.
+          example: "6436b3f00011ce501f0aa4fc"
+
     License:
       type: object
       description: "Name and link to the license document."

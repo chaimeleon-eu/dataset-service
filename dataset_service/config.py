@@ -132,7 +132,7 @@ class Config:
         def __init__(self, on_event_scripts: dict):
             self.user_management_job_template_file_path = on_event_scripts["user_management_job_template_file_path"]
             self.site_management_job_template_file_path = on_event_scripts["site_management_job_template_file_path"]
-            self.project_management_job_template_file_path = on_event_scripts["project_management_job_template_file_path"]
+            self.subproject_management_job_template_file_path = on_event_scripts["subproject_management_job_template_file_path"]
 
     class Logos:
         def __init__(self, logos: dict):

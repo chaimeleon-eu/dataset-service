@@ -219,10 +219,20 @@ class User:
         allowedActions = []
         if self.canModifyProject(projectCode):
             allowedActions.append("config")
+            allowedActions.append("viewSubprojects")
         # if self.canDeleteProject(projectCode):
         #     allowedActions.append("delete")
         # if self.canManageMembers(projectCode):
         #     allowedActions.append("manageMembers")
+        return allowedActions
+    
+    def getAllowedActionsOnSubprojectsForTheUser(self,  projectCode: str):
+        allowedActions = []
+        if self.canAdminProjects():
+            allowedActions.append("create")
+            allowedActions.append("edit")
+        # if self.canDeleteProject(projectCode):
+        #     allowedActions.append("delete")
         return allowedActions
 
 

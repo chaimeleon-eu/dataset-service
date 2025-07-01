@@ -11,6 +11,7 @@ from dataset_service.config import CONFIG_ENV_VAR_NAME
 DATASET_CREATION_JOB_PREFIX="creating-dataset-"
 USER_CREATION_JOB_PREFIX="creating-user-"
 SITE_CREATION_JOB_PREFIX="creating-site-"
+SUBPROJECT_CREATION_JOB_PREFIX="creating-subproject-"
 
 class Job_state(Enum):
     RUNNING = 'running'
@@ -220,6 +221,37 @@ class K8sClient:
         job['metadata']['namespace'] = self.namespace
         job['metadata']['labels'] = {
             'job-type': 'site-creation',
+            'code': code
+        }
+        try:
+            api_response = utils.create_from_yaml(API,  yaml_objects=[ job ])
+            #logging.root.debug(api_response)
+        except ApiException as e:
+            logging.root.error("Exception when calling k8s API -> create_from_yaml: %s\n" % e)
+            return False
+        return True
+
+    def add_subproject_creation_job(self, code: str, subcode: str, name: str, description: str, externalId: str, job_template_file_path: str):
+        API = client.ApiClient()
+        try:
+            with open(job_template_file_path) as f:
+                job_template = f.read()
+            job_template = job_template.replace("__PROJECT_CODE__", code)
+            job_template = job_template.replace("__SUBPROJECT_CODE__", subcode)
+            job_template = job_template.replace("__SUBPROJECT_NAME__", name)
+            job_template = job_template.replace("__SUBPROJECT_DESCRIPTION__", description)
+            job_template = job_template.replace("__SUBPROJECT_EXTERNAL_ID__", externalId)
+            job = yaml.load(job_template, Loader=yaml.SafeLoader)
+        except:
+            logging.root.error("ERROR: Project management job template file not found or wrong content: " + job_template_file_path)
+            return False
+        logging.root.info("Project management job template loaded from file: " + job_template_file_path)
+        if not "metadata" in job or not isinstance(job["metadata"], dict): job["metadata"] = {}
+        random_uuid = str(uuid.uuid4())[:8]
+        job['metadata']['name'] = SUBPROJECT_CREATION_JOB_PREFIX + code.lower() + "-" + subcode.lower() + "-" + random_uuid
+        job['metadata']['namespace'] = self.namespace
+        job['metadata']['labels'] = {
+            'job-type': 'subproject-creation',
             'code': code
         }
         try:

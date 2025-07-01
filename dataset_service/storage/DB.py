@@ -272,6 +272,16 @@ class DB:
                 zenodo_grant varchar(128) NOT NULL DEFAULT '',
                 constraint pk_project primary key (code)
             );
+            CREATE TABLE subproject (
+                project_code varchar(16) NOT NULL,
+                code varchar(16) NOT NULL,
+                name varchar(50) NOT NULL,
+                description varchar(80) NOT NULL,
+                external_id varchar(40),
+                constraint pk_subproject primary key (project_code, code),
+                constraint fk_project foreign key (project_code) references project(code),
+                constraint un_external_id unique (external_id)
+            );
         """ % self.CURRENT_SCHEMA_VERSION)
     
 #region =================== Version update functions
@@ -371,6 +381,18 @@ class DB:
             self.cursor.execute("INSERT INTO site (code, name, country) VALUES (%s, '', '');", (site))
         # Add foreign key to author
         self.cursor.execute("UPDATE author ADD constraint fk_site foreign key (site_code) references site(code);")
+        # Create new table for subprojects
+        self.cursor.execute("""
+            CREATE TABLE subproject (
+                project_code varchar(16) NOT NULL,
+                code varchar(16) NOT NULL,
+                name varchar(50) NOT NULL,
+                description varchar(80) NOT NULL,
+                external_id varchar(40),
+                constraint pk_subproject primary key (project_code, code),
+                constraint fk_project foreign key (project_code) references project(code),
+                constraint un_external_id unique (external_id)
+            );""")
         
 #endregion
 
