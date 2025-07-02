@@ -18,7 +18,8 @@ Indeed whenever the DB schema version is increased an error will appear in the l
 ### Changes in API:
 In PUT/GET /users/{username}, now the siteCode can be null (users with no site assigned).
 The operation GET /userSites has been changed to GET /sites, and now it returns an array of objects.
-New operations PUT/GET /sites/{code}.
+New operations GET /sites and PUT/GET /sites/{code}.
+New operations GET /projects/{code}/subprojects and PUT /projects/{code}/subprojects/{subcode}.
 ### Changes in config:
 The previous parameter `user_management_scripts` has been changed to `on_event_scripts`to be more general and so include different templates to launch k8s jobs on different events:
 ```
@@ -33,15 +34,17 @@ on_event_scripts:
     # to create the site in other services of the platform or make some configurations related to the new site.
     # Example: "/var/on-event-jobs/site-management-job-template.private.yaml"
     # Set it to empty string to disable that feature.
-  project_management_job_template_file_path: ""
-    # You can set it to launch a k8s job running a script whenever a project is created or updated (received PUT /projects/<code>)
-    # to create the project in other services of the platform or make some configurations related to the new project.
-    # Example: "/var/on-event-jobs/project-management-job-template.private.yaml"
+  subproject_management_job_template_file_path: ""
+    # You can set it to launch a k8s job running a script whenever a subproject is created or updated 
+    # (received PUT /projects/<code>/subprojects/<subcode>) to create the subproject in other services of the platform 
+    # or make some configurations related to the new subproject.
+    # Example: "/var/on-event-jobs/subproject-management-job-template.private.yaml"
     # Set it to empty string to disable that feature.
 ```
 ### Changes in DB:
 New table `site`. On migration, it will be filled in automatically from all different previous authors's site codes. You may want to manually fill in the rest of properties for each of them (name, country, etc.).
 In the `author` table, the `site_code` column has been adjusted to 16 max length, and can be null now.
+New table `subproject`. If you have some project previously created in the Case Explorer, you may want to add here with PUT /projects/{code}/subprojects/{subcode}
 DB schema version increased to 41.
 The DB will be automatically migrated and so you will not be able to go back to a previous version.
 
