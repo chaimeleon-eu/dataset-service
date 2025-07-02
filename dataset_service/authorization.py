@@ -92,10 +92,20 @@ class User:
         return "creating" in dataset and dataset["creating"]
 
     def canViewDatasetDetails(self, dataset):
+        # superadmin always can view
         if self._token != None and User.roles.superadmin_datasets in self._token["appRoles"]: return True
+        # when draft only author can view
         if dataset["draft"] and (self._token is None or self._token["sub"] != dataset["authorId"]): return False
+        # when public anybody can view
         if dataset["public"]: return True
+        # otherwise only users from dataset's project
         return (dataset["project"] in self.getProjects())
+    
+    def canViewDatasetExtraDetails(self, datasetProject):
+        # superadmin always can view
+        if self._token != None and User.roles.superadmin_datasets in self._token["appRoles"]: return True
+        # otherwise only if the user is in dataset's project can see the dataset's extra details
+        return (datasetProject in self.getProjects())   
 
     def canUseDataset(self, dataset, datasetACL):
         # Essential conditions

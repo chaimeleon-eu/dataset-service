@@ -837,7 +837,8 @@ def getDataset(id):
         return setErrorResponse(401, "unauthorized user")
     dataset["editablePropertiesByTheUser"] = user.getEditablePropertiesByTheUser(dataset)
     dataset["allowedActionsForTheUser"] = user.getAllowedActionsForTheUser(dataset, datasetACL)
-    if user.isUnregistered():
+    if not user.canViewDatasetExtraDetails(dataset["project"]):
+        del dataset["authorName"]
         del dataset["authorEmail"]
     bottle.response.content_type = "application/json"
     return json.dumps(dataset)
@@ -1199,6 +1200,9 @@ def getDatasets():
     
     with DB(CONFIG.db) as db:
         datasets, total = DBDatasetsOperator(db).getDatasets(skip, limit, searchString, searchFilter, sortBy, sortDirection, searchSubject, onlyLastVersions)
+    for dataset in datasets:
+        if not user.canViewDatasetExtraDetails(dataset["project"]): 
+            del dataset["authorName"]
     bottle.response.content_type = "application/json"
     return json.dumps({ "total": total,
                         "returned": len(datasets),
