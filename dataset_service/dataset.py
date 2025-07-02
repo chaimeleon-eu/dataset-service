@@ -189,17 +189,19 @@ def _checkMetadataItemAndSave(study, item, newValue, filename):
             raise Exception("The %s in that series differs from other series: %s" % (item, filename))
 
 def _addMetadataFromDicomOfASeriesToStudyAndSeries(dcm: dicom.Dicom, study, series):
+    fileName = dcm.getFileName()
     ageInDays, ageUnit = dcm.getAge()
     if ageInDays != None:
         if study["ageInDays"] != None:
             if ageInDays != study["ageInDays"]:
-                raise Exception("The patientAge in that series differs from other series: " + dcm.getFileName())
+                raise Exception("The patientAge in that series differs from other series: " + fileName)
         else:
             study["ageInDays"], study["ageUnit"] = ageInDays, ageUnit
     
-    _checkMetadataItemAndSave(study, "sex", dcm.getSex(), dcm.getFileName())
-    _checkMetadataItemAndSave(study, "studyDate", dcm.getStudyDate(), dcm.getFileName())
-    _checkMetadataItemAndSave(study, "diagnosis", dcm.getDiagnosis(), dcm.getFileName())
+    _checkMetadataItemAndSave(study, "sex", dcm.getSex(), fileName)
+    _checkMetadataItemAndSave(study, "studyDate", dcm.getStudyDate(), fileName)
+    _checkMetadataItemAndSave(study, "diagnosis", dcm.getDiagnosis(), fileName)
+    _checkMetadataItemAndSave(study, "subprojectId", dcm.getProject(), fileName)
     #dcm.getDatasetType()    it seems very similar to modality
 
     series["bodyPart"] = dcm.getBodyPart()
@@ -211,6 +213,7 @@ def _readStudyMetadataFromFirstDicomFileOfAllSeries(studyPathInDatalake, study):
     study["sex"] = None
     study["studyDate"] = None
     study["diagnosis"] = None
+    study["subprojectId"] = None
     for series in study['series']:
         seriesDirName = series['folderName']
         seriesDirPathInDatalake = os.path.join(studyPathInDatalake, seriesDirName)
@@ -285,6 +288,7 @@ def collectMetadata(dataset, datalake_mount_path, eformsFilePath):
     seriesTagsList = set()
     totalSizeInBytes = 0
     subjects = eform.Eforms(eformsFilePath)
+    subprojectId = None
     for study in dataset["studies"]:
         studiesCount += 1
         if not study["subjectName"] in differentSubjects: 
@@ -292,11 +296,20 @@ def collectMetadata(dataset, datalake_mount_path, eformsFilePath):
         if len(study['series']) == 0: continue
 
         studyPathInDatalake = os.path.join(datalake_mount_path, study['pathInDatalake'])
+        #logging.root.debug("Checking and collecting metadata from study %s" % (study['pathInDatalake']))
         _readStudyMetadataFromFirstDicomFileOfAllSeries(studyPathInDatalake, study)
         _getTotalStudySizeInBytes(studyPathInDatalake, study)
         _completeStudyMetadataWithSubjectEform(study, subjects.getEform(study["subjectName"]))
 
-        #Agregate metadata of this study
+        # check all the studies are from the same subproject
+        if subprojectId is None:  # First study with that item included
+            subprojectId = study["subprojectId"]
+        else:   # the item is included in other studies, let's check if the value is the same
+            if study["subprojectId"] != subprojectId:
+                raise Exception("The subprojectId '%s' in study '%s'" % (study["subprojectId"], study['pathInDatalake'])
+                                +" differs from the subprojectId '%s' in other studies." % (subprojectId))
+
+        # agregate metadata of this study
         if study["ageInDays"] != None:
             if study["ageInDays"] < minAgeInDays:
                 minAgeInDays = study["ageInDays"]
@@ -341,6 +354,7 @@ def collectMetadata(dataset, datalake_mount_path, eformsFilePath):
     dataset["manufacturer"], dataset["manufacturerCount"] = _getValuesAndCountsFromCountDict(manufacturerDict)
     dataset["seriesTags"] = list(seriesTagsList)
     dataset["sizeInBytes"] = totalSizeInBytes
+    dataset["subprojectId"] = subprojectId
     logging.root.debug("  -studiesCount: %s" % dataset["studiesCount"])
     logging.root.debug("  -subjectsCount: %s" % dataset["subjectsCount"])
     logging.root.debug("  -sex: %s" % dataset["sex"])

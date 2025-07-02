@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 import json
 from .auth import AuthClient, LoginException
-from .storage import DB, DBDatasetsOperator
+from .storage import DB, DBDatasetsOperator, DBProjectsOperator
 from .hash import datasetHashesOperator
 from .config import Config
 from . import dataset as dataset_file_system
@@ -176,8 +176,16 @@ class dataset_creation_worker:
                 stop = self.updateProgress("Scanning dataset for collecting metadata...")
                 if stop: self._cancelProgress(); return
                 eformsFilePath = os.path.join(datasetDirPath, self.config.self.eforms_file_name)
+                # Collect metadata doing some checks and adding as new properties to dataset, to the studies inside, 
+                # and to the series inside the studies.
                 dataset_file_system.collectMetadata(dataset, self.config.self.datalake_mount_path, eformsFilePath)
-                # All the metadata is added as new properties to dataset, to the studies inside, and to the series inside the studies
+                # Security check: It is important to check the subprojectId to avoid create dataset with studies from other project
+                with DB(self.config.db) as db:
+                    subprojectsIDs = DBProjectsOperator(db).getSubprojectsIDs(dataset["project"])
+                if not dataset["subprojectId"] in subprojectsIDs:
+                    raise Exception("The subprojectId '%s' of studies " % dataset["subprojectId"]
+                                    + "is not in the project where dataset is being created:" 
+                                    + " %s (%s)" % (dataset["project"], json.dumps(subprojectsIDs)))
                 with DB(self.config.db) as db:
                     DBDatasetsOperator(db).updateDatasetAndStudyMetadata(dataset)
             

@@ -32,7 +32,8 @@ DATASET_TYPE_TAG = 0x0008, 0x0016
 # Values: https://dicom.nema.org/dicom/2013/output/chtml/part04/sect_B.5.html
 
 PROJECT_NAME_PRIVATE_TAG = 0x70D1, 0x2000
-# Value examples: "Colon cancer CT_only", "Lung cancer CT_only"
+# Value examples: 6436b3f00011ce501f0aa4fc (the QPI project id in case of QPI managed datasets)
+#                 "Colon cancer CT_only", "Lung cancer CT_only" (the QP project name in case of QP managed datasets)
 
 class Dicom:
     def __init__(self, dicomFilePath):
@@ -41,7 +42,15 @@ class Dicom:
     def getFileName(self) -> str:
         return str(self.dcm.filename)
 
-    def getAge(self) -> tuple[int|None, str|None]:
+    def getProject(self) -> str | None:
+        if not PROJECT_NAME_PRIVATE_TAG in self.dcm: return None
+        value = self.dcm[PROJECT_NAME_PRIVATE_TAG].value
+        # I don't know why, but sometimes the type of that value is bytes, so we have to decode
+        if isinstance(value, bytes): value = value.decode('utf8')
+        if value == "": return None
+        return value
+
+    def getAge(self) -> tuple[int | None, str | None]:
         if not AGE_TAG in self.dcm: return None, None
         value = self.dcm[AGE_TAG].value
         try:
@@ -56,7 +65,7 @@ class Dicom:
                              % (value, self.dcm.filename))
         return None, None
 
-    def getStudyDate(self) -> datetime|None:
+    def getStudyDate(self) -> datetime | None:
         if not STUDY_DATE_TAG in self.dcm: return None
         value = self.dcm[STUDY_DATE_TAG].value
         year = int(value[:4])
@@ -120,8 +129,9 @@ class Dicom:
         else: return 'Other'
 
     def getDiagnosis(self) -> str | None:
-        if not PROJECT_NAME_PRIVATE_TAG in self.dcm: return None
-        project_name = self.dcm[PROJECT_NAME_PRIVATE_TAG].value
+        # this is only for CHAIMELEON project
+        project_name = self.getProject()
+        if project_name is None: return None
         diagnosis = ' '.join(str(project_name).split(' ')[:2])
         diagnosis.lower().capitalize()
         if diagnosis in ["Lung cancer", "Colon cancer", "Rectum cancer", "Breast cancer", "Prostate cancer"]: 
