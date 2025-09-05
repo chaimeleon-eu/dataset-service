@@ -360,6 +360,7 @@ def collectMetadata(dataset, datalake_mount_path, eformsFilePath):
     logging.root.debug("  -sex: %s" % dataset["sex"])
     logging.root.debug("  -bodyPart: %s" % dataset["bodyPart"])
     logging.root.debug("  -modality: %s" % dataset["modality"])
+    logging.root.debug("  -sizeInBytes: %s" % dataset["sizeInBytes"])
     
 # def collectMetadata2(self, dataset):
 #     if self.config.self.datalake_mount_path == '': return

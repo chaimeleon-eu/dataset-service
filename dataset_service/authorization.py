@@ -1,3 +1,5 @@
+import logging
+import json
 from dataset_service.POSIX import *
 
 class Roles:
@@ -116,7 +118,9 @@ class User:
         if User.roles.superadmin_datasets in self._token["appRoles"]: return True
         if dataset["invalidated"]: return False
         # The main rule
-        if dataset["project"] in self.getProjects(): return True
+        userProjects = self.getProjects()
+        logging.root.debug("User projects: " + json.dumps(list(userProjects)))
+        if dataset["project"] in userProjects: return True
         if dataset["public"]: return (self.uid in datasetACL)
         else: return False
 
