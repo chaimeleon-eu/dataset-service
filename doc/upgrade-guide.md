@@ -44,7 +44,8 @@ on_event_scripts:
 ### Changes in DB:
 New table `site`. On migration, it will be filled in automatically from all different previous authors's site codes. You may want to manually fill in the rest of properties for each of them (name, country, etc.).
 In the `author` table, the `site_code` column has been adjusted to 16 max length, and can be null now.
-New table `subproject`. If you have some project previously created in the Case Explorer, you may want to add here with PUT /projects/{code}/subprojects/{subcode}
+New table `subproject`. If you have some project previously created in the Case Explorer, you must add subprojects with PUT /projects/{code}/subprojects/{subcode}.
+If you don't want subprojects for a project, just add only one with the same subcode as the code of the project.
 DB schema version increased to 41.
 The DB will be automatically migrated and so you will not be able to go back to a previous version.
 

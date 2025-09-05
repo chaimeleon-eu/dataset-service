@@ -358,7 +358,7 @@ def _checkPropertyAsString(propName:str, value: str, possible_values: list[str] 
     if only_alphanum_or_dash and not value.replace('-','a').isalnum(): 
         raise WrongInputException("Invalid value for '%s', only alphanumeric characters and '-' are allowed." % (propName))
 
-def _checkPropertyAsArrayOfStrings(propName: str, value: list[str], item_possible_values: Iterable[str] | None = None, item_max_length: int = 0,
+def _checkPropertyAsArrayOfStrings(propName: str, value, item_possible_values: Iterable[str] | None = None, item_max_length: int = 0,
                                    item_only_alphanum_or_dash: bool = False):
     if not isinstance(value, list):
         raise WrongInputException("'%s' must be an array of strings." % propName)

@@ -371,6 +371,7 @@ class DB:
                 constraint pk_site primary key (code)
             );""")
         self.cursor.execute("ALTER TABLE author ALTER COLUMN site_code TYPE varchar(16)")
+        self.cursor.execute("ALTER TABLE author ALTER COLUMN site_code DROP NOT NULL")
         self.cursor.execute("ALTER TABLE author ALTER COLUMN site_code SET DEFAULT NULL")
         # Correct rows with empty site_code 
         self.cursor.execute("UPDATE author set site_code = NULL where site_code='';")
@@ -378,9 +379,10 @@ class DB:
         self.cursor.execute("SELECT DISTINCT site_code FROM author;")
         sites = [row[0] for row in self.cursor]
         for site in sites:
-            self.cursor.execute("INSERT INTO site (code, name, country) VALUES (%s, '', '');", (site))
+            if site != None:
+                self.cursor.execute("INSERT INTO site (code, name, country) VALUES (%s, '', '');", (site,))
         # Add foreign key to author
-        self.cursor.execute("UPDATE author ADD constraint fk_site foreign key (site_code) references site(code);")
+        self.cursor.execute("ALTER TABLE author ADD constraint fk_site foreign key (site_code) references site(code);")
         # Create new table for subprojects
         self.cursor.execute("""
             CREATE TABLE subproject (
