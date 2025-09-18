@@ -1432,7 +1432,8 @@ paths:
         Subprojects are stored here for two reasons:
          - to create them in the case explorer (an on-event job is launched for that)
          - to check that all the images in a dataset have a dicom tag with an existent subproject here (matching with an externalId)
-           and that subproject is related to the project where the dataset is created.
+           and that is a subproject of the project where the dataset is created 
+           (its a security check to avoid creating a dataset in a project with studies from other projects).
       parameters:
         - name: code
           in: path
@@ -2457,8 +2458,10 @@ components:
           type: string
           maxLength: 40
           description: |
-            The id of the subproject in the case explorer, 
+            (Optional, default is empty) The id of the subproject in the case explorer, 
             i.e. the value of the dicom tag (70D1, 2000) in the images.
+            Usually you should create a subproject with empty externalId, 
+            and the on-event job creates it in the case explorer and assigns the externalId.
           example: "6436b3f00011ce501f0aa4fc"
 
     License:

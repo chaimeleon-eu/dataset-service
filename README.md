@@ -280,6 +280,46 @@ Content-Length: 0
 Content-Type: text/html; charset=UTF-8
 ```
 
+### Create a subproject
+
+PUT /projects/{code}/subprojects/{subcode}
+
+With the authorization header and the project properties within the body in JSON format. 
+If success, the code 201 will be returned. 
+If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
+
+Details: https://chaimeleon-eu.i3m.upv.es/dataset-service/api-doc#tag/projects/operation/putSubproject
+
+Example:
+```
+$ curl -i -X PUT -H "Authorization: bearer $DSS_TOKEN" -H "Content-Type: application/json" \
+       -d '{ "name": "MY-COOL-PROJECT - Lung studies", "description": "MY-COOL-PROJECT - Lung studies"}' \
+       "${DSS_ENDPOINT}/projects/MY-COOL-PROJECT/subprojects/LUNG"
+HTTP/1.1 201 Created
+Content-Length: 0
+Content-Type: text/html; charset=UTF-8
+```
+
+### Create a site
+
+PUT /sites/{code}
+
+With the authorization header and the user properties within the body in JSON format. 
+If success, the code 201 will be returned. 
+If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
+
+Details: https://chaimeleon-eu.i3m.upv.es/dataset-service/api-doc#tag/sites/operation/createSite
+
+Example of creation of a site for users:
+```
+$ curl -i -X PUT -H "Authorization: bearer $DSS_TOKEN" -H "Content-Type: application/json" \
+       -d '{ "name": "UPV", "country": "Spain", "url": "", "contactName": "", "contactEmail": ""}' \
+       "${DSS_ENDPOINT}/sites/UPV"
+HTTP/1.1 201 Created
+Content-Length: 0
+Content-Type: text/html; charset=UTF-8
+```
+
 ### Create a user
 
 PUT /users/{userName}

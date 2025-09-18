@@ -2072,19 +2072,19 @@ def putSite(code):
         _checkPropertyAsString("country", country, min_length=3, max_length=40)
         url = siteData["url"] if "url" in siteData.keys() else ''
         if url != '': _checkPropertyAsUrl("url", url, max_length=256)
-        contact_name = siteData["contact_name"] if "contact_name" in siteData.keys() else ''
-        _checkPropertyAsString("contact_name", contact_name, max_length=128)
-        contact_email = siteData["contact_email"] if "contact_email" in siteData.keys() else ''
-        _checkPropertyAsString("contact_email", contact_email, max_length=128)
+        contactName = siteData["contactName"] if "contactName" in siteData.keys() else ''
+        _checkPropertyAsString("contactName", contactName, max_length=128)
+        contactEmail = siteData["contactEmail"] if "contactEmail" in siteData.keys() else ''
+        _checkPropertyAsString("contactEmail", contactEmail, max_length=128)
 
         LOG.debug("Creating or updating site in DB.")
         with DB(CONFIG.db) as db:
-            DBDatasetsOperator(db).createOrUpdateSite(code, name, country, url, contact_name, contact_email)
+            DBDatasetsOperator(db).createOrUpdateSite(code, name, country, url, contactName, contactEmail)
 
         if CONFIG.on_event_scripts.site_management_job_template_file_path != "":
             LOG.debug('Launching site creation job...')
             k8sClient = k8s.K8sClient()
-            ok = k8sClient.add_site_creation_job(code, name, country, contact_name, contact_email, 
+            ok = k8sClient.add_site_creation_job(code, name, country, contactName, contactEmail, 
                                                  CONFIG.on_event_scripts.site_management_job_template_file_path)
             if not ok: 
                 raise K8sException("Unexpected error launching site creation job.")
