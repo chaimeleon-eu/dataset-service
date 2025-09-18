@@ -93,6 +93,7 @@ Example of "external" dataset creation:
 $ curl -i -X POST \
        -H "Authorization: bearer $DSS_TOKEN" \
        -F name="Maastricht Lung1" -F description="Test dataset from Maastricht University." \
+       -F externalSubfolder="maastricht-university" \
        -F clinical_data=@"NSCLC Radiomics Lung1.clinical.csv" \
        "${DSS_ENDPOINT}/datasets?external=True"
 
@@ -104,6 +105,17 @@ Content-Type: application/json
 
 {"url": "/api/datasets/3388a9c5-4ebb-45ba-93fc-7b54813f0cf2"}
 ```
+The "external" datasets are temporary transferred from other nodes to work with them in this node 
+taking advantatge of computational resources or available applications. Therefore they are not traced.  
+Once an external dataset is transferred to our datalake directory, 
+an admin user can do the POST to create the dataset into the system (database and datasets directory).
+The index will be built from directories structure. Expected path and structure of directories:  
+  `datalake_mount_path/datalake_external_subpath/externalSubfolder/subject_name/study_name/series_name/images`
+
+`datalake_mount_path` and `datalake_external_subpath` are configurable (see the configuration file).
+`externalSubfolder` is a form field in the request.
+The `clinical_data` form field in the request is optional, 
+if it's missing then the eforms.json file will be created with empty clinical data.
 
 The creation of a medium or big dataset can be a time consuming process, so it is asynchronous.
 The POST operation returns the code 201 after some checks over the input and the creation of the dataset in database.

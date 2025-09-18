@@ -294,57 +294,6 @@ def getDatalakeInfo(file_path):
 class WrongInputException(Exception): pass
 class K8sException(Exception): pass
 
-def checkPath(basePath: str, relativePath: str):
-    ''' Ensures relativePath is in fact a subpath of basePath. Raises an exception if wrong path.
-        This is to avoid a malicious user try to access system directories with "..", absolute paths like "/etc" or symbolic links.
-    '''
-    base = Path(basePath).resolve()  # Resolve symbolic links and returns absolute path
-    path = (base / relativePath).resolve()
-    if not base in path.parents:
-        raise WrongInputException("Wrong path: " + str(base / relativePath))
-
-def completeDatasetFromCSV(dataset, csvdata):
-    if CONFIG is None: raise Exception()
-    import csv
-    #LOG.debug("======" + csvdata)
-    csvreader = csv.reader(csvdata) #, delimiter=',')
-    first = True
-    header = []
-    for row in csvreader:
-        if len(row) == 0: continue        
-        if first: 
-            first = False
-            header = row
-        else:
-            subjectName = row[0]
-            subjectPath = "0-EXTERNAL-DATA/maastricht-university/" + row[0]
-            if CONFIG.self.datalake_mount_path != '':
-                checkPath(CONFIG.self.datalake_mount_path, subjectPath)
-                studies = os.listdir(os.path.join(CONFIG.self.datalake_mount_path, subjectPath))
-                for studyDirName in studies:
-                    if studyDirName == "NIFTI": continue    # ignore special studies
-                    studyDirPath = os.path.join(subjectPath, studyDirName)
-                    series = []
-                    for serieDirName in os.listdir(os.path.join(CONFIG.self.datalake_mount_path, studyDirPath)):
-                        seriePath = os.path.join(CONFIG.self.datalake_mount_path, studyDirPath, serieDirName)
-                        if os.path.isdir(seriePath):  series.append({'folderName': serieDirName, 'tags': []})
-
-                    dataset["studies"].append({
-                        'studyId': str(uuid.uuid4()),
-                        'studyName': studyDirName,
-                        'subjectName': subjectName,
-                        'pathInDatalake': studyDirPath,
-                        'series': series,
-                        'url': ""
-                    })
-            eform = {}
-            for i in range(1, len(header)):
-                eform[header[i]] = row[i]
-            dataset["subjects"].append({
-                'subjectName': subjectName,
-                'eForm': eform 
-            })
-
 def _checkPropertyAsString(propName:str, value: str, possible_values: list[str] | None = None, min_length: int = 0, max_length: int = 0, 
                            only_alphanum_or_dash: bool = False):
     if not isinstance(value, str): 
@@ -392,6 +341,67 @@ def _checkPropertyAsLicense(newValue):
 ITEM_POSSIBLE_VALUES_FOR_TYPE = ['original', 'annotated', 'processed', 'personal-data']
 ITEM_POSSIBLE_VALUES_FOR_COLLECTION_METHOD = ['patient-based', 'cohort', 'only-image', 'longitudinal', 'case-control', 'disease-specific']
 
+def _checkPath(basePath: str, relativePath: str):
+    ''' Ensures relativePath is in fact a subpath of basePath. Raises an exception if wrong path.
+        This is to avoid a malicious user try to access system directories with "..", absolute paths like "/etc" or symbolic links.
+    '''
+    base = Path(basePath).resolve()  # Resolve symbolic links and returns absolute path
+    path = (base / relativePath).resolve()
+    if not base in path.parents:
+        raise WrongInputException("Wrong path: " + str(base / relativePath))
+
+def _buildDatasetStudiesListFromDirectoryStructure(externalDatasetPath):
+    # Expected structure: externalDatasetPath/subjectName/studyName/seriesName/images
+    studies = []
+    for subjectDirName in os.listdir(externalDatasetPath):
+        subjectDirPathInDatalake = os.path.join(externalDatasetPath, subjectDirName)
+        if not os.path.isdir(subjectDirPathInDatalake): continue
+        for studyDirName in os.listdir(subjectDirPathInDatalake):
+            #if studyDirName == "NIFTI": continue    # ignore special studies
+            studyDirPathInDatalake = os.path.join(subjectDirPathInDatalake, studyDirName)
+            if not os.path.isdir(studyDirPathInDatalake): continue
+            series = []
+            for seriesDirName in os.listdir(studyDirPathInDatalake):
+                seriesDirPathInDatalake = os.path.join(studyDirPathInDatalake, seriesDirName)
+                if not os.path.isdir(seriesDirPathInDatalake): continue
+                series.append({'folderName': seriesDirName, "tags": []})
+            studies.append({
+                'studyId': str(uuid.uuid4()),
+                'studyName': studyDirName,
+                'subjectName': subjectDirName,
+                'pathInDatalake': os.path.join(externalDatasetPath, subjectDirName, studyDirName),
+                'series': series,
+                'url': ""
+            })
+    return studies
+
+def __buildDatasetSubjectsListFromCSV(csvfile):
+    if CONFIG is None: raise Exception()
+    csvlines = csvfile.read().decode('UTF-8').splitlines()
+    subjects = []
+    import csv
+    #LOG.debug("======" + csvlines)
+    csvreader = csv.reader(csvlines) #, delimiter=',')
+    first = True
+    header = []
+    for row in csvreader:
+        if len(row) == 0: continue        
+        if first: 
+            first = False
+            header = row
+        else:
+            subjectName = row[0]
+            eform = {}
+            for i in range(1, len(header)):
+                eform[header[i]] = row[i]
+
+            subjects.append({
+                'subjectName': subjectName,
+                'eForm': eform 
+            })
+
+    return subjects
+
 @app.route('/api/datasets', method='POST')
 def postDataset():
     if CONFIG is None \
@@ -407,33 +417,48 @@ def postDataset():
     if user.isUnregistered() or not user.canCreateDatasets():
         return setErrorResponse(401, "unauthorized user")
 
+    isExternal = "external" in bottle.request.query and bottle.request.query["external"].lower() == "true"
+
+    if isExternal and not user.canCreateExternalDatasets():
+        return setErrorResponse(401, "unauthorized user")
+    
     content_types = get_header_media_types('Content-Type')
-    if "external" in bottle.request.query and bottle.request.query["external"].lower() == "true":
-        if not 'multipart/form-data' in content_types:
-            return setErrorResponse(400, "invalid 'Content-Type' header, required 'multipart/form-data'")
-    else:
-        if not 'application/json' in content_types:
-            return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
+    requiredContentType = 'multipart/form-data' if isExternal else 'application/json'
+    if not requiredContentType in content_types:
+        return setErrorResponse(400, "invalid 'Content-Type' header, required '%s'" % requiredContentType)
 
     datasetDirName = ''
     datasetId = str(uuid.uuid4())
     read_data = None
     try:
-        if "external" in bottle.request.query and bottle.request.query["external"].lower() == "true":
-            # This is for manually create datasets out of the standard ingestion procedure 
-            clinicalDataFile = bottle.request.files["clinical_data"]
-            name, ext = os.path.splitext(clinicalDataFile.filename)
-            if ext != '.csv':
-                return setErrorResponse(400, 'File extension not allowed, only CSV is supported.')
+        if isExternal:
+            # This is for manually create datasets out of the standard ingestion procedure.
+            if not "name" in bottle.request.forms: raise WrongInputException("Missing 'name' field in the request form.")
+            if not "description" in bottle.request.forms: raise WrongInputException("Missing 'description' field in the request form.")
+
             dataset = dict(
                 name = bottle.request.forms.get("name"),
-                description = bottle.request.forms.get("description")
+                description = bottle.request.forms.get("description"),
+                project = CONFIG.self.external_datasets_project_code
             )
             if 'previousId' in bottle.request.forms: dataset['previousId'] = bottle.request.forms.get('previousId')
-            #if 'public' in bottle.request.forms: dataset['public'] = bottle.request.forms.get('public')
-            dataset["studies"] = []
-            dataset["subjects"] = []
-            completeDatasetFromCSV(dataset, clinicalDataFile.file.read().decode('UTF-8').splitlines())
+            
+            # External dataset must be previously transferred to the datalake into a subfolder of the external folder.
+            # Example: 0-EXTERNAL-DATA/maastricht-university
+            externalSubfolder = bottle.request.forms.get("externalSubfolder")
+            if externalSubfolder is None: raise WrongInputException("Missing 'externalSubfolder' field in the request form.")
+            externalDatasetPath = os.path.join(CONFIG.self.datalake_mount_path, CONFIG.self.datalake_external_subpath, externalSubfolder)
+            dataset["studies"] = _buildDatasetStudiesListFromDirectoryStructure(externalDatasetPath)
+
+            if "clinical_data" in bottle.request.files:
+                clinicalDataFile = bottle.request.files["clinical_data"]
+                name, ext = os.path.splitext(clinicalDataFile.filename)
+                if ext != '.csv':
+                    return setErrorResponse(400, 'File extension not allowed, only CSV is supported.')
+                dataset["subjects"] = __buildDatasetSubjectsListFromCSV(clinicalDataFile.file)
+            else:
+                subjects = set([s["subjectName"] for s in dataset["studies"]])
+                dataset["subjects"] = [{'subjectName': s,'eForm': {} } for s in subjects]
             #return  json.dumps(dataset)
         else:
             LOG.debug("Reading request body as JSON...")
@@ -441,44 +466,47 @@ def postDataset():
             #LOG.debug("BODY: " + read_data)
             dataset = json.loads( read_data )
             if not isinstance(dataset, dict): raise WrongInputException("The body must be a json object.")
-            if not 'version' in dataset.keys(): dataset["version"] = '??'
-            if not 'provenance' in dataset.keys(): dataset["provenance"] = '??'
-            if not 'purpose' in dataset.keys(): dataset["purpose"] = '??'
-            if 'type' in dataset.keys(): 
-                _checkPropertyAsArrayOfStrings('type', dataset["type"], ITEM_POSSIBLE_VALUES_FOR_TYPE)
-            else: dataset["type"] = []
-            if 'collectionMethod' in dataset.keys(): 
-                _checkPropertyAsArrayOfStrings('collectionMethod', dataset["collectionMethod"], ITEM_POSSIBLE_VALUES_FOR_COLLECTION_METHOD)
-            else: dataset["collectionMethod"] = []
-            if not 'studies' in dataset.keys() or not isinstance(dataset["studies"], list): 
-                raise WrongInputException("'studies' property is required and must be an array.")
-            if not 'subjects' in dataset.keys() or not isinstance(dataset["subjects"], list): 
-                raise WrongInputException("'subjects' property is required and must be an array.")
+            if 'project' in dataset.keys() and dataset['project'] == CONFIG.self.external_datasets_project_code:
+                raise WrongInputException("The project code '%s' is reserved for external datasets." % CONFIG.self.external_datasets_project_code)
+
+        if not 'version' in dataset.keys(): dataset["version"] = '??'
+        if not 'provenance' in dataset.keys(): dataset["provenance"] = '??'
+        if not 'purpose' in dataset.keys(): dataset["purpose"] = '??'
+        if 'type' in dataset.keys(): 
+            _checkPropertyAsArrayOfStrings('type', dataset["type"], ITEM_POSSIBLE_VALUES_FOR_TYPE)
+        else: dataset["type"] = []
+        if 'collectionMethod' in dataset.keys(): 
+            _checkPropertyAsArrayOfStrings('collectionMethod', dataset["collectionMethod"], ITEM_POSSIBLE_VALUES_FOR_COLLECTION_METHOD)
+        else: dataset["collectionMethod"] = []
+        if not 'studies' in dataset.keys() or not isinstance(dataset["studies"], list): 
+            raise WrongInputException("'studies' property is required and must be an array.")
+        if not 'subjects' in dataset.keys() or not isinstance(dataset["subjects"], list): 
+            raise WrongInputException("'subjects' property is required and must be an array.")
             
-            # Integrity checks
-            subjects = set()
-            study_paths = set()
-            LOG.debug("Checking for duplicated subjects...")
-            for subject in dataset["subjects"]:
-                if subject["subjectName"] in subjects:
-                    raise WrongInputException("The subjectName '%s' is duplicated in 'subjects' array of the dataset." % subject["subjectName"])
-                else:
-                    subjects.add(subject["subjectName"])
-            LOG.debug("Checking for studies with missing subjects or conflicting paths...")
-            for study in dataset["studies"]:
-                if not study["subjectName"] in subjects:
-                    raise WrongInputException("The study with id '%s' has a 'subjectName' which is not in the " % study["studyId"]
-                                             +"'subjects' array of the dataset." )
-                study['pathInDatalake'] = str(study['pathInDatalake']).removesuffix('/')
-                studyDirName = os.path.basename(study['pathInDatalake'])
-                study_path = os.path.join(study["subjectName"], studyDirName)
-                # example of study_path: 17B76FEW/TCPEDITRICOABDOMINOPLVICO20150129
-                if study_path in study_paths:
-                    raise WrongInputException("The study with id '%s' seems duplicated, " % study["studyId"]
-                                             +"it has the same directory name '%s' as another study of the same subject '%s', " % (studyDirName, study["subjectName"])
-                                             +"this will cause a conflict when creating the dataset's directories structure." )
-                else: study_paths.add(study_path)
-            
+        # Integrity checks
+        subjects = set()
+        study_paths = set()
+        LOG.debug("Checking for duplicated subjects...")
+        for subject in dataset["subjects"]:
+            if subject["subjectName"] in subjects:
+                raise WrongInputException("The subjectName '%s' is duplicated in 'subjects' array of the dataset." % subject["subjectName"])
+            else:
+                subjects.add(subject["subjectName"])
+        LOG.debug("Checking for studies with missing subjects or conflicting paths...")
+        for study in dataset["studies"]:
+            if not study["subjectName"] in subjects:
+                raise WrongInputException("The study with id '%s' has a 'subjectName' which is not in the " % study["studyId"]
+                                            +"'subjects' array of the dataset." )
+            study['pathInDatalake'] = str(study['pathInDatalake']).removesuffix('/')
+            studyDirName = os.path.basename(study['pathInDatalake'])
+            study_path = os.path.join(study["subjectName"], studyDirName)
+            # example of study_path: 17B76FEW/TCPEDITRICOABDOMINOPLVICO20150129
+            if study_path in study_paths:
+                raise WrongInputException("The study with id '%s' seems duplicated, " % study["studyId"]
+                                            +"it has the same directory name '%s' as another study of the same subject '%s', " % (studyDirName, study["subjectName"])
+                                            +"this will cause a conflict when creating the dataset's directories structure." )
+            else: study_paths.add(study_path)
+        
 
         with DB(CONFIG.db) as db:
             dbdatasets = DBDatasetsOperator(db)
@@ -487,7 +515,7 @@ def postDataset():
 
             user_projects = _getProjects(user)
             if 'project' in dataset.keys(): 
-                if not dataset["project"] in user_projects:
+                if dataset['project'] != CONFIG.self.external_datasets_project_code and not dataset["project"] in user_projects:
                     return setErrorResponse(400, "dataset.project does not exist for the user")
             else:
                 dataset["project"] = user_projects.pop()  # we take the first project of user
@@ -514,10 +542,11 @@ def postDataset():
             
             LOG.debug('Creating dataset in DB...')
             dbdatasets.createDataset(dataset, user.uid)
-            projectConfig = DBProjectsOperator(db).getProjectConfig(dataset["project"])
-            if projectConfig is None: raise Exception("Unexpected error: the project assigned to dataset does not exist.")
-            dbdatasets.setDatasetContactInfo(datasetId, projectConfig["defaultContactInfo"])
-            dbdatasets.setDatasetLicense(datasetId, projectConfig["defaultLicense"]["title"], projectConfig["defaultLicense"]["url"])
+            if dataset['project'] != CONFIG.self.external_datasets_project_code:    
+                projectConfig = DBProjectsOperator(db).getProjectConfig(dataset["project"])
+                if projectConfig is None: raise Exception("Unexpected error: the project assigned to dataset does not exist.")
+                dbdatasets.setDatasetContactInfo(datasetId, projectConfig["defaultContactInfo"])
+                dbdatasets.setDatasetLicense(datasetId, projectConfig["defaultLicense"]["title"], projectConfig["defaultLicense"]["url"])
 
             LOG.debug('Creating dataset directory...')
             datasetDirName = datasetId
@@ -1430,6 +1459,8 @@ def putProject(code):
     ret = _checkUserCanModifyProject(code)
     if isinstance(ret, str): return ret  # return error message
     
+    if code == CONFIG.self.external_datasets_project_code:
+        return setErrorResponse(400, "The project code '%s' is reserved." % CONFIG.self.external_datasets_project_code)
     content_types = get_header_media_types('Content-Type')
     if not 'application/json' in content_types:
         return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")

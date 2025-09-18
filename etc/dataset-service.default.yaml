@@ -142,6 +142,17 @@ self:
     # If empty token, that operation is not allowed (404 returned), this way you can disable it.
   datalake_mount_path: "/mnt/datalake"
   datasets_mount_path: "/mnt/datasets"
+  datalake_external_subpath: "0-EXTERNAL-DATA"
+    # It is a directory within datalake, where the external datasets should be transferred.
+    # The files transferred should be organized in directories like: 
+    # datalake_mount_path/datalake_external_subpath/dataset_name/subject_name/study_name/series_name/images
+    # Once the transference ends, an admin user should request a POST /api/datasets?external=true,
+    # and so an external dataset is created in the database and in datasets_mount_path, 
+    # and the studies there will be symbolic links to the transferred files in datalake_external_subpath.
+  external_datasets_project_code: "EXTERNAL-DATASETS"
+    # It is a special project code assigned to external datasets. 
+    # The project does not exist (and the code is reserved, can not be used to create a new project).
+    # WARNING: Don't change if there is any external dataset already created, it will not be updated to the new project code. 
   eforms_file_name: "eforms.json"
   index_file_name: "index.json"
   studies_tmp_file_name: ".studies.json"
@@ -150,7 +161,7 @@ self:
     # It is used for the url returned in the dataset creation POST, 
     # and also for the links included in the publication submited to Zenodo.
   eucaim_search_token: ""
-    # Secret token for the POST "/datasets/eucaimSearch" operation (custom search for EUCAIM project).
+    # Secret token for the POST "/api/datasets/eucaimSearch" operation (custom search for EUCAIM project).
     # If empty token, that operation is not allowed (404 returned), this way you can disable it.
   eucaim_search_filter_by_tag: ""
     # By default only published and not invalidated datasets are returned to the EUCAIM search, 

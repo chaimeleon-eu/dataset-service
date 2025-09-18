@@ -155,6 +155,8 @@ class Config:
             self.datalakeinfo_token = config["datalakeinfo_token"]
             self.datalake_mount_path = config["datalake_mount_path"]
             self.datasets_mount_path = config["datasets_mount_path"]
+            self.datalake_external_subpath = config["datalake_external_subpath"]
+            self.external_datasets_project_code = config["external_datasets_project_code"]
             self.eforms_file_name = config["eforms_file_name"]
             self.index_file_name = config["index_file_name"]
             self.studies_tmp_file_name = config["studies_tmp_file_name"]

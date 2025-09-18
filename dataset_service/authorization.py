@@ -77,6 +77,9 @@ class User:
 
     def canCreateDatasets(self):
         return self._token != None and User.roles.admin_datasets in self._token["appRoles"]
+    
+    def canCreateExternalDatasets(self):
+        return self.isSuperAdminDatasets()
 
     def canRestartCreationOfDataset(self, dataset):
         return self.isSuperAdminDatasets() and "creating" in dataset and dataset["creating"]
