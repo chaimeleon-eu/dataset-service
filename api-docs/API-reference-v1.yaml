@@ -25,6 +25,8 @@ tags:
     description: Operations with datasets
   - name: users
     description: Operations with users
+  - name: sites
+    description: Operations with sites
   - name: projects
     description: Operations with projects
   - name: licenses
@@ -41,6 +43,7 @@ x-tagGroups:
     tags:
       - datasets
       - users
+      - sites
       - projects
       - licenses
       - datasetAccesses

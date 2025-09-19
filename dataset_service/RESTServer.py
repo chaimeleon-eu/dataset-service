@@ -1724,10 +1724,12 @@ def getSubprojects(code):
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     try: _checkPropertyAsString('projectCode', code, min_length=2, max_length=16, only_alphanum_or_dash=True )
     except WrongInputException as e: return setErrorResponse(400, str(e))
-    ret = _checkUserCanModifyProject(code)
+    ret = getTokenFromAuthorizationHeader()
     if isinstance(ret, str): return ret  # return error message
-    user = ret
-    
+    user = authorization.User(ret)
+    if not user.canViewSubprojects():
+        return setErrorResponse(401, "unauthorized user")
+
     with DB(CONFIG.db) as db:
         subprojects = DBProjectsOperator(db).getSubprojects(code)
     ret = {"list": subprojects, 

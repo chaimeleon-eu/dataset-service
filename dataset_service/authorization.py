@@ -217,6 +217,9 @@ class User:
             if g.startswith(User.PROJECT_ADMINS_GROUP_PREFIX) and g[prefix_len:] == projectCode: return True
         return False
     
+    def canViewSubprojects(self):
+        return self._token != None
+    
     def getAllowedActionsOnProjectsForTheUser(self):
         allowedActions = []
         if self.canAdminProjects():
@@ -236,6 +239,7 @@ class User:
         allowedActions = []
         if self.canModifyProject(projectCode):
             allowedActions.append("config")
+        if self.canViewSubprojects():
             allowedActions.append("viewSubprojects")
         # if self.canDeleteProject(projectCode):
         #     allowedActions.append("delete")
