@@ -15,10 +15,19 @@ from sempyro.odrl import ODRLPolicy
 from sempyro.utils.validator_functions import date_handler, force_literal_field
 from sempyro.vcard import VCard
 from typing import Literal, Optional
+from rdflib import Graph
+
+
 
 logger = logging.getLogger("__name__")
 
 SKOS = Namespace("http://www.w3.org/2004/02/skos/core#")
+EUCAIM = Namespace("https://cancerimage.eu/ontology/EUCAIM#")
+
+g = Graph()
+g.bind("eucaim", "https://cancerimage.eu/ontology/EUCAIM#")
+
+
 DCT  = "http://purl.org/dc/terms/"
 
 class Status(Enum):
@@ -28,7 +37,16 @@ class Status(Enum):
     Withdrawn = ADMSStatus.Withdrawn
 
 class SKOSConcept(BaseModel):
-    prefLabel: str = Field(...)
+    prefLabel: Optional[str]
+    uri: Optional[str] = None
+
+    def __str__(self):
+        return self.uri or self.prefLabel
+
+    class Config:
+        json_encoders = {
+            "SKOSConcept": lambda v: v.uri or v.prefLabel
+        }
 
 class AccessRights(Enum):
     public = URIRef("http://publications.europa.eu/resource/authority/access-right/PUBLIC")
@@ -89,14 +107,12 @@ class QualityAnnotation(RDFModel):
 
         
 class ProvenanceStatement(BaseModel):
-    # Aquí indicamos que este objeto será interpretado como un dct:ProvenanceStatement
     class Config:
-        # Metadatos para indicar que esta clase representa dct:ProvenanceStatement
         json_schema_extra = {
             "$ontology": "https://www.w3.org/TR/vocab-dcat-3/",
-            "$namespace": str(DCAT),  # Asegúrate de usar la URI correcta para el namespace DCAT
+            "$namespace": str(DCTERMS),  # <-- Añade esta línea
             "$IRI": str(DCTERMS.ProvenanceStatement),
-            "$prefix": "dcat"
+            "$prefix": "dct"
         }
     label: str = Field(
         default=None,
@@ -107,16 +123,15 @@ class ProvenanceStatement(BaseModel):
 
 
 class DCATResourceNxt(RDFModel, metaclass=ABCMeta):
-    """Resource published or curated by a single agent. Abstract class"""
-    model_config = ConfigDict(arbitrary_types_allowed=True,
-                              use_enum_values=True,
-                              json_schema_extra={
-                                  "$ontology": "https://www.w3.org/TR/vocab-dcat-3/",
-                                  "$namespace": str(DCAT),
-                                  "$IRI": DCAT.Resource,
-                                  "$prefix": "dcat"
-                              }
-                              )
+    class Config:
+        arbitrary_types_allowed = True
+        use_enum_values = True
+        json_schema_extra = {
+            "$ontology": "https://www.w3.org/TR/vocab-dcat-3/",
+            "$namespace": str(DCAT),
+            "$IRI": DCAT.Dataset,
+            "$prefix": "dcat"
+        }
     
     title: List[LiteralField] = Field(
         description="A clear and concise name for the dataset.",
@@ -147,9 +162,9 @@ class DCATResourceNxt(RDFModel, metaclass=ABCMeta):
          default=None,
          description="The entity responsible for making the resource available.",
          rdf_term=DCTERMS.publisher,
-         rdf_type="uri")
+         rdf_type="rdfs_literal")
 
-    theme: List[SKOSConcept] = Field(
+    theme: str = Field(
         default=None,
         description="A main category of the resource.",
         rdf_term=DCAT.theme,
@@ -199,7 +214,7 @@ class DCATResourceNxt(RDFModel, metaclass=ABCMeta):
         default=None,
         description="The nature or genre of the resource.",
         rdf_term=DCTERMS.type,
-        rdf_type="uri")
+        rdf_type="rdfs_literal")
     
     version: List[Union[str, LiteralField]] = Field(
         default=None,
@@ -235,6 +250,13 @@ class DCATResourceNxt(RDFModel, metaclass=ABCMeta):
         rdf_type="xsd:integer"
     )
     
+    spatial: str = Field(
+        default=None,
+        description="Spatial coverage using EU country URI.",
+        rdf_term=DCTERMS.spatial,
+        rdf_type="uri"
+    )
+
 
     legalBasis: str = Field(
         default=None,
@@ -274,7 +296,7 @@ class DCATResourceNxt(RDFModel, metaclass=ABCMeta):
     collectionMethod: List[SKOSConcept] = Field(
         default=None,
         description="The method used to collect the resource.",
-        rdf_term=DCAT.collectionMethod,
+        rdf_term=EUCAIM.collectionMethod,
         rdf_type="uri")
 
 
@@ -283,21 +305,20 @@ class DCATResourceNxt(RDFModel, metaclass=ABCMeta):
     #     description="An established standard to which the described resource conforms.",
     #     rdf_term=DCTERMS.conformsTo,
     #     rdf_type="uri")
-    
-
-
 
     
     birthsex: List[SKOSConcept] = Field(
         default=None,
         description="The sex of the subjects in the resource.",
-        rdf_term=SKOS.Concept,
+        rdf_term=EUCAIM.hasBirthSex,
         rdf_type="xsd:string")
 
+# eucaim:diagnosis <http://purl.bioontology.org/ontology/SNOMEDCT/399068003>
+# Recibimos sólo a partir de SNOMEDCT hay que añadir el purl bioontology
     condition: List[SKOSConcept] = Field(
         default=None,
         description="The condition of the subjects in the resource.",
-        rdf_term=SKOS.Concept,
+        rdf_term=EUCAIM.Diagnosis,
         rdf_type="xsd:string")
     
     hasImageModality: List[SKOSConcept] = Field(
@@ -309,7 +330,7 @@ class DCATResourceNxt(RDFModel, metaclass=ABCMeta):
     hasImageBodyPart: List[SKOSConcept] = Field(
         default=None,
         description="The body part(s) involved in the resource.",
-        rdf_term=SKOS.Concept,
+        rdf_term=EUCAIM.hasImageBodyPart,
         rdf_type="xsd:string")
     
     accessURL: AnyUrl = Field(

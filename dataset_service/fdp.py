@@ -63,7 +63,7 @@ def toDCAT(dataset): # Transformaciones de los campos a sus correspondientes dat
    if isinstance(provenance_value, str):
       LOG.warning(f"Ha entrado al IF de PROVENANCE: {provenance_value}")
       # Here, we're assuming the string should be mapped to the 'label' field.
-      dcat_dataset["provenance"] = {"label": provenance_value}
+      dcat_dataset["provenance"] = [{"label": provenance_value}]
    else:
       dcat_dataset["provenance"] = provenance_value
 
@@ -90,12 +90,7 @@ def toDCAT(dataset): # Transformaciones de los campos a sus correspondientes dat
    # dcat_dataset["theme"] = "http://publications.europa.eu/resource/authority/data-theme/HEAL"
 # Suponiendo que SKOSConcept tiene un argumento 'uri' para inicializar la URL
    theme_uri = "http://publications.europa.eu/resource/authority/data-theme/HEAL"
-   dcat_dataset["theme"] = [
-      SKOSConcept(
-         uri=theme_uri,
-         prefLabel=theme_uri
-      )
-   ]
+   dcat_dataset["theme"] = theme_uri
 
    dcat_dataset["identifier"] = [dataset["id"]]
 
@@ -170,22 +165,37 @@ def toDCAT(dataset): # Transformaciones de los campos a sus correspondientes dat
 
    # dcat_dataset["conforms_to"] = dataset["license"]["url"]
 
-   def convert_sex_to_skos(sex):
-      """
-      Convierte el valor en la columna 'sex' a una lista de SKOSConcept.
-      sex puede ser None, string o lista de strings.
-      """
-      if not sex:
+   # def convert_sex_to_uri(sex):
+   #  SKOS_SEX_URIS = {
+   #      "Male": "http://purl.obolibrary.org/obo/PATO_0000384",
+   #      "Female": "http://purl.obolibrary.org/obo/PATO_0000383",
+   #      "Unknown": "http://purl.obolibrary.org/obo/PATO_0001394"
+   #  }
+   #  if not sex:
+   #      return []
+   #  if isinstance(sex, str):
+   #      return [SKOS_SEX_URIS.get(sex, sex)]
+   #  if isinstance(sex, list):
+   #      return [SKOS_SEX_URIS.get(s, s) for s in sex]
+   #  raise ValueError(f"Valor inesperado en sex: {sex}")
+
+   # dcat_dataset["birthsex"] = convert_sex_to_uri(dataset["sex"])
+
+   def convert_sex_to_skos(sex_list):
+      SKOS_SEX_URIS = {
+         "Male":   "http://purl.obolibrary.org/obo/PATO_0000384",
+         "Female": "http://purl.obolibrary.org/obo/PATO_0000383",
+         "Unknown":"http://purl.obolibrary.org/obo/PATO_0001394",
+      }
+      if not sex_list:
          return []
-      if isinstance(sex, str):
-         return [SKOSConcept(prefLabel=sex)]
-      if isinstance(sex, list):
-         return [SKOSConcept(prefLabel=s) for s in sex]
-      raise ValueError(f"Valor inesperado en sex: {sex}")
+      items = sex_list if isinstance(sex_list, list) else [sex_list]
+      return [
+         SKOSConcept(uri=SKOS_SEX_URIS.get(s, s), prefLabel=s)
+         for s in items
+      ]
 
-   dcat_dataset["birthsex"] = convert_sex_to_skos(dataset["sex"])
-
-
+   dcat_dataset["birthsex"] = convert_sex_to_skos(dataset.get("sex"))
    
    SNOMED_MAPPING = {
       "Prostate cancer": "http://purl.bioontology.org/ontology/SNOMEDCT/399068003",
@@ -212,7 +222,7 @@ def toDCAT(dataset): # Transformaciones de los campos a sus correspondientes dat
       raise ValueError(f"Unexpected value in diagnosis: {diagnosis_list}")
 
    dcat_dataset["condition"] = map_condition(dataset["diagnosis"])
-#  Añadir terminos de snomed, si diagnosis devuelve un diagnostico tipo lung devulver la url entera para lung como la del ejemplo, qu een este caso es de prostata
+#  Añadir terminos de snomed, si diagnosis devuelve un diagnostico tipo lung devulver la url entera para lung como la del ejemplo, qu en este caso es de prostata
 
    # 'contact_point': debe ser una lista de tipo 'Url' o 'VCard' (uso de VCard para nombre y email)
 ##   dcat_dataset["hasImageModality"] = [SKOSConcept(prefLabel=dataset["modality"])]
@@ -220,21 +230,13 @@ def toDCAT(dataset): # Transformaciones de los campos a sus correspondientes dat
 # Tiene poco que ver con la url de enola eucaim:hasImageModality <http://www.radlex.org/RID/RID10312
    
    def convert_body_parts_to_skos(body_parts):
-      """
-      Convierte el valor en la columna 'bodyPart' a una lista de SKOSConcept.
-      body_parts puede ser None, string o lista de strings.
-      """
-      if not body_parts:
-         # Si es None, vacío o equivalente
-         return []
-      if isinstance(body_parts, str):
-         # Si es un único string, creamos una sola instancia
-         return [SKOSConcept(prefLabel=body_parts)]
-      if isinstance(body_parts, list):
-         # Si es una lista de strings
-         return [SKOSConcept(prefLabel=bp) for bp in body_parts]
-      # Si llega algo que no es ni string ni lista
-      raise ValueError(f"Valor inesperado en bodyPart: {body_parts}")
+    if not body_parts:
+        return []
+    if isinstance(body_parts, str):
+        return [SKOSConcept(prefLabel=body_parts)]
+    if isinstance(body_parts, list):
+        return [SKOSConcept(prefLabel=bp) for bp in body_parts]
+    raise ValueError(f"Valor inesperado en bodyPart: {body_parts}")
 
    dcat_dataset["hasImageBodyPart"] = convert_body_parts_to_skos(dataset["bodyPart"])
    
