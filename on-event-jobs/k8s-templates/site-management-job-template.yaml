@@ -1,0 +1,44 @@
+# This is the template of the k8s job launched whenever a site is created or updated.
+# Template variables that will be replaced by the launcher (the Dataset-service):
+#   __SITE_CODE__, __SITE_NAME__, __SITE_COUNTRY__, __SITE_CONTACT_PERSON_NAME__, __SITE_CONTACT_PERSON_EMAIL__
+# NOTE: the script for create (create-site.sh) should be idempotent, the result should be the same if called multiple times.
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # name: it is set by the caller
+  # namespace: it is set by the caller
+spec:
+  template:
+    spec:
+      volumes:
+        - name: dataset-service-data-volume
+          persistentVolumeClaim:
+            claimName: dataset-service-data
+
+      containers:
+        - name: site-management
+          image: harbor.chaimeleon-eu.i3m.upv.es/chaimeleon-services/dataset-service-on-event-jobs:1.0
+          imagePullPolicy: Always
+          workingDir: "/home/ubuntu/scripts"
+          command: ["/bin/bash"]
+          args: ["/home/ubuntu/scripts/create-site.sh"]
+          volumeMounts:
+            - mountPath: "/home/ubuntu/scripts"
+              subPath: "on-event-jobs/scripts"
+              name: dataset-service-data-volume
+          env:
+            - name: SITE_CODE
+              value: "__SITE_CODE__"
+            - name: SITE_NAME
+              value: "__SITE_NAME__"
+            - name: SITE_COUNTRY
+              value: "__SITE_COUNTRY__"
+            - name: SITE_CONTACT_PERSON_NAME
+              value: "__SITE_CONTACT_PERSON_NAME__"
+            - name: SITE_CONTACT_PERSON_EMAIL
+              value: "__SITE_CONTACT_PERSON_EMAIL__"
+              
+      restartPolicy: Never  # no restart container if fails
+  backoffLimit: 0   # no retry to launch pod if fails
+  ttlSecondsAfterFinished: 86400   # auto remove the job 24 hours after finish

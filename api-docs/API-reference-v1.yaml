@@ -488,15 +488,63 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /datasets/{id}/relaunchCreationJob:
+  /datasets/{id}/restartCreation:
     post:
       tags: [datasets]
       summary: Relaunch the creation job of a dataset
       operationId: relaunchDatasetCreationJob
       description: |
-        (This operation is intended only for the superadmin_datasets role; check if "allowedActionsForTheUser" contains "relaunchCreationJob".)
+        (This operation is intended only for the superadmin_datasets role; check if "allowedActionsForTheUser" contains "restartCreation".)
         When a creation job is interrupted (and fail) for any reason and the admin fix the problem,
         then another creation job can be launched in k8s with this operation in order to restart and complete the process of creation.
+      parameters:
+        - name: id
+          description: the id of the dataset
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: "successful operation"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: "not found"
+
+  /datasets/{id}/readjustFilePermissions:
+    post:
+      tags: [datasets]
+      summary: Readjust the file permissions of a dataset
+      operationId: readjustFilePermissions
+      description: |
+        (This operation is intended only for the superadmin_datasets role; check if "allowedActionsForTheUser" contains "readjustFilePermissions".)
+        When the permissions in files or directories of a dataset in datalake are changed (for example if reuploaded a study),
+        then a job can be launched in k8s with this operation in order to readjust these permissions.
+      parameters:
+        - name: id
+          description: the id of the dataset
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: "successful operation"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: "not found"
+
+  /datasets/{id}/recollectMetadata:
+    post:
+      tags: [datasets]
+      summary: Recollect the metadata of a dataset
+      operationId: recollectMetadataForDataset
+      description: |
+        (This operation is intended only for the superadmin_datasets role; check if "allowedActionsForTheUser" contains "recollectMetadata".)
+        When a the service is updated to a new version which adds new metadata fields,
+        then a job can be launched in k8s with this operation in order to rescan for collecting metadata again and fill all the fields.
       parameters:
         - name: id
           description: the id of the dataset
@@ -819,7 +867,7 @@ paths:
                   type: array
                   description: |
                     (Optional) Array of the roles to be assigned to the user.
-                    If not provided the previous array will be kept (if new user, just an empty array). 
+                    If not provided the previous array will be kept (if new user, just an empty array will be assigned). 
                   example: ["dataset-administrator", "data-scientists"]
                   items:
                     type: string
@@ -827,17 +875,19 @@ paths:
                   type: array
                   description: |
                     (Optional) Array of the projects to be assigned to the user.
-                    If not provided the previous array will be kept (if new user, just an empty array). 
+                    If not provided the previous array will be kept (if new user, just an empty array will be assigned). 
                   example: ["CHAIMELEON"]
                   items:
                     type: string
                 siteCode:
                   type: string
                   minLength: 2
-                  maxLength: 50
+                  maxLength: 16
                   description: |
-                    (Optional) The ID of site which the user belongs to.
-                    If not provided the previous value will be kept (if new user, just an empty string).
+                    (Optional) The code of site which the user belongs to.
+                    If not provided, the previous value will be kept (if new user, just null will be assigned).
+                    It can be null, which means no site 
+                    (usually the site is mandatory only for some roles, those who upload data).
       responses:
         '201':
           description: item created
@@ -1023,12 +1073,14 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /userSites:
+  /sites:
     get:
-      tags: [users]
-      summary: List users sites.
-      operationId: listUserSites
-      description: "List all available sites for users."
+      tags: [sites]
+      summary: List sites
+      operationId: listSites
+      description: |
+        List all available sites for users (uploaders) and studies (provenance site). 
+        Usually the provenance site of a study is the site of the user who uploaded it.
       responses:
         '200':
           description: "successfully retrieved the list of sites"
@@ -1037,9 +1089,64 @@ paths:
               schema:
                 type: array
                 items:
-                  type: string
+                  type: object
+                  properties:
+                    code:
+                      $ref: '#/components/schemas/SiteCode'
+                    name:
+                      type: string
+                      example: 'Hospital Universitario La Fe'
         '401':
           $ref: '#/components/responses/Unauthorized'
+
+  /sites/{code}:
+    put:
+      tags: [sites]
+      summary: Create or update site
+      operationId: createSite
+      description: Creates a new site or updates if already exists.
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/SiteCode'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SiteDetails'
+      responses:
+        '201':
+          description: site created or updated
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    get:
+      tags: [sites]
+      summary: Get the details of a site
+      operationId: getSite
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/SiteCode'
+      responses:
+        '200':
+          description: "successfully retrieved the details of the site"
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SiteDetails'
+                  - type: object
+                    properties:
+                      code:
+                        $ref: '#/components/schemas/SiteCode'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: "not found"
 
   /projects:
     get:
@@ -1183,13 +1290,17 @@ paths:
                           So this property is intended for let the UI know which other actions to show.
                           Possible values are:
                            * `config` - To show the form with the configuration params for the project.
-                        example: ["config"]
+                           * `viewSubprojects` - To show the list of current subprojects in the project.
+                        example: ["config", "viewSubprojects"]
                         items:
                           type: string
                           enum: 
                            - "config"
+                           - "viewSubprojects"
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: "not found"
     patch:
       tags: [projects]
       summary: Change a property of a project by its code
@@ -1231,6 +1342,41 @@ paths:
         '404':
           description: "Not found."
 
+  /projects/{code}/logo:
+    put:
+      tags: [projects]
+      summary: Put project logo
+      operationId: putProjectLogo
+      description: |
+        Upload an image file for the project's logo.
+        Or remove the current logo with empty string.
+        Alternatively you can copy the image from any URL with PATCH /projects/{code} {"property": "logoUrl", "value": "http://..."}
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ProjectCode'
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                logo:
+                  type: string
+                  format: binary
+                  description: |
+                    The contents of the file to upload.
+                    Empty string to remove the logo of the project.
+      responses:
+        '201':
+          description: project logo updated
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '400': 
+          description: "Bad request content."
+
   /projects/{code}/config:
     put:
       tags: [projects]
@@ -1271,6 +1417,87 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProjectConfig'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /projects/{code}/subprojects:
+    get:
+      tags: [projects]
+      summary: List subprojects of a project
+      operationId: listSubprojects
+      description: |
+        List the subprojects of a project.
+        Subprojects are just subsets of cases within a project.
+        The users have to select a subproject when they upload images putting the corresponding ID (externalId here) in a dicom tag.
+        Subprojects are stored here for two reasons:
+         - to create them in the case explorer (an on-event job is launched for that)
+         - to check that all the images in a dataset have a dicom tag with an existent subproject here (matching with an externalId)
+           and that is a subproject of the project where the dataset is created 
+           (its a security check to avoid creating a dataset in a project with studies from other projects).
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ProjectCode'
+      responses:
+        '200':
+          description: "Successfully retrieved the list of subprojects."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  list:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        code:
+                          $ref: '#/components/schemas/SubprojectCode'
+                      allOf:
+                        - $ref: '#/components/schemas/Subproject'
+                  allowedActionsForTheUser:
+                    type: array
+                    description: |
+                      The actions that the current authenticated user can do on subprojects. 
+                      This property is intended for let the UI know which actions to show.
+                      Possible values are:
+                        * `create` - To show the boton/link to the creation form for a new subproject.
+                        * `edit` - To show the boton/link to the edit form for each subproject of the list.
+                    example: ["create", "edit"]
+                    items:
+                      type: string
+                      enum: 
+                        - "create"
+                        - "edit"
+
+  /projects/{code}/subprojects/{subcode}:
+    put:
+      tags: [projects]
+      summary: Create or update subproject
+      operationId: putSubproject
+      description: Creates a new subproject or updates if already exists.
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ProjectCode'
+        - name: subcode
+          in: path
+          required: true
+          description: "The code which identifies the subproject."
+          schema:
+            $ref: '#/components/schemas/SubprojectCode'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Subproject'
+      responses:
+        '201':
+          description: project created or updated
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -1798,7 +2025,9 @@ components:
                        The k8s operator will be able to do a POST /datasetAccess/{id} for this user on this dataset.
              * `delete` - To do a DELETE /datasets/{id}.
              * `checkIntegrity` - To do a POST /datasets/{id}/checkIntegrity.
-             * `relaunchCreationJob` - To do a POST /datasets/{id}/relaunchCreationJob.
+             * `restartCreation` - To do a POST /datasets/{id}/restartCreation.
+             * `readjustFilePermissions` - To do a POST /datasets/{id}/readjustFilePermissions.
+             * `recollectMetadata` - To do a POST /datasets/{id}/recollectMetadata.
              * `viewAccessHistory` - To do a GET /datasets/{id}/accessHistory
              * `manageACL` - To do any operation in /datasets/{id}/acl and /datasets/{id}/acl/{username}
           example: ["use", "checkIntegrity"]
@@ -1808,7 +2037,9 @@ components:
              - "use"
              - "delete"
              - "checkIntegrity"
-             - "relaunchCreationJob"
+             - "restartCreation"
+             - "readjustFilePermissions"
+             - "recollectMetadata"
              - "viewAccessHistory"
              - "manageACL"
         studiesCount:
@@ -2073,13 +2304,51 @@ components:
         siteCode:
           type: string
           minLength: 2
-          maxLength: 50
-          description: The site code. 
-            It is usually used when creating the user account in the Case Explorer (QP-Insights),
-            so it should correspond to one of the sites created there.
-            It is important when the user has the role of data uploader, 
-            because that user will be able to manage the data uploaded by any other user but from same site.
+          maxLength: 16
+          description: |
+            (Optional) The code of site which the user belongs to.
+            It can be null, which means no site 
+            (usually the site is mandatory only for some roles, those who upload data).
           example: "UPV"
+
+    SiteCode:
+      type: string
+      pattern: '^[a-zA-Z-]+$'
+      minLength: 2
+      maxLength: 16
+      description: "The unique code of the site: short name without spaces (usually capital letters and numbers and hyphens instead of spaces)"
+      example: "HULAFE"
+
+    SiteDetails:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 50
+          description: "The name of the site."
+          example: "Hospital Universitario La Fe"
+        country:
+          type: string
+          minLength: 3
+          maxLength: 40
+          description: "The country of the site."
+          example: "Spain"
+        url:
+          type: string
+          maxLength: 256
+          description: "(Optional, default is empty) URL to the site's web page."
+          example: "https://www.iislafe.es/"
+        contactName:
+          type: string
+          maxLength: 128
+          description: "(Optional, default is empty) Name of the responsible person of the site."
+          example: "James Gordon"
+        contactEmail:
+          type: string
+          maxLength: 128
+          description: "(Optional, default is empty) E-mail address of the responsible person of the site."
+          example: "james@email.com"
 
     ProjectCode:
       type: string
@@ -2165,7 +2434,36 @@ components:
           description: |
             (Optional, default is empty) The grant code which the dataset publications will be related to.
           example: "10.13039/501100000780::952172"
-      
+
+    SubprojectCode:
+      description: "The code which identifies the subproject."
+      example: LUNG-CANCER
+      allOf:
+        - $ref: '#/components/schemas/ProjectCode'
+
+    Subproject:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 50
+          description: "The name of the subproject."
+          example: "Lung cancer"
+        description:
+          type: string
+          maxLength: 80
+          description: "Short description of the subproject."
+          example: "The lung cancer cases of the project."
+        externalId:
+          type: string
+          maxLength: 40
+          description: |
+            (Optional, default is empty) The id of the subproject in the case explorer, 
+            i.e. the value of the dicom tag (70D1, 2000) in the images.
+            Usually you should create a subproject with empty externalId, 
+            and the on-event job creates it in the case explorer and assigns the externalId.
+          example: "6436b3f00011ce501f0aa4fc"
+
     License:
       type: object
       description: "Name and link to the license document."

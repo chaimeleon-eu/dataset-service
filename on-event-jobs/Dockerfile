@@ -22,7 +22,9 @@ RUN apt-get update && \
 COPY requirements-pip.txt ${MAIN_DIR}/
 RUN pip install --no-cache-dir --upgrade pip \
  && pip install --no-cache-dir -r requirements-pip.txt
-    
+
+## Uncomment if you want to add the scripts dir to the image 
+## instead of mount it as a volume (see the job template)
 #COPY scripts ${MAIN_DIR}
 
 # CMD [ "/home/ubuntu/run.sh" ]

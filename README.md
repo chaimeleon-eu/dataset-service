@@ -93,6 +93,7 @@ Example of "external" dataset creation:
 $ curl -i -X POST \
        -H "Authorization: bearer $DSS_TOKEN" \
        -F name="Maastricht Lung1" -F description="Test dataset from Maastricht University." \
+       -F externalSubfolder="maastricht-university" \
        -F clinical_data=@"NSCLC Radiomics Lung1.clinical.csv" \
        "${DSS_ENDPOINT}/datasets?external=True"
 
@@ -104,6 +105,17 @@ Content-Type: application/json
 
 {"url": "/api/datasets/3388a9c5-4ebb-45ba-93fc-7b54813f0cf2"}
 ```
+The "external" datasets are temporary transferred from other nodes to work with them in this node 
+taking advantatge of computational resources or available applications. Therefore they are not traced.  
+Once an external dataset is transferred to our datalake directory, 
+an admin user can do the POST to create the dataset into the system (database and datasets directory).
+The index will be built from directories structure. Expected path and structure of directories:  
+  `datalake_mount_path/datalake_external_subpath/externalSubfolder/subject_name/study_name/series_name/images`
+
+`datalake_mount_path` and `datalake_external_subpath` are configurable (see the configuration file).
+`externalSubfolder` is a form field in the request.
+The `clinical_data` form field in the request is optional, 
+if it's missing then the eforms.json file will be created with empty clinical data.
 
 The creation of a medium or big dataset can be a time consuming process, so it is asynchronous.
 The POST operation returns the code 201 after some checks over the input and the creation of the dataset in database.
@@ -238,6 +250,86 @@ content-length: 297
  "logoUrl": "", 
  "editablePropertiesByTheUser": ["name", "shortDescription", "externalUrl", "logoUrl"], 
  "allowedActionsForTheUser": ["config"]}
+```
+
+### Create a project
+
+PUT /projects/{code}
+
+With the authorization header and the project properties within the body in JSON format. 
+If success, the code 201 will be returned. 
+If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
+
+Details: https://chaimeleon-eu.i3m.upv.es/dataset-service/api-doc#tag/projects/operation/createProject
+
+Example:
+```
+$ curl -i -X PUT -H "Authorization: bearer $DSS_TOKEN" -H "Content-Type: application/json" \
+       -d '{ "name": "My cool project", "shortDescription": "...", "projectConfig": {}}' \
+       "${DSS_ENDPOINT}/projects/MY-COOL-PROJECT"
+HTTP/1.1 201 Created
+Content-Length: 0
+Content-Type: text/html; charset=UTF-8
+```
+
+### Upload logo for a project
+
+PUT /projects/{code}/logo
+
+With the authorization header and the image file within the body in multipart/form-data format. 
+If success, the code 201 will be returned. 
+If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
+
+Details: https://chaimeleon-eu.i3m.upv.es/dataset-service/api-doc#tag/projects/operation/putProjectLogo
+
+Example:
+```
+$ curl -i -X PUT -H "Authorization: bearer $DSS_TOKEN" \
+       -F logo=@"logo.png" \
+       "${DSS_ENDPOINT}/projects/MY-COOL-PROJECT/logo"
+HTTP/2 201
+Content-Length: 0
+Content-Type: text/html; charset=UTF-8
+```
+
+### Create a subproject
+
+PUT /projects/{code}/subprojects/{subcode}
+
+With the authorization header and the project properties within the body in JSON format. 
+If success, the code 201 will be returned. 
+If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
+
+Details: https://chaimeleon-eu.i3m.upv.es/dataset-service/api-doc#tag/projects/operation/putSubproject
+
+Example:
+```
+$ curl -i -X PUT -H "Authorization: bearer $DSS_TOKEN" -H "Content-Type: application/json" \
+       -d '{ "name": "MY-COOL-PROJECT - Lung studies", "description": "MY-COOL-PROJECT - Lung studies"}' \
+       "${DSS_ENDPOINT}/projects/MY-COOL-PROJECT/subprojects/LUNG"
+HTTP/1.1 201 Created
+Content-Length: 0
+Content-Type: text/html; charset=UTF-8
+```
+
+### Create a site
+
+PUT /sites/{code}
+
+With the authorization header and the user properties within the body in JSON format. 
+If success, the code 201 will be returned. 
+If fail, a 40X code will be returned with a JSON object in the body containing also the code and the error message.
+
+Details: https://chaimeleon-eu.i3m.upv.es/dataset-service/api-doc#tag/sites/operation/createSite
+
+Example of creation of a site for users:
+```
+$ curl -i -X PUT -H "Authorization: bearer $DSS_TOKEN" -H "Content-Type: application/json" \
+       -d '{ "name": "UPV", "country": "Spain", "url": "", "contactName": "", "contactEmail": ""}' \
+       "${DSS_ENDPOINT}/sites/UPV"
+HTTP/1.1 201 Created
+Content-Length: 0
+Content-Type: text/html; charset=UTF-8
 ```
 
 ### Create a user
@@ -415,9 +507,9 @@ docker exec -it my-postgres bash
     exit
 ```
 
-## [Optional] Add scripts to be executed on user creation/deletion
+## [Optional] Add scripts to be executed on some events
 
-See [here](user-management-jobs/README.md).
+See [here](on-event-jobs/README.md).
 
 
 ## Configuration

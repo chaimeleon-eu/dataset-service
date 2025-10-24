@@ -24,7 +24,8 @@ def download_url(url, destinationFilePath, maxFileSizeMBytes=None):
     destinationFilePath = shlex.quote(destinationFilePath)
     if maxFileSizeMBytes is None:
         output, status = execute_cmd("wget -O " + destinationFilePath + " " + url)
-        return
+        if status != 0: raise Exception(output)
+        else: return
     
     # max_file_size_bytes = str(maxFileSizeMBytes*1024*1024)
     # output, status = execute_cmd("curl --max-filesize "+ max_file_size_bytes +" -o " + destinationFilePath + " " + url)
@@ -35,7 +36,8 @@ def download_url(url, destinationFilePath, maxFileSizeMBytes=None):
     max_file_size_kb = str(maxFileSizeMBytes*1024)
     bash_cmd = shlex.quote("(ulimit -f "+max_file_size_kb+"; wget -O " + destinationFilePath + " " + url + ")")
     output, status = execute_cmd("bash -c "+bash_cmd)
-    return 
+    if status != 0: raise Exception(output)
+    else: return
 
 def is_valid_url(url: str, empty_path_allowed: bool = True) -> bool:
     try:

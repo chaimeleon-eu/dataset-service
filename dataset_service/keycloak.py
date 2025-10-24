@@ -249,7 +249,7 @@ class KeycloakAdminAPIClient:
             attName = attProfile["name"]
             attDisplayName = attProfile["displayName"]
             attValues = ""
-            if attName in user["attributes"]:
+            if "attributes" in user and attName in user["attributes"]:
                 attValues = user["attributes"][attName]
             elif attName in user:  # base attribute
                 attValues = user[attName]
@@ -263,7 +263,7 @@ class KeycloakAdminAPIClient:
     def getUserAttribute(self, userId, attributeName):
         logging.root.debug('Getting user from KeycloakAdminAPI...')
         user = self._GET_JSON("users/"+userId)
-        if attributeName in user["attributes"]:
+        if "attributes" in user and attributeName in user["attributes"]:
             return user["attributes"][attributeName][0] # If the attribute is repeated there will be more than one items, 
                                                         # but let's return only the first value.
         else: return None
@@ -271,6 +271,7 @@ class KeycloakAdminAPIClient:
     def setUserAttribute(self, userId, attributeName, attributeValue):
         logging.root.debug('Getting user from KeycloakAdminAPI...')
         user = self._GET_JSON("users/"+userId)
+        if not "attributes" in user: user["attributes"] = {}
         if not attributeName in user["attributes"]:
             attributeValues = [attributeValue]
         else:

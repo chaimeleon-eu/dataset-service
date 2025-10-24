@@ -33,7 +33,7 @@ class DBDatasetsOperator():
             if gid is None: extra_cols = sql.SQL(""); extra_values = sql.SQL("")
             elif gid == -1: extra_cols = sql.SQL(", gid"); extra_values = sql.SQL(", nextval('gid_sequence')")
             else: extra_cols = sql.SQL(", gid"); extra_values = sql.SQL(", ")+sql.Literal(gid)
-            if site != None: extra_cols += sql.SQL(", site_code"); extra_values += sql.SQL(", ")+sql.Literal(site)
+            if site != '': extra_cols += sql.SQL(", site_code"); extra_values += sql.SQL(", ")+sql.Literal(site)
             self.cursor.execute(sql.SQL("""
                 INSERT INTO author (id, username{}) 
                 VALUES ({}, {}{})
@@ -44,7 +44,7 @@ class DBDatasetsOperator():
             if gid is None: extra_sets = sql.SQL("")
             elif gid == -1: extra_sets = sql.SQL(", gid=nextval('gid_sequence')")
             else: extra_sets = sql.SQL(", gid=")+sql.Literal(gid)
-            if site != None: extra_sets += sql.SQL(", site_code=")+sql.Literal(site)
+            if site != '': extra_sets += sql.SQL(", site_code=")+sql.Literal(site)
             self.cursor.execute(sql.SQL("""
                 UPDATE author SET username = {}{}
                 WHERE id = {};"""
@@ -82,10 +82,34 @@ class DBDatasetsOperator():
     
     def getSites(self):
         self.cursor.execute("""
-            SELECT DISTINCT site_code
-            FROM author
-            ORDER BY site_code;""")
-        return [row[0] for row in self.cursor]
+            SELECT code, name
+            FROM site
+            ORDER BY code;""")
+        res = []
+        for row in self.cursor:
+            res.append(dict(code = row[0], name = row[1]))
+        return res
+    
+    def getSite(self, code):
+        self.cursor.execute("""
+            SELECT code, name, country, url, contact_name, contact_email
+            FROM site WHERE code=%s LIMIT 1;""", (code,))
+        row = self.cursor.fetchone()
+        if row is None: return None
+        return dict(code = row[0], name = row[1], country = row[2],
+                    url = row[3], contact_name = row[4], contact_email = row[5])
+
+    def createOrUpdateSite(self, code, name, country, url, contactName, contactEmail):
+        self.cursor.execute("""
+            INSERT INTO site (code, name, country, url, contact_name, contact_email)
+            VALUES (%s,%s,%s,%s,%s,%s)
+            ON CONFLICT (code) DO UPDATE
+                SET name = excluded.name,
+                    country = excluded.country,
+                    url = excluded.url,
+                    contact_name = excluded.contact_name,
+                    contact_email = excluded.contact_email;""",
+            (code, name, country, url, contactName, contactEmail))
     
     def createDataset(self, dataset, userId):
         self.cursor.execute("""

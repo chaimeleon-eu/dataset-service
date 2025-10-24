@@ -1,3 +1,5 @@
+import logging
+import json
 from dataset_service.POSIX import *
 
 class Roles:
@@ -75,10 +77,18 @@ class User:
 
     def canCreateDatasets(self):
         return self._token != None and User.roles.admin_datasets in self._token["appRoles"]
+    
+    def canCreateExternalDatasets(self):
+        return self.isSuperAdminDatasets()
 
-    def canRelaunchDatasetCreation(self, dataset):
-        return self._token != None and User.roles.superadmin_datasets in self._token["appRoles"] \
-            and "creating" in dataset and dataset["creating"]
+    def canRestartCreationOfDataset(self, dataset):
+        return self.isSuperAdminDatasets() and "creating" in dataset and dataset["creating"]
+    
+    def canReadjustFilePermissionsOfDatasets(self):
+        return self.isSuperAdminDatasets()
+    
+    def canRecollectMetadataOfDatasets(self):
+        return self.isSuperAdminDatasets()
 
     def canDeleteDataset(self, dataset):
         if self._token is None: return False
@@ -87,10 +97,20 @@ class User:
         return "creating" in dataset and dataset["creating"]
 
     def canViewDatasetDetails(self, dataset):
+        # superadmin always can view
         if self._token != None and User.roles.superadmin_datasets in self._token["appRoles"]: return True
+        # when draft only author can view
         if dataset["draft"] and (self._token is None or self._token["sub"] != dataset["authorId"]): return False
+        # when public anybody can view
         if dataset["public"]: return True
+        # otherwise only users from dataset's project
         return (dataset["project"] in self.getProjects())
+    
+    def canViewDatasetExtraDetails(self, datasetProject):
+        # superadmin always can view
+        if self._token != None and User.roles.superadmin_datasets in self._token["appRoles"]: return True
+        # otherwise only if the user is in dataset's project can see the dataset's extra details
+        return (datasetProject in self.getProjects())   
 
     def canUseDataset(self, dataset, datasetACL):
         # Essential conditions
@@ -101,7 +121,9 @@ class User:
         if User.roles.superadmin_datasets in self._token["appRoles"]: return True
         if dataset["invalidated"]: return False
         # The main rule
-        if dataset["project"] in self.getProjects(): return True
+        userProjects = self.getProjects()
+        logging.root.debug("User projects: " + json.dumps(list(userProjects)))
+        if dataset["project"] in userProjects: return True
         if dataset["public"]: return (self.uid in datasetACL)
         else: return False
 
@@ -145,8 +167,12 @@ class User:
             allowedActions.append("delete")
         if self.canCheckIntegrityOfDatasets():
             allowedActions.append("checkIntegrity")
-        if self.canRelaunchDatasetCreation(dataset):
-            allowedActions.append("relaunchCreationJob")
+        if self.canRestartCreationOfDataset(dataset):
+            allowedActions.append("restartCreation")
+        if self.canReadjustFilePermissionsOfDatasets():
+            allowedActions.append("readjustFilePermissions")
+        if self.canRecollectMetadataOfDatasets():
+            allowedActions.append("recollectMetadata")
         if self.canAdminDatasetAccesses():
             allowedActions.append("viewAccessHistory")
         if self.canManageACL(dataset):
@@ -210,10 +236,20 @@ class User:
         allowedActions = []
         if self.canModifyProject(projectCode):
             allowedActions.append("config")
+            allowedActions.append("viewSubprojects")
         # if self.canDeleteProject(projectCode):
         #     allowedActions.append("delete")
         # if self.canManageMembers(projectCode):
         #     allowedActions.append("manageMembers")
+        return allowedActions
+    
+    def getAllowedActionsOnSubprojectsForTheUser(self,  projectCode: str):
+        allowedActions = []
+        if self.canAdminProjects():
+            allowedActions.append("create")
+            allowedActions.append("edit")
+        # if self.canDeleteProject(projectCode):
+        #     allowedActions.append("delete")
         return allowedActions
 
 

@@ -266,7 +266,8 @@ def postSetUI():
     else:
         sourceUrl = bottle.request.body.read().decode('UTF-8')
         LOG.debug("URL in body: " + sourceUrl )
-        utils.download_url(sourceUrl, destinationZipPath)
+        try: utils.download_url(sourceUrl, destinationZipPath)
+        except Exception as ex: raise ex
 
     # As the new package usually contains different file names in "static" dir, we have to remove the previous one, 
     # otherwise the files accumulate taking up disk space.
@@ -293,57 +294,6 @@ def getDatalakeInfo(file_path):
 class WrongInputException(Exception): pass
 class K8sException(Exception): pass
 
-def checkPath(basePath: str, relativePath: str):
-    ''' Ensures relativePath is in fact a subpath of basePath. Raises an exception if wrong path.
-        This is to avoid a malicious user try to access system directories with "..", absolute paths like "/etc" or symbolic links.
-    '''
-    base = Path(basePath).resolve()  # Resolve symbolic links and returns absolute path
-    path = (base / relativePath).resolve()
-    if not base in path.parents:
-        raise WrongInputException("Wrong path: " + str(base / relativePath))
-
-def completeDatasetFromCSV(dataset, csvdata):
-    if CONFIG is None: raise Exception()
-    import csv
-    #LOG.debug("======" + csvdata)
-    csvreader = csv.reader(csvdata) #, delimiter=',')
-    first = True
-    header = []
-    for row in csvreader:
-        if len(row) == 0: continue        
-        if first: 
-            first = False
-            header = row
-        else:
-            subjectName = row[0]
-            subjectPath = "0-EXTERNAL-DATA/maastricht-university/" + row[0]
-            if CONFIG.self.datalake_mount_path != '':
-                checkPath(CONFIG.self.datalake_mount_path, subjectPath)
-                studies = os.listdir(os.path.join(CONFIG.self.datalake_mount_path, subjectPath))
-                for studyDirName in studies:
-                    if studyDirName == "NIFTI": continue    # ignore special studies
-                    studyDirPath = os.path.join(subjectPath, studyDirName)
-                    series = []
-                    for serieDirName in os.listdir(os.path.join(CONFIG.self.datalake_mount_path, studyDirPath)):
-                        seriePath = os.path.join(CONFIG.self.datalake_mount_path, studyDirPath, serieDirName)
-                        if os.path.isdir(seriePath):  series.append({'folderName': serieDirName, 'tags': []})
-
-                    dataset["studies"].append({
-                        'studyId': str(uuid.uuid4()),
-                        'studyName': studyDirName,
-                        'subjectName': subjectName,
-                        'pathInDatalake': studyDirPath,
-                        'series': series,
-                        'url': ""
-                    })
-            eform = {}
-            for i in range(1, len(header)):
-                eform[header[i]] = row[i]
-            dataset["subjects"].append({
-                'subjectName': subjectName,
-                'eForm': eform 
-            })
-
 def _checkPropertyAsString(propName:str, value: str, possible_values: list[str] | None = None, min_length: int = 0, max_length: int = 0, 
                            only_alphanum_or_dash: bool = False):
     if not isinstance(value, str): 
@@ -357,7 +307,7 @@ def _checkPropertyAsString(propName:str, value: str, possible_values: list[str] 
     if only_alphanum_or_dash and not value.replace('-','a').isalnum(): 
         raise WrongInputException("Invalid value for '%s', only alphanumeric characters and '-' are allowed." % (propName))
 
-def _checkPropertyAsArrayOfStrings(propName: str, value: list[str], item_possible_values: Iterable[str] | None = None, item_max_length: int = 0,
+def _checkPropertyAsArrayOfStrings(propName: str, value, item_possible_values: Iterable[str] | None = None, item_max_length: int = 0,
                                    item_only_alphanum_or_dash: bool = False):
     if not isinstance(value, list):
         raise WrongInputException("'%s' must be an array of strings." % propName)
@@ -376,6 +326,11 @@ def _checkPropertyAsArrayOfStrings(propName: str, value: list[str], item_possibl
 def _checkPropertyAsObject(propName: str, value: dict):
     if not isinstance(value, dict): raise WrongInputException("'%s' must be an object." % propName)
 
+def _checkPropertyAsUrl(propName: str, value: str, min_length: int = 0, max_length: int = 0):
+    _checkPropertyAsString(propName, value, min_length=min_length, max_length=max_length)
+    if not utils.is_valid_url(value):
+        raise WrongInputException("The value for '%s' is not valid URL-formated string." % (propName))
+
 def _checkPropertyAsLicense(newValue):
     _checkPropertyAsObject("license", newValue)
     if not "title" in newValue: raise WrongInputException("Missing 'title' in the new license.")
@@ -385,6 +340,67 @@ def _checkPropertyAsLicense(newValue):
 
 ITEM_POSSIBLE_VALUES_FOR_TYPE = ['original', 'annotated', 'processed', 'personal-data']
 ITEM_POSSIBLE_VALUES_FOR_COLLECTION_METHOD = ['patient-based', 'cohort', 'only-image', 'longitudinal', 'case-control', 'disease-specific']
+
+def _checkPath(basePath: str, relativePath: str):
+    ''' Ensures relativePath is in fact a subpath of basePath. Raises an exception if wrong path.
+        This is to avoid a malicious user try to access system directories with "..", absolute paths like "/etc" or symbolic links.
+    '''
+    base = Path(basePath).resolve()  # Resolve symbolic links and returns absolute path
+    path = (base / relativePath).resolve()
+    if not base in path.parents:
+        raise WrongInputException("Wrong path: " + str(base / relativePath))
+
+def _buildDatasetStudiesListFromDirectoryStructure(externalDatasetPath):
+    # Expected structure: externalDatasetPath/subjectName/studyName/seriesName/images
+    studies = []
+    for subjectDirName in os.listdir(externalDatasetPath):
+        subjectDirPathInDatalake = os.path.join(externalDatasetPath, subjectDirName)
+        if not os.path.isdir(subjectDirPathInDatalake): continue
+        for studyDirName in os.listdir(subjectDirPathInDatalake):
+            #if studyDirName == "NIFTI": continue    # ignore special studies
+            studyDirPathInDatalake = os.path.join(subjectDirPathInDatalake, studyDirName)
+            if not os.path.isdir(studyDirPathInDatalake): continue
+            series = []
+            for seriesDirName in os.listdir(studyDirPathInDatalake):
+                seriesDirPathInDatalake = os.path.join(studyDirPathInDatalake, seriesDirName)
+                if not os.path.isdir(seriesDirPathInDatalake): continue
+                series.append({'folderName': seriesDirName, "tags": []})
+            studies.append({
+                'studyId': str(uuid.uuid4()),
+                'studyName': studyDirName,
+                'subjectName': subjectDirName,
+                'pathInDatalake': os.path.join(externalDatasetPath, subjectDirName, studyDirName),
+                'series': series,
+                'url': ""
+            })
+    return studies
+
+def __buildDatasetSubjectsListFromCSV(csvfile):
+    if CONFIG is None: raise Exception()
+    csvlines = csvfile.read().decode('UTF-8').splitlines()
+    subjects = []
+    import csv
+    #LOG.debug("======" + csvlines)
+    csvreader = csv.reader(csvlines) #, delimiter=',')
+    first = True
+    header = []
+    for row in csvreader:
+        if len(row) == 0: continue        
+        if first: 
+            first = False
+            header = row
+        else:
+            subjectName = row[0]
+            eform = {}
+            for i in range(1, len(header)):
+                eform[header[i]] = row[i]
+
+            subjects.append({
+                'subjectName': subjectName,
+                'eForm': eform 
+            })
+
+    return subjects
 
 @app.route('/api/datasets', method='POST')
 def postDataset():
@@ -401,33 +417,48 @@ def postDataset():
     if user.isUnregistered() or not user.canCreateDatasets():
         return setErrorResponse(401, "unauthorized user")
 
+    isExternal = "external" in bottle.request.query and bottle.request.query["external"].lower() == "true"
+
+    if isExternal and not user.canCreateExternalDatasets():
+        return setErrorResponse(401, "unauthorized user")
+    
     content_types = get_header_media_types('Content-Type')
-    if "external" in bottle.request.query and bottle.request.query["external"].lower() == "true":
-        if not 'multipart/form-data' in content_types:
-            return setErrorResponse(400, "invalid 'Content-Type' header, required 'multipart/form-data'")
-    else:
-        if not 'application/json' in content_types:
-            return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
+    requiredContentType = 'multipart/form-data' if isExternal else 'application/json'
+    if not requiredContentType in content_types:
+        return setErrorResponse(400, "invalid 'Content-Type' header, required '%s'" % requiredContentType)
 
     datasetDirName = ''
     datasetId = str(uuid.uuid4())
     read_data = None
     try:
-        if "external" in bottle.request.query and bottle.request.query["external"].lower() == "true":
-            # This is for manually create datasets out of the standard ingestion procedure 
-            clinicalDataFile = bottle.request.files["clinical_data"]
-            name, ext = os.path.splitext(clinicalDataFile.filename)
-            if ext != '.csv':
-                return setErrorResponse(400, 'File extension not allowed, only CSV is supported.')
+        if isExternal:
+            # This is for manually create datasets out of the standard ingestion procedure.
+            if not "name" in bottle.request.forms: raise WrongInputException("Missing 'name' field in the request form.")
+            if not "description" in bottle.request.forms: raise WrongInputException("Missing 'description' field in the request form.")
+
             dataset = dict(
                 name = bottle.request.forms.get("name"),
-                description = bottle.request.forms.get("description")
+                description = bottle.request.forms.get("description"),
+                project = CONFIG.self.external_datasets_project_code
             )
             if 'previousId' in bottle.request.forms: dataset['previousId'] = bottle.request.forms.get('previousId')
-            #if 'public' in bottle.request.forms: dataset['public'] = bottle.request.forms.get('public')
-            dataset["studies"] = []
-            dataset["subjects"] = []
-            completeDatasetFromCSV(dataset, clinicalDataFile.file.read().decode('UTF-8').splitlines())
+            
+            # External dataset must be previously transferred to the datalake into a subfolder of the external folder.
+            # Example: 0-EXTERNAL-DATA/maastricht-university
+            externalSubfolder = bottle.request.forms.get("externalSubfolder")
+            if externalSubfolder is None: raise WrongInputException("Missing 'externalSubfolder' field in the request form.")
+            externalDatasetPath = os.path.join(CONFIG.self.datalake_mount_path, CONFIG.self.datalake_external_subpath, externalSubfolder)
+            dataset["studies"] = _buildDatasetStudiesListFromDirectoryStructure(externalDatasetPath)
+
+            if "clinical_data" in bottle.request.files:
+                clinicalDataFile = bottle.request.files["clinical_data"]
+                name, ext = os.path.splitext(clinicalDataFile.filename)
+                if ext != '.csv':
+                    return setErrorResponse(400, 'File extension not allowed, only CSV is supported.')
+                dataset["subjects"] = __buildDatasetSubjectsListFromCSV(clinicalDataFile.file)
+            else:
+                subjects = set([s["subjectName"] for s in dataset["studies"]])
+                dataset["subjects"] = [{'subjectName': s,'eForm': {} } for s in subjects]
             #return  json.dumps(dataset)
         else:
             LOG.debug("Reading request body as JSON...")
@@ -435,44 +466,47 @@ def postDataset():
             #LOG.debug("BODY: " + read_data)
             dataset = json.loads( read_data )
             if not isinstance(dataset, dict): raise WrongInputException("The body must be a json object.")
-            if not 'version' in dataset.keys(): dataset["version"] = '??'
-            if not 'provenance' in dataset.keys(): dataset["provenance"] = '??'
-            if not 'purpose' in dataset.keys(): dataset["purpose"] = '??'
-            if 'type' in dataset.keys(): 
-                _checkPropertyAsArrayOfStrings('type', dataset["type"], ITEM_POSSIBLE_VALUES_FOR_TYPE)
-            else: dataset["type"] = []
-            if 'collectionMethod' in dataset.keys(): 
-                _checkPropertyAsArrayOfStrings('collectionMethod', dataset["collectionMethod"], ITEM_POSSIBLE_VALUES_FOR_COLLECTION_METHOD)
-            else: dataset["collectionMethod"] = []
-            if not 'studies' in dataset.keys() or not isinstance(dataset["studies"], list): 
-                raise WrongInputException("'studies' property is required and must be an array.")
-            if not 'subjects' in dataset.keys() or not isinstance(dataset["subjects"], list): 
-                raise WrongInputException("'subjects' property is required and must be an array.")
+            if 'project' in dataset.keys() and dataset['project'] == CONFIG.self.external_datasets_project_code:
+                raise WrongInputException("The project code '%s' is reserved for external datasets." % CONFIG.self.external_datasets_project_code)
+
+        if not 'version' in dataset.keys(): dataset["version"] = '??'
+        if not 'provenance' in dataset.keys(): dataset["provenance"] = '??'
+        if not 'purpose' in dataset.keys(): dataset["purpose"] = '??'
+        if 'type' in dataset.keys(): 
+            _checkPropertyAsArrayOfStrings('type', dataset["type"], ITEM_POSSIBLE_VALUES_FOR_TYPE)
+        else: dataset["type"] = []
+        if 'collectionMethod' in dataset.keys(): 
+            _checkPropertyAsArrayOfStrings('collectionMethod', dataset["collectionMethod"], ITEM_POSSIBLE_VALUES_FOR_COLLECTION_METHOD)
+        else: dataset["collectionMethod"] = []
+        if not 'studies' in dataset.keys() or not isinstance(dataset["studies"], list): 
+            raise WrongInputException("'studies' property is required and must be an array.")
+        if not 'subjects' in dataset.keys() or not isinstance(dataset["subjects"], list): 
+            raise WrongInputException("'subjects' property is required and must be an array.")
             
-            # Integrity checks
-            subjects = set()
-            study_paths = set()
-            LOG.debug("Checking for duplicated subjects...")
-            for subject in dataset["subjects"]:
-                if subject["subjectName"] in subjects:
-                    raise WrongInputException("The subjectName '%s' is duplicated in 'subjects' array of the dataset." % subject["subjectName"])
-                else:
-                    subjects.add(subject["subjectName"])
-            LOG.debug("Checking for studies with missing subjects or conflicting paths...")
-            for study in dataset["studies"]:
-                if not study["subjectName"] in subjects:
-                    raise WrongInputException("The study with id '%s' has a 'subjectName' which is not in the " % study["studyId"]
-                                             +"'subjects' array of the dataset." )
-                study['pathInDatalake'] = str(study['pathInDatalake']).removesuffix('/')
-                studyDirName = os.path.basename(study['pathInDatalake'])
-                study_path = os.path.join(study["subjectName"], studyDirName)
-                # example of study_path: 17B76FEW/TCPEDITRICOABDOMINOPLVICO20150129
-                if study_path in study_paths:
-                    raise WrongInputException("The study with id '%s' seems duplicated, " % study["studyId"]
-                                             +"it has the same directory name '%s' as another study of the same subject '%s', " % (studyDirName, study["subjectName"])
-                                             +"this will cause a conflict when creating the dataset's directories structure." )
-                else: study_paths.add(study_path)
-            
+        # Integrity checks
+        subjects = set()
+        study_paths = set()
+        LOG.debug("Checking for duplicated subjects...")
+        for subject in dataset["subjects"]:
+            if subject["subjectName"] in subjects:
+                raise WrongInputException("The subjectName '%s' is duplicated in 'subjects' array of the dataset." % subject["subjectName"])
+            else:
+                subjects.add(subject["subjectName"])
+        LOG.debug("Checking for studies with missing subjects or conflicting paths...")
+        for study in dataset["studies"]:
+            if not study["subjectName"] in subjects:
+                raise WrongInputException("The study with id '%s' has a 'subjectName' which is not in the " % study["studyId"]
+                                            +"'subjects' array of the dataset." )
+            study['pathInDatalake'] = str(study['pathInDatalake']).removesuffix('/')
+            studyDirName = os.path.basename(study['pathInDatalake'])
+            study_path = os.path.join(study["subjectName"], studyDirName)
+            # example of study_path: 17B76FEW/TCPEDITRICOABDOMINOPLVICO20150129
+            if study_path in study_paths:
+                raise WrongInputException("The study with id '%s' seems duplicated, " % study["studyId"]
+                                            +"it has the same directory name '%s' as another study of the same subject '%s', " % (studyDirName, study["subjectName"])
+                                            +"this will cause a conflict when creating the dataset's directories structure." )
+            else: study_paths.add(study_path)
+        
 
         with DB(CONFIG.db) as db:
             dbdatasets = DBDatasetsOperator(db)
@@ -481,7 +515,7 @@ def postDataset():
 
             user_projects = _getProjects(user)
             if 'project' in dataset.keys(): 
-                if not dataset["project"] in user_projects:
+                if dataset['project'] != CONFIG.self.external_datasets_project_code and not dataset["project"] in user_projects:
                     return setErrorResponse(400, "dataset.project does not exist for the user")
             else:
                 dataset["project"] = user_projects.pop()  # we take the first project of user
@@ -491,8 +525,8 @@ def postDataset():
                 if previousDataset is None:
                     return setErrorResponse(400, "dataset.previousId does not exist")
                 if not user.canModifyDataset(previousDataset):
-                    return setErrorResponse(401, "the dataset selected as previous (%s) "
-                                               + "must be editable by the user (%s)" % (previousDataset["id"], user.username))
+                    return setErrorResponse(401, "the dataset selected as previous (%s) " % previousDataset["id"]
+                                               + "must be editable by the user (%s)" % user.username)
             else:
                 dataset["previousId"] = None
 
@@ -508,10 +542,11 @@ def postDataset():
             
             LOG.debug('Creating dataset in DB...')
             dbdatasets.createDataset(dataset, user.uid)
-            projectConfig = DBProjectsOperator(db).getProjectConfig(dataset["project"])
-            if projectConfig is None: raise Exception("Unexpected error: the project assigned to dataset does not exist.")
-            dbdatasets.setDatasetContactInfo(datasetId, projectConfig["defaultContactInfo"])
-            dbdatasets.setDatasetLicense(datasetId, projectConfig["defaultLicense"]["title"], projectConfig["defaultLicense"]["url"])
+            if dataset['project'] != CONFIG.self.external_datasets_project_code:    
+                projectConfig = DBProjectsOperator(db).getProjectConfig(dataset["project"])
+                if projectConfig is None: raise Exception("Unexpected error: the project assigned to dataset does not exist.")
+                dbdatasets.setDatasetContactInfo(datasetId, projectConfig["defaultContactInfo"])
+                dbdatasets.setDatasetLicense(datasetId, projectConfig["defaultLicense"]["title"], projectConfig["defaultLicense"]["url"])
 
             LOG.debug('Creating dataset directory...')
             datasetDirName = datasetId
@@ -557,8 +592,8 @@ def postDataset():
         #return setErrorResponse(500, "Unexpected error, may be the input is wrong\n%s" % str(e))
 
 
-@app.route('/api/datasets/<id>/adjustFilePermissionsInDatalake', method='POST')
-def postDataset_adjustFilePermissionsInDatalake(id):
+@app.route('/api/datasets/<id>/readjustFilePermissions', method='POST')
+def readjustFilePermissions(id):
     '''
     Note: this method is only for admins, to readjust permissions in case they have been changed for any reason.
     '''
@@ -567,7 +602,7 @@ def postDataset_adjustFilePermissionsInDatalake(id):
     ret = getTokenFromAuthorizationHeader()
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
-    if not user.isSuperAdminDatasets():
+    if not user.canReadjustFilePermissionsOfDatasets():
         return setErrorResponse(401, "unauthorized user")
 
     datasetId = id
@@ -624,7 +659,7 @@ def recollectMetadataForDataset(id):
     ret = getTokenFromAuthorizationHeader()
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
-    if not user.isSuperAdminDatasets():
+    if not user.canRecollectMetadataOfDatasets():
         return setErrorResponse(401, "unauthorized user")
 
     datasetId = id
@@ -649,7 +684,7 @@ def recollectMetadataForAllDatasets():
     ret = getTokenFromAuthorizationHeader()
     if isinstance(ret, str): return ret  # return error message
     user = authorization.User(ret)
-    if not user.isSuperAdminDatasets():
+    if not user.canRecollectMetadataOfDatasets():
         return setErrorResponse(401, "unauthorized user")
 
     with DB(CONFIG.db) as db:
@@ -670,7 +705,7 @@ def recollectMetadataForAllDatasets():
     bottle.response.content_type = "application/json"
     return json.dumps(results)
 
-@app.route('/api/datasets/<id>/relaunchCreationJob', method='POST')
+@app.route('/api/datasets/<id>/restartCreation', method='POST')
 def relaunchDatasetCreationJob(id):
     '''
     Note: this method is only for admins and for special case when a creation job is interrupted (and fail) for any reason.
@@ -690,7 +725,7 @@ def relaunchDatasetCreationJob(id):
         if dataset is None: return setErrorResponse(404, "not found")
         if dataset["draft"]:
             dataset["creating"] = (dbdatasets.getDatasetCreationStatus(datasetId) != None)
-        if not user.canRelaunchDatasetCreation(dataset):
+        if not user.canRestartCreationOfDataset(dataset):
             return setErrorResponse(401, "unauthorized user")
         k8sClient = k8s.K8sClient()
         job = k8sClient.exist_dataset_creation_job(datasetId)
@@ -831,7 +866,8 @@ def getDataset(id):
         return setErrorResponse(401, "unauthorized user")
     dataset["editablePropertiesByTheUser"] = user.getEditablePropertiesByTheUser(dataset)
     dataset["allowedActionsForTheUser"] = user.getAllowedActionsForTheUser(dataset, datasetACL)
-    if user.isUnregistered():
+    if not user.canViewDatasetExtraDetails(dataset["project"]):
+        del dataset["authorName"]
         del dataset["authorEmail"]
     bottle.response.content_type = "application/json"
     return json.dumps(dataset)
@@ -1193,6 +1229,9 @@ def getDatasets():
     
     with DB(CONFIG.db) as db:
         datasets, total = DBDatasetsOperator(db).getDatasets(skip, limit, searchString, searchFilter, sortBy, sortDirection, searchSubject, onlyLastVersions)
+    for dataset in datasets:
+        if not user.canViewDatasetExtraDetails(dataset["project"]): 
+            del dataset["authorName"]
     bottle.response.content_type = "application/json"
     return json.dumps({ "total": total,
                         "returned": len(datasets),
@@ -1410,27 +1449,18 @@ def _obtainAndWriteLogoToPngFile(sourceUrl, destinationFilePath):
     finally:
         # remove original file if exist
         if os.path.exists(originalFilePath): os.unlink(originalFilePath)
-    
-    # elif 'logoImage' in projectData.keys():
-    #     logoFile = bottle.request.files["logoImage"]
-    #     name, ext = os.path.splitext(logoFile.filename)
-    #     if not ext in ['.png']:
-    #         return setErrorResponse(400, 'File extension not allowed, supported formats: png')
-    #     logoFile.file.read().decode('UTF-8').splitlines()
-    #     logoFile.save(destinationPath + ".tmp")
-    #     imageType = checkImageAndGetType()
-    #     return True
 
 @app.route('/api/projects/<code>', method='PUT')
 def putProject(code):
-    if CONFIG is None or not isinstance(bottle.request.body, io.IOBase) \
-       or not isinstance(bottle.request.files, bottle.FormsDict): raise Exception()
+    if CONFIG is None or not isinstance(bottle.request.body, io.IOBase): raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     try: _checkPropertyAsString('projectCode', code, min_length=2, max_length=16, only_alphanum_or_dash=True )
     except WrongInputException as e: return setErrorResponse(400, str(e))
     ret = _checkUserCanModifyProject(code)
     if isinstance(ret, str): return ret  # return error message
     
+    if code == CONFIG.self.external_datasets_project_code:
+        return setErrorResponse(400, "The project code '%s' is reserved." % CONFIG.self.external_datasets_project_code)
     content_types = get_header_media_types('Content-Type')
     if not 'application/json' in content_types:
         return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
@@ -1534,6 +1564,67 @@ def putProjectConfig(code):
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
         return setErrorResponse(500, "Unexpected error, may be the input is wrong")
 
+@app.route('/api/projects/<code>/logo', method='PUT')
+def putProjectLogo(code):
+    if CONFIG is None \
+       or not isinstance(bottle.request.query, bottle.FormsDict) \
+       or not isinstance(bottle.request.files, bottle.FormsDict) \
+       or not isinstance(bottle.request.body, io.IOBase): 
+        raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    ret = _checkUserCanModifyProject(code)
+    if isinstance(ret, str): return ret  # return error message
+    
+    content_types = get_header_media_types('Content-Type')
+    LOG.debug("Content-type: %s" % json.dumps(content_types))
+    logoFileName = code + ".png"   # str(uuid.uuid4())
+    destinationFilePath = os.path.join(CONFIG.self.static_files_logos_dir_path, logoFileName)
+    try:
+        if not 'multipart/form-data' in content_types: return WrongInputException("Invalid 'Content-Type' header, required 'multipart/form-data'")
+        #if not "logo" in bottle.request.files: return WrongInputException("There is no any part in the body with the name 'logo' ")
+        #logoFile = bottle.request.files["logo"]
+        if len(bottle.request.files) == 0:
+            LOG.debug("Special case: remove the logo")
+            logoFileName = ""
+        else:
+            logoFile = list(bottle.request.files.values())[0]  # simply take the first (it should be only one)
+            LOG.debug("Part headers: %s" % json.dumps(dict(logoFile.headers)))
+            LOG.debug("Part content-type: %s" % logoFile.content_type)
+            LOG.debug("Part content-length: %s" % logoFile.content_length)
+            if logoFile.content_length > CONFIG.logos.max_upload_file_size_mb * 1024 * 1024:
+                raise WrongInputException("The file is bigger than the max file size for logos (%d MB)." % CONFIG.logos.max_upload_file_size_mb)
+            originalFilePath = destinationFilePath + ".tmp.original"
+            try:
+                logoFile.save(originalFilePath)
+                utils.resize_and_encode_logo_file_to_png(originalFilePath, destinationFilePath + ".tmp", CONFIG.logos.image_size_px)
+            except Exception as e:
+                LOG.exception(e)
+                raise WrongInputException("There was a problem processing the logo image file. " 
+                                          "Probably unsupported format, try another or convert by yourself to PNG/JPEG.")
+            finally:
+                # remove original file if exist
+                if os.path.exists(originalFilePath): os.unlink(originalFilePath)
+        # if 'text/plain' in content_types:
+        #     sourceUrl = bottle.request.body.read().decode('UTF-8')
+        #     LOG.debug("URL in body: " + sourceUrl )
+        #     if sourceUrl != "":
+        #         _obtainAndWriteLogoToPngFile(sourceUrl, destinationFilePath + ".tmp")
+        #     else:
+        #         logoFileName = ""
+
+        with DB(CONFIG.db) as db:
+            dbprojects = DBProjectsOperator(db)
+            dbprojects.setProjectLogoFileName(code, logoFileName)
+            if os.path.exists(destinationFilePath + ".tmp"): 
+                os.rename(destinationFilePath + ".tmp", destinationFilePath)
+
+        LOG.debug('Project logo successfully updated.')
+        bottle.response.status = 201
+    except WrongInputException as e:
+        return setErrorResponse(400, str(e))
+    except Exception as e:
+        LOG.exception(e)
+        return setErrorResponse(500, "Unexpected error, may be the input is wrong")
 
 @app.route('/api/projects/<code>', method='GET')
 def getProject(code):
@@ -1627,6 +1718,77 @@ def patchProject(code):
         if os.path.exists(destinationFilePath + ".tmp"): os.unlink(destinationFilePath + ".tmp")
         return setErrorResponse(500, "Unexpected error, may be the input is wrong")
 
+@app.route('/api/projects/<code>/subprojects', method='GET')
+def getSubprojects(code):
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    try: _checkPropertyAsString('projectCode', code, min_length=2, max_length=16, only_alphanum_or_dash=True )
+    except WrongInputException as e: return setErrorResponse(400, str(e))
+    ret = _checkUserCanModifyProject(code)
+    if isinstance(ret, str): return ret  # return error message
+    user = ret
+    
+    with DB(CONFIG.db) as db:
+        subprojects = DBProjectsOperator(db).getSubprojects(code)
+    ret = {"list": subprojects, 
+           "allowedActionsForTheUser": user.getAllowedActionsOnSubprojectsForTheUser(code)}
+    bottle.response.content_type = "application/json"
+    return json.dumps(ret)
+
+@app.route('/api/projects/<code>/subprojects/<subcode>', method='PUT')
+def putSubproject(code, subcode):
+    if CONFIG is None or not isinstance(bottle.request.body, io.IOBase): raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    try: 
+        _checkPropertyAsString('projectCode', code, min_length=2, max_length=16, only_alphanum_or_dash=True )
+        _checkPropertyAsString('subprojectCode', subcode, min_length=2, max_length=16, only_alphanum_or_dash=True )
+    except WrongInputException as e: return setErrorResponse(400, str(e))
+    ret = _checkUserCanModifyProject(code)
+    if isinstance(ret, str): return ret  # return error message
+    user = ret
+    if not user.canAdminProjects(): return setErrorResponse(401, "unauthorized user")
+    
+    content_types = get_header_media_types('Content-Type')
+    if not 'application/json' in content_types:
+        return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
+    read_data = None
+    try:
+        read_data = bottle.request.body.read().decode('UTF-8')
+        LOG.debug("BODY: " + read_data)
+        projectData = json.loads(read_data)
+        if not 'name' in projectData.keys(): raise WrongInputException("'name' property is required.")
+        _checkPropertyAsString("name", projectData["name"], min_length=3, max_length=50)
+        name = projectData["name"]
+        if not 'description' in projectData.keys(): raise WrongInputException("'description' property is required.")
+        _checkPropertyAsString("description", projectData["description"], max_length=80)
+        description = projectData["description"]
+        externalId = projectData["externalId"] if "externalId" in projectData.keys() else ''
+        _checkPropertyAsString("externalId", externalId, max_length=40)
+        
+        with DB(CONFIG.db) as db:
+            LOG.debug("Creating or updating subproject: %s" % code)
+            DBProjectsOperator(db).createOrUpdateSubproject(code, subcode, name, description, externalId)
+        
+        if CONFIG.on_event_scripts.subproject_management_job_template_file_path != "":
+            LOG.debug('Launching project creation job...')
+            k8sClient = k8s.K8sClient()
+            ok = k8sClient.add_subproject_creation_job(code, subcode, name, description, externalId, 
+                                                       CONFIG.on_event_scripts.subproject_management_job_template_file_path)
+            if not ok: 
+                raise K8sException("Unexpected error launching site creation job.")
+            #ok = k8sClient.wait_for_the_end_of_job()
+
+        LOG.debug('Subproject successfully created or updated.')
+        bottle.response.status = 201
+    except WrongInputException as e:
+        return setErrorResponse(400, str(e))
+    except json.decoder.JSONDecodeError as e:
+        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
+    except Exception as e:
+        LOG.exception(e)
+        if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
+        return setErrorResponse(500, "Unexpected error, may be the input is wrong")
+
 
 @app.route('/api/user/<userName>', method='POST')
 def postUser(userName):
@@ -1694,11 +1856,13 @@ def putUser(username):
         userData = json.loads(read_data)
         #userGroups = userData["groups"]
         userGid = int(userData["gid"]) if "gid" in userData.keys() else None
-        site = userData["siteCode"] if "siteCode" in userData.keys() else None
+        siteCode = userData["siteCode"] if "siteCode" in userData.keys() else ''
         newProjects = userData["projects"] if "projects" in userData.keys() else None
         newRoles = userData["roles"] if "roles" in userData.keys() else None
 
-        if site != None: _checkPropertyAsString("siteCode", site, min_length=2, max_length=50)
+        if siteCode != '' and siteCode != None: 
+            # Special values: empty string means no change, None means no site assigned to the user
+            _checkPropertyAsString("siteCode", siteCode, min_length=2, max_length=16)
         if newProjects != None:
             available_projects = _getProjects(user)
             # The available projects for now are those which the validator user are joined to.
@@ -1711,7 +1875,7 @@ def putUser(username):
 
         LOG.debug("Creating or updating user in DB: %s, %s, %s" % (userId, username, userGid))
         with DB(CONFIG.db) as db:
-            DBDatasetsOperator(db).createOrUpdateUser(userId, username, site, userGid)
+            DBDatasetsOperator(db).createOrUpdateUser(userId, username, siteCode, userGid)
 
             currentRoles, currentProjects = _getRolesAndProjectsFromUserId(userId)
             if newRoles != None:
@@ -1719,20 +1883,20 @@ def putUser(username):
             if newProjects != None:
                 _updateProjectsForUserId(userId, currentProjects, newProjects)
 
-        if CONFIG.user_management_scripts.job_template_file_path != "":
+        if CONFIG.on_event_scripts.user_management_job_template_file_path != "":
             # only launch job if any relevant change
-            if newRoles != None or newProjects != None or site != None:
+            if newRoles != None or newProjects != None or siteCode != '':
                 if newRoles is None: newRoles = currentRoles
                 if newProjects is None: newProjects = currentProjects
-                if site is None: 
+                if siteCode == '': 
                     with DB(CONFIG.db) as db:
                         ret = DBDatasetsOperator(db).getUser(username)
                         if ret is None: raise Exception()
-                        site = ret["siteCode"]
+                        siteCode = ret["siteCode"]
                 LOG.debug('Launching user creation job...')
                 k8sClient = k8s.K8sClient()
-                ok = k8sClient.add_user_creation_job(username, newRoles, site, newProjects, 
-                                                     CONFIG.user_management_scripts.job_template_file_path)
+                ok = k8sClient.add_user_creation_job(username, newRoles, siteCode, newProjects, 
+                                                     CONFIG.on_event_scripts.user_management_job_template_file_path)
                 if not ok: 
                     raise K8sException("Unexpected error launching user creation job.")
 
@@ -1877,6 +2041,11 @@ def getUserRoles():
 
 @app.route('/api/userSites', method='GET')
 def getUserSites():
+    sites = json.loads(getSites())
+    return json.dumps([s["code"] for s in sites])
+
+@app.route('/api/sites', method='GET')
+def getSites():
     if CONFIG is None: raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ret = getTokenFromAuthorizationHeader(serviceAccount=True)
@@ -1889,6 +2058,79 @@ def getUserSites():
         ret = DBDatasetsOperator(db).getSites()
     bottle.response.content_type = "application/json"
     return json.dumps(ret)
+
+@app.route('/api/sites/<code>', method='GET')
+def getSite(code):
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    ret = getTokenFromAuthorizationHeader(serviceAccount=True)
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
+    if not user.canAdminUsers():
+        return setErrorResponse(401, "unauthorized user")
+    try:
+        with DB(CONFIG.db) as db:
+            ret = DBDatasetsOperator(db).getSite(code)
+        if ret is None: return setErrorResponse(404, "site not found")
+        bottle.response.content_type = "application/json"
+        return json.dumps(ret)
+    except WrongInputException as e:
+        return setErrorResponse(400, str(e))
+
+@app.route('/api/sites/<code>', method='PUT')
+def putSite(code):
+    if CONFIG is None or not isinstance(bottle.request.body, io.IOBase): raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    ret = getTokenFromAuthorizationHeader(serviceAccount=True)
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
+    if not user.canAdminUsers():
+        return setErrorResponse(401, "unauthorized user")
+
+    content_types = get_header_media_types('Content-Type')
+    if not 'application/json' in content_types:
+        return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
+    read_data = None
+    try:
+        read_data = bottle.request.body.read().decode('UTF-8')
+        LOG.debug("BODY: " + read_data)
+        siteData = json.loads(read_data)
+        if not 'name' in siteData.keys(): raise WrongInputException("'name' property is required.")
+        name = siteData["name"]
+        _checkPropertyAsString("name", name, min_length=3, max_length=50)
+        if not 'country' in siteData.keys(): raise WrongInputException("'country' property is required.")
+        country = siteData["country"]
+        _checkPropertyAsString("country", country, min_length=3, max_length=40)
+        url = siteData["url"] if "url" in siteData.keys() else ''
+        if url != '': _checkPropertyAsUrl("url", url, max_length=256)
+        contactName = siteData["contactName"] if "contactName" in siteData.keys() else ''
+        _checkPropertyAsString("contactName", contactName, max_length=128)
+        contactEmail = siteData["contactEmail"] if "contactEmail" in siteData.keys() else ''
+        _checkPropertyAsString("contactEmail", contactEmail, max_length=128)
+
+        LOG.debug("Creating or updating site in DB.")
+        with DB(CONFIG.db) as db:
+            DBDatasetsOperator(db).createOrUpdateSite(code, name, country, url, contactName, contactEmail)
+
+        if CONFIG.on_event_scripts.site_management_job_template_file_path != "":
+            LOG.debug('Launching site creation job...')
+            k8sClient = k8s.K8sClient()
+            ok = k8sClient.add_site_creation_job(code, name, country, contactName, contactEmail, 
+                                                 CONFIG.on_event_scripts.site_management_job_template_file_path)
+            if not ok: 
+                raise K8sException("Unexpected error launching site creation job.")
+            #ok = k8sClient.wait_for_the_end_of_job()
+
+        LOG.debug('Site successfully created or updated.')
+        bottle.response.status = 201
+    except (WrongInputException, keycloak.KeycloakAdminAPIException) as e:
+        return setErrorResponse(400, str(e))
+    except json.decoder.JSONDecodeError as e:
+        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
+    except (K8sException, Exception) as e:
+        LOG.exception(e)
+        if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
+        return setErrorResponse(500, "Unexpected error, may be the input is wrong")
 
 
 def checkDatasetListAccess(datasetIDs: list, userName: str):

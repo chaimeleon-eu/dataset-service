@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 import json
 from .auth import AuthClient, LoginException
-from .storage import DB, DBDatasetsOperator
+from .storage import DB, DBDatasetsOperator, DBProjectsOperator
 from .hash import datasetHashesOperator
 from .config import Config
 from . import dataset as dataset_file_system
@@ -171,13 +171,24 @@ class dataset_creation_worker:
                         if not "studyName" in study: study["studyName"] = "-"
                         dbdatasets.createOrUpdateStudy(study, self.datasetId)
 
+            isExternalDataset = (dataset['project'] == self.config.self.external_datasets_project_code)
+
             if dataset["sizeInBytes"] is None:  # This condition is just to skip collecting again metadata if it's
                                                 # already there because of relaunch of the dataset creation.
                 stop = self.updateProgress("Scanning dataset for collecting metadata...")
                 if stop: self._cancelProgress(); return
                 eformsFilePath = os.path.join(datasetDirPath, self.config.self.eforms_file_name)
+                # Collect metadata doing some checks and adding as new properties to dataset, to the studies inside, 
+                # and to the series inside the studies.
                 dataset_file_system.collectMetadata(dataset, self.config.self.datalake_mount_path, eformsFilePath)
-                # All the metadata is added as new properties to dataset, to the studies inside, and to the series inside the studies
+                if not isExternalDataset:
+                    # Security check: It is important to check the subprojectId to avoid create dataset with studies from other project
+                    with DB(self.config.db) as db:
+                        subprojectsIDs = DBProjectsOperator(db).getSubprojectsIDs(dataset["project"])
+                    if not dataset["subprojectId"] in subprojectsIDs:
+                        raise Exception("Security check failed: the subprojectId '%s' obtained from DICOM files (tag 70D1,2000)" % dataset["subprojectId"]
+                                        + "is not in the project where dataset is being created: " 
+                                        + "%s (%s)" % (dataset["project"], json.dumps(subprojectsIDs)))
                 with DB(self.config.db) as db:
                     DBDatasetsOperator(db).updateDatasetAndStudyMetadata(dataset)
             
@@ -196,8 +207,8 @@ class dataset_creation_worker:
             authorId = dataset["authorId"]
             # let's free the memory because it's not required anymore and the next steps still may take long time
             del dataset
-
-            if self.config.tracer.url != '':
+            
+            if self.config.tracer.url != '' and not isExternalDataset:
                 studiesHashes = []
                 stop = self.updateProgress("Calculating the hashes of the dataset...")
                 if stop: self._cancelProgress(); return
