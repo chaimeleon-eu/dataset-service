@@ -480,6 +480,9 @@ def postDataset():
         else: dataset["collectionMethod"] = []
         if not 'studies' in dataset.keys() or not isinstance(dataset["studies"], list): 
             raise WrongInputException("'studies' property is required and must be an array.")
+        if not isExternal and len(dataset["studies"]) == 0:
+            raise WrongInputException("'studies' property is an empty array.")
+        LOG.debug("%s studies received." % len(dataset["studies"]))
         if not 'subjects' in dataset.keys() or not isinstance(dataset["subjects"], list): 
             raise WrongInputException("'subjects' property is required and must be an array.")
             
@@ -516,16 +519,16 @@ def postDataset():
             user_projects = _getProjects(user)
             if 'project' in dataset.keys(): 
                 if dataset['project'] != CONFIG.self.external_datasets_project_code and not dataset["project"] in user_projects:
-                    return setErrorResponse(400, "dataset.project does not exist for the user")
+                    return setErrorResponse(400, "The project (%s) selected for the dataset (dataset.project) does not exist for the user" % dataset["project"])
             else:
                 dataset["project"] = user_projects.pop()  # we take the first project of user
             
             if 'previousId' in dataset.keys():
                 previousDataset = dbdatasets.getDataset(dataset["previousId"])
                 if previousDataset is None:
-                    return setErrorResponse(400, "dataset.previousId does not exist")
+                    return setErrorResponse(400, "The dataset selected as previous (%s) does not exist" % dataset["previousId"])
                 if not user.canModifyDataset(previousDataset):
-                    return setErrorResponse(401, "the dataset selected as previous (%s) " % previousDataset["id"]
+                    return setErrorResponse(401, "The dataset selected as previous (%s) " % previousDataset["id"]
                                                + "must be editable by the user (%s)" % user.username)
             else:
                 dataset["previousId"] = None

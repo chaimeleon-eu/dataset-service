@@ -245,7 +245,7 @@ paths:
                     type: array
                     description: |
                       The actions that the current authenticated user can do on datasets. 
-                      This property is intended for let the UI know which actions to show.
+                      This property is intended to let the UI know which actions to show.
                       Possible values are:
                         * `create` - To show the boton/link to the creation form for a new dataset.
                     example: ["create"]
@@ -1209,7 +1209,7 @@ paths:
                         type: array
                         description: |
                           The actions that the current authenticated user can do on projects. 
-                          This property is intended for let the UI know which actions to show.
+                          This property is intended to let the UI know which actions to show.
                           Possible values are:
                            * `create` - To show the boton/link to the creation form for a new project.
                         example: ["create"]
@@ -1290,7 +1290,7 @@ paths:
                         description: |
                           The actions that the current authenticated user can do on the project. 
                           The actions are some operations apart from edit fields/flags which are already specified in the previous property "editablePropertiesByTheUser".
-                          So this property is intended for let the UI know which other actions to show.
+                          So this property is intended to let the UI know which other actions to show.
                           Possible values are:
                            * `config` - To show the form with the configuration params for the project.
                            * `viewSubprojects` - To show the list of current subprojects in the project.
@@ -1464,7 +1464,7 @@ paths:
                     type: array
                     description: |
                       The actions that the current authenticated user can do on subprojects. 
-                      This property is intended for let the UI know which actions to show.
+                      This property is intended to let the UI know which actions to show.
                       Possible values are:
                         * `create` - To show the boton/link to the creation form for a new subproject.
                         * `edit` - To show the boton/link to the edit form for each subproject of the list.
@@ -2021,7 +2021,7 @@ components:
           description: |
             The actions that the current authenticated user can do in the current state of this dataset. 
             The actions are some operations apart from edit fields/flags which are already specified in the previous property "editablePropertiesByTheUser".
-            So this property is intended for let the UI know which other actions to show apart from those related with flags, 
+            So this property is intended to let the UI know which other actions to show apart from those related with flags, 
             like "Release" (change the flag "public") or "Invalidate" (change the flag "invalidated").
             Possible values are:
              * `use` - To launch a workstation in the platform with access to this dataset, 

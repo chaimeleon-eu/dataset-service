@@ -305,7 +305,7 @@ Details: https://chaimeleon-eu.i3m.upv.es/dataset-service/api-doc#tag/projects/o
 Example:
 ```
 $ curl -i -X PUT -H "Authorization: bearer $DSS_TOKEN" -H "Content-Type: application/json" \
-       -d '{ "name": "MY-COOL-PROJECT - Lung studies", "description": "MY-COOL-PROJECT - Lung studies"}' \
+       -d '{ "name": "Lung studies", "description": "Lung studies"}' \
        "${DSS_ENDPOINT}/projects/MY-COOL-PROJECT/subprojects/LUNG"
 HTTP/1.1 201 Created
 Content-Length: 0
@@ -325,7 +325,7 @@ Details: https://chaimeleon-eu.i3m.upv.es/dataset-service/api-doc#tag/sites/oper
 Example of creation of a site for users:
 ```
 $ curl -i -X PUT -H "Authorization: bearer $DSS_TOKEN" -H "Content-Type: application/json" \
-       -d '{ "name": "UPV", "country": "Spain", "url": "", "contactName": "", "contactEmail": ""}' \
+       -d '{ "name": "Universitat Politècnica de València", "country": "Spain", "url": "", "contactName": "", "contactEmail": ""}' \
        "${DSS_ENDPOINT}/sites/UPV"
 HTTP/1.1 201 Created
 Content-Length: 0

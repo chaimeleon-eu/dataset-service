@@ -147,6 +147,7 @@ class dataset_creation_worker:
                 # and the studies are already stored in DB. 
                 # The creation has been relaunched and it is not required to read, do the checks and save studies in DB again.
                 dataset["studies"] = datasetStudies
+                self.log.info("Relaunched job: studies already stored in database, skipping this step.")
             else:  
                 # this is the normal case
                 with open(studiesTmpFilePath, 'rb') as f:
@@ -186,7 +187,8 @@ class dataset_creation_worker:
                     with DB(self.config.db) as db:
                         subprojectsIDs = DBProjectsOperator(db).getSubprojectsIDs(dataset["project"])
                     if not dataset["subprojectId"] in subprojectsIDs:
-                        raise Exception("Security check failed: the subprojectId '%s' obtained from DICOM files (tag 70D1,2000)" % dataset["subprojectId"]
+                        raise Exception("Security check failed: the subprojectId '%s' " % dataset["subprojectId"]
+                                        + "obtained from DICOM files (tag 70D1,2000) in all the studies "
                                         + "is not in the project where dataset is being created: " 
                                         + "%s (%s)" % (dataset["project"], json.dumps(subprojectsIDs)))
                 with DB(self.config.db) as db:

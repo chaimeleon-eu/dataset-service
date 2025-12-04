@@ -97,7 +97,7 @@ class DBDatasetsOperator():
         row = self.cursor.fetchone()
         if row is None: return None
         return dict(code = row[0], name = row[1], country = row[2],
-                    url = row[3], contact_name = row[4], contact_email = row[5])
+                    url = row[3], contactName = row[4], contactEmail = row[5])
 
     def createOrUpdateSite(self, code, name, country, url, contactName, contactEmail):
         self.cursor.execute("""
