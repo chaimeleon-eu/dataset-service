@@ -306,7 +306,7 @@ class DBDatasetsOperator():
                    dataset.purpose, dataset.type, dataset.collection_method,
                    dataset.invalidation_reason, dataset.corrupted, dataset.provenance,
                    dataset.diagnosis, dataset.diagnosis_count,
-                   dataset.tags, dataset.times_used
+                   dataset.tags, dataset.times_used, dataset.public_use
             FROM dataset, author 
             WHERE dataset.id=%s AND author.id = dataset.author_id 
             LIMIT 1;""",
@@ -347,7 +347,7 @@ class DBDatasetsOperator():
                         urls = dict(
                             zenodoDoi = row[11], 
                             custom = customPidUrl)), 
-                    draft = row[13], public = row[14], invalidated = row[15], 
+                    draft = row[13], public = row[14], publicUse = row[50], invalidated = row[15], 
                     corrupted = row[44], lastIntegrityCheck = lastIntegrityCheck, 
                     studiesCount = row[16], subjectsCount = row[17], 
                     ageLow = ageLow, ageHigh = ageHigh, ageUnit = ageUnit, ageNullCount = row[22], 
@@ -513,7 +513,8 @@ class DBDatasetsOperator():
         q = sql.SQL("""
                 SELECT dataset.id, dataset.name, author.name, dataset.creation_date, dataset.project_code, 
                     dataset.draft, dataset.public, dataset.invalidated, dataset.corrupted,
-                    dataset.studies_count, dataset.subjects_count, dataset.version, dataset.tags, dataset.times_used
+                    dataset.studies_count, dataset.subjects_count, dataset.version, dataset.tags, 
+                    dataset.times_used, dataset.public_use
                 FROM dataset, author{}
                 WHERE dataset.author_id = author.id {}
                 ORDER BY {} 
@@ -526,7 +527,7 @@ class DBDatasetsOperator():
             creationDate = str(row[3].astimezone())   # row[3] is a datetime without time zone, just add the local tz.
                                                       # If local tz is UTC, the string "+00:00" is added at the end.
             res.append(dict(id = row[0], name = row[1], version = row[11], authorName = row[2], creationDate = creationDate, project = row[4],
-                            draft = row[5], public = row[6], invalidated = row[7], corrupted = row[8], tags = row[12],
+                            draft = row[5], public = row[6], publicUse = row[14], invalidated = row[7], corrupted = row[8], tags = row[12],
                             studiesCount = row[9], subjectsCount = row[10], timesUsed = row[13]))
         return res, total
     
@@ -697,6 +698,9 @@ class DBDatasetsOperator():
 
     def setDatasetPublic(self, id, newValue: bool):
         self.cursor.execute("UPDATE dataset SET public = %s WHERE id = %s;", (newValue, id))
+
+    def setDatasetPublicUse(self, id, newValue: bool):
+        self.cursor.execute("UPDATE dataset SET public_use = %s WHERE id = %s;", (newValue, id))
         
     def setDatasetDraft(self, id, newValue: bool):
         self.cursor.execute("UPDATE dataset SET draft = %s WHERE id = %s;", (newValue, id))

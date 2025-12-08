@@ -124,7 +124,8 @@ class User:
         userProjects = self.getProjects()
         logging.root.debug("User projects: " + json.dumps(list(userProjects)))
         if dataset["project"] in userProjects: return True
-        if dataset["public"]: return (self.uid in datasetACL)
+        if dataset["public"]: 
+            return (dataset["publicUse"] or self.uid in datasetACL)
         else: return False
 
     def canCheckIntegrityOfDatasets(self):
@@ -150,6 +151,8 @@ class User:
                 if self.isSuperAdminDatasets():
                     editableProperties.append("public")
                     editableProperties.append("pids")
+                    if dataset["public"]:
+                        editableProperties.append("publicUse")
             editableProperties.append("invalidated")
             if dataset["invalidated"]:
                 editableProperties.append("invalidationReason")

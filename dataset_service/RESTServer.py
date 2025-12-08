@@ -1002,7 +1002,14 @@ def patchDataset(id):
                     dbdatasets.setDatasetPid(datasetId, "zenodoDoi")
                 else:
                     updateZenodoDeposition(db, dataset)
+                if newValue == False and dataset["publicUse"]:
+                    dbdatasets.setDatasetPublicUse(datasetId, False)
+                    dataset["publicUse"] = False
                 trace_details = "PUBLISH" if newValue else "UNPUBLISH"
+            elif property == "publicUse":
+                if not isinstance(newValue, bool): raise WrongInputException("The value must be boolean.")
+                dbdatasets.setDatasetPublicUse(datasetId, newValue)
+                dataset["publicUse"] = newValue
             elif property == "invalidated":
                 if not isinstance(newValue, bool): raise WrongInputException("The value must be boolean.")
                 dbdatasets.setDatasetInvalidated(datasetId, newValue)
@@ -1148,7 +1155,7 @@ class Edit_operation(Enum):
     ADD = 1
     DELETE = 2
 
-def changeDatasetACL(datasetId, username, operation):
+def _changeDatasetACL(datasetId, username, operation):
     if CONFIG is None: raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ret = getTokenFromAuthorizationHeader()
@@ -1179,11 +1186,11 @@ def changeDatasetACL(datasetId, username, operation):
 
 @app.route('/api/datasets/<id>/acl/<username>', method='PUT')
 def putUserToDatasetACL(id, username):
-    changeDatasetACL(id, username, Edit_operation.ADD)
+    _changeDatasetACL(id, username, Edit_operation.ADD)
 
 @app.route('/api/datasets/<id>/acl/<username>', method='DELETE')
 def deleteUserFromDatasetACL(id, username):
-    changeDatasetACL(id, username, Edit_operation.DELETE)
+    _changeDatasetACL(id, username, Edit_operation.DELETE)
 
 
 def parse_flag_value(s: str) -> bool | None:

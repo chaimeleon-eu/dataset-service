@@ -308,6 +308,7 @@ paths:
                   enum:
                    - "draft"
                    - "public"
+                   - "publicUse"
                    - "invalidated"
                    - "invalidationReason"
                    - "name"
@@ -1693,7 +1694,15 @@ components:
           type: boolean
           description: |
             If false then the dataset is only visible and usable to users in the project where the dataset is assigned.
-            If true then the dataset is accessible and usable to all users and visible for non-registered users.
+            If true then the dataset is visible to all users (also to non-registered users), 
+            and it can be usable to users outside the project depending on the "publicUse" property.
+        publicUse:
+          type: boolean
+          description: |
+            This property is taken into account only when "public" is true, otherwise it will be forced to be false.
+            The usability of a public dataset is specified by this property:
+             * If true: all registered users can use the dataset (also users outside the project).
+             * If false: the dataset can be used only by users in the project and those included in the ACL.
         invalidated:
           type: boolean
           description: "If true the dataset can not be used and only visible for the author."
@@ -1978,7 +1987,15 @@ components:
           type: boolean
           description: |
             If false then the dataset is only visible and usable to users in the project where the dataset is assigned.
-            If true then the dataset is accessible and usable to all users and visible for non-registered users.
+            If true then the dataset is visible to all users (also to non-registered users), 
+            and it can be usable to users outside the project depending on the "publicUse" property.
+        publicUse:
+          type: boolean
+          description: |
+            This property is taken into account only when "public" is true, otherwise it will be forced to be false.
+            The usability of a public dataset is specified by this property:
+             * If true: all registered users can use the dataset (also users outside the project).
+             * If false: the dataset can be used only by users in the project and those included in the ACL.
         invalidated:
           type: boolean
           description: |

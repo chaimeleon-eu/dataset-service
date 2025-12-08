@@ -14,6 +14,12 @@ In case of increments in the SAFECHANGE part of version, as you know, the change
 Note SAFECHANGE version means it's always safe to upgrade, but not always to downgrade. 
 Indeed whenever the DB schema version is increased an error will appear in the log if you try to downgrade.
 
+## Upgrade to 3.22.2
+### Changes in DB:
+`public_use` column has been added to `dataset` table.  
+DB schema version increased to 42.
+The DB will be automatically migrated and so you will not be able to go back to a previous version.
+
 ## Upgrade to 3.22.0
 ### Changes in API:
 In PUT/GET /users/{username}, now the siteCode can be null (users with no site assigned).

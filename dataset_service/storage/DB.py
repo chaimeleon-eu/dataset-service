@@ -25,7 +25,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 41
+    CURRENT_SCHEMA_VERSION = 42
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -54,6 +54,7 @@ class DB:
             if version < 39: self.updateDB_v38To39()
             if version < 40: self.updateDB_v39To40()
             if version < 41: self.updateDB_v40To41()
+            if version < 42: self.updateDB_v41To42()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -125,6 +126,7 @@ class DB:
                 contact_info varchar(256) DEFAULT NULL,
                 draft boolean NOT NULL DEFAULT true,
                 public boolean NOT NULL DEFAULT false,
+                public_use boolean NOT NULL DEFAULT false,
                 invalidated boolean NOT NULL DEFAULT false,
                 invalidation_reason varchar(128) DEFAULT NULL, 
                 corrupted boolean NOT NULL DEFAULT false,
@@ -395,6 +397,10 @@ class DB:
                 constraint fk_project foreign key (project_code) references project(code),
                 constraint un_external_id unique (external_id)
             );""")
+
+    def updateDB_v41To42(self):
+        logging.root.info("Updating database from v41 to v42...")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN public_use boolean NOT NULL DEFAULT false")
         
 #endregion
 
