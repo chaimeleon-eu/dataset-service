@@ -21,6 +21,8 @@ servers:
   #  url: https://virtserver.swaggerhub.com/UPV-CHAIMELEON/Dataset-service/1.0.0
 
 tags:
+  - name: general
+    description: General operations
   - name: datasets
     description: Operations with datasets
   - name: users
@@ -41,6 +43,7 @@ tags:
 x-tagGroups:
   - name: OPERATIONS
     tags:
+      - general
       - datasets
       - users
       - sites
@@ -55,6 +58,31 @@ security:
   - bearerAuth: []
 
 paths:
+  /index:
+    get:
+      tags: [general]
+      summary: List index of operations
+      operationId: listMainIndex
+      description: |
+        List available operations in the root path for the current authenticated (or not authenticated) user.
+        It is intended to let the UI know which sections/operations can show.
+      responses:
+        '200':
+          description: "List of available operations"
+          content:
+            application/json:
+              schema:
+                type: array
+                example: ["datasets", "projects", "licenses"]
+                items:
+                  type: string
+                  enum: 
+                    - "datasets"
+                    - "projects"
+                    - "licenses"
+                    - "users"
+                    - "sites"
+                    - "datasetAccess"
 
   /datasets:
     post:

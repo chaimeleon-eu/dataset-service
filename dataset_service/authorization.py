@@ -223,6 +223,13 @@ class User:
     def canViewSubprojects(self):
         return self._token != None
     
+    def getAllowedOperationsForTheUser(self):
+        ops = ["datasets", "projects", "licenses"]
+        if self.canAdminUsers(): ops.append("users")
+        if self.canAdminUsers(): ops.append("sites")
+        if self.canAdminDatasetAccesses(): ops.append("datasetAccess")
+        return ops
+
     def getAllowedActionsOnProjectsForTheUser(self):
         allowedActions = []
         if self.canAdminProjects():

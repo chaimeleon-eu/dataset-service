@@ -350,6 +350,18 @@ def _checkPath(basePath: str, relativePath: str):
     if not base in path.parents:
         raise WrongInputException("Wrong path: " + str(base / relativePath))
 
+@app.route('/api/index', method='GET')
+def getIndex():
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    ret = getTokenFromAuthorizationHeader()
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
+
+    bottle.response.content_type = "application/json"
+    return json.dumps(user.getAllowedOperationsForTheUser())
+
+
 def _buildDatasetStudiesListFromDirectoryStructure(externalDatasetPath):
     # Expected structure: externalDatasetPath/subjectName/studyName/seriesName/images
     studies = []
