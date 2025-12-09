@@ -2244,7 +2244,7 @@ def postDatasetAccess(id):
         image = datasetAccess["image"]
         commandLine = datasetAccess["commandLine"]
         isJob = datasetAccess["isJob"]
-        isJobFromDesktop = datasetAccess["isJobFromDesktop"] if "isJobFromDesktop" in datasetAccess else isJob
+        #isJobFromDesktop = datasetAccess["isJobFromDesktop"] if "isJobFromDesktop" in datasetAccess else isJob
         resourcesFlavor = datasetAccess["resourcesFlavor"]
         openchallengeJobType = datasetAccess["openchallengeJobType"]
         datasetAccessId = id
@@ -2266,16 +2266,22 @@ def postDatasetAccess(id):
             userId, userGID = dbdatasets.getUserIDs(userName)
             if userGID is None:
                 return setErrorResponse(400, "The user does not have a GID.")
-            if CONFIG.self.datasets_mount_path != '' and not isJobFromDesktop:
-                # For jobs from desktop (jobman-cli) is not required to set the ACLs because they are already set for desktop and it's a high-cost operation
+            dbdatasetsaccess = DBDatasetAccessesOperator(db)
+            if CONFIG.self.datasets_mount_path != '':
+                currentDatasets = dbdatasetsaccess.getDatasetsCurrentlyAccessedByUser(userGID)
+                # Set the user GID into the ACL of the datasets directories
                 for id in datasetIDs:
+                    if id in currentDatasets: 
+                        # We can avoid setting ACLs on currently accessed datasets (it's a high-cost operation)
+                        # This usually happens on jobs launched from a desktop (the ACLs have been already set for the desktop).
+                        continue
                     pathsOfStudies = dbdatasets.getPathsOfStudiesFromDataset(id)
                     LOG.debug('Setting ACLs in dataset %s for GID %s ...' % (id, userGID))
                     datasetDirName = id
                     dataset_file_system.give_access_to_dataset(CONFIG.self.datasets_mount_path, datasetDirName, CONFIG.self.datalake_mount_path, pathsOfStudies, userGID)
 
-            DBDatasetAccessesOperator(db).createDatasetAccess(datasetAccessId, datasetIDs, userGID, accessType, instanceName, toolName, toolVersion, image, commandLine, 
-                                                              datetime.now(), resourcesFlavor, openchallengeJobType)
+            dbdatasetsaccess.createDatasetAccess(datasetAccessId, datasetIDs, userGID, accessType, instanceName, toolName, toolVersion, image, commandLine, 
+                                                 datetime.now(), resourcesFlavor, openchallengeJobType)
             LOG.debug("############### %s # %s # %s # %s # %s" % (datasetAccessId, datasetIDs, userGID, image, commandLine))
 
             if CONFIG.tracer.url != '' and not isJob:
