@@ -181,8 +181,9 @@ class dataset_creation_worker:
                 eformsFilePath = os.path.join(datasetDirPath, self.config.self.eforms_file_name)
                 # Collect metadata doing some checks and adding as new properties to dataset, to the studies inside, 
                 # and to the series inside the studies.
-                dataset_file_system.collectMetadata(dataset, self.config.self.datalake_mount_path, eformsFilePath)
-                if not isExternalDataset:
+                dataset_file_system.collectMetadata(dataset, self.config.self.datalake_mount_path, eformsFilePath, 
+                                                    self.config.self.skip_subproject_id_security_check)
+                if not isExternalDataset and not self.config.self.skip_subproject_id_security_check:
                     # Security check: It is important to check the subprojectId to avoid create dataset with studies from other project
                     with DB(self.config.db) as db:
                         subprojectsIDs = DBProjectsOperator(db).getSubprojectsIDs(dataset["project"])

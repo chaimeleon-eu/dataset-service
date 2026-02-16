@@ -272,7 +272,7 @@ def _getTotalStudySizeInBytes(studyPathInDatalake, study):
             studySize += os.path.getsize(os.path.join(seriesDirPathInDatalake, fileName))
     study["sizeInBytes"] = studySize
 
-def collectMetadata(dataset, datalake_mount_path, eformsFilePath):
+def collectMetadata(dataset, datalake_mount_path, eformsFilePath, skip_subproject_id_security_check = False):
     differentSubjects = set()
     studiesCount = 0
     minAgeInDays, maxAgeInDays = MAX_AGE_VALUE, 0
@@ -301,13 +301,14 @@ def collectMetadata(dataset, datalake_mount_path, eformsFilePath):
         _getTotalStudySizeInBytes(studyPathInDatalake, study)
         _completeStudyMetadataWithSubjectEform(study, subjects.getEform(study["subjectName"]))
 
-        # check all the studies are from the same subproject
-        if subprojectId is None:  # First study with that item included
-            subprojectId = study["subprojectId"]
-        else:   # the item is included in other studies, let's check if the value is the same
-            if study["subprojectId"] != subprojectId:
-                raise Exception("The subprojectId '%s' in study '%s'" % (study["subprojectId"], study['pathInDatalake'])
-                                +" differs from the subprojectId '%s' in other studies." % (subprojectId))
+        if not skip_subproject_id_security_check:
+            # check all the studies are from the same subproject
+            if subprojectId is None:  # First study with that item included
+                subprojectId = study["subprojectId"]
+            else:   # the item is included in other studies, let's check if the value is the same
+                if study["subprojectId"] != subprojectId:
+                    raise Exception("The subprojectId '%s' in study '%s'" % (study["subprojectId"], study['pathInDatalake'])
+                                    +" differs from the subprojectId '%s' in other studies." % (subprojectId))
 
         # agregate metadata of this study
         if study["ageInDays"] != None:

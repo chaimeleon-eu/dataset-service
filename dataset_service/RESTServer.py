@@ -656,7 +656,7 @@ def _recollectMetadataForDataset(datasetId):
         dataset["studies"] = datasetStudies
         eformsFilePath = os.path.join(CONFIG.self.datasets_mount_path, datasetId, CONFIG.self.eforms_file_name)
         try:
-            dataset_file_system.collectMetadata(dataset, CONFIG.self.datalake_mount_path, eformsFilePath)
+            dataset_file_system.collectMetadata(dataset, CONFIG.self.datalake_mount_path, eformsFilePath, CONFIG.self.skip_subproject_id_security_check)
         except Exception as e:
             LOG.exception(e)
             return dict(success=False, msg="Not recollected: exception catched (corrupt dataset?).")
