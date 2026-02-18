@@ -234,6 +234,22 @@ class KeycloakAdminAPIClient:
         logging.root.debug('Getting user from KeycloakAdminAPI...')
         user = self._GET_JSON("users/"+userId+"?userProfileMetadata=true")
         attributeGroups = {}
+        if not "userProfileMetadata" in user:  # old version of keycloak
+            attributeGroups[self.DEFAULT_ATTRIBUTES_GROUP] = {"displayName": "Base attributes", "attributes": []}
+            for attName in ["username", "firstName", "lastName", "email"]:
+                if attName in user:
+                    attributeGroups[self.DEFAULT_ATTRIBUTES_GROUP]["attributes"].append({
+                        "displayName": attName,
+                        "values": user[attName]
+                    })
+            attributeGroups["other-attributes"] = {"displayName": "Other attributes", "attributes": []}
+            for attName in user["attributes"]:
+                attributeGroups["other-attributes"]["attributes"].append({
+                    "displayName": attName,
+                    "values": user["attributes"][attName]
+                })
+            return list(attributeGroups.values())
+
         for attGroup in user["userProfileMetadata"]["groups"]:
             attributeGroups[attGroup["name"]] = {
                 "displayName": attGroup["displayHeader"],
