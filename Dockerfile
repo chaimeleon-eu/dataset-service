@@ -18,7 +18,7 @@ RUN redocly lint $API_REF_FILE \
 #              with that plugin: https://github.com/blueswen/mkdocs-swagger-ui-tag#usage
 
 
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 LABEL name="dataset-service-backend"
 LABEL description="https://github.com/chaimeleon-eu/dataset-service"
 
@@ -36,8 +36,8 @@ WORKDIR ${MAIN_DIR}
 
 # First copy and install requirements to avoid rebuild this layer on any change in source code (only rebuild it when requirements change)
 COPY requirements.txt ${MAIN_DIR}/
-RUN pip install --no-cache-dir --upgrade pip \
- && pip install --no-cache-dir -r requirements.txt
+#RUN pip install --no-cache-dir --upgrade pip \
+RUN pip install --no-cache-dir --break-system-packages -r requirements.txt
 
 # Copy the rest of files
 COPY start_dataset_service.py start_dataset_creation_job.py requirements.txt api-docs/API-reference-v1.yaml VERSION README.md LICENSE ${MAIN_DIR}/
