@@ -1,4 +1,5 @@
-FROM redocly/cli AS apidoc
+# ================ Stage to build the API documentation web pages
+FROM redocly/cli AS build-apidoc
 ARG API_REF_FILE="API-reference-v1.yaml"
 ENV REDOCLY_TELEMETRY=off
 COPY api-docs/$API_REF_FILE /spec/$API_REF_FILE
@@ -17,7 +18,20 @@ RUN redocly lint $API_REF_FILE \
 # Alternative: MkDocs (https://squidfunk.github.io/mkdocs-material/publishing-your-site/) can be used
 #              with that plugin: https://github.com/blueswen/mkdocs-swagger-ui-tag#usage
 
+# ================ Stage to build the pycairo wheel: it is a dependency of xhtml2pdf (python package in requirements.txt). 
+# ================ It requires to be built from source and therefore some additional packages are required like build-essential and others,
+# ================ but we don't want them in the final image, a lot of space employed and never required again.
+FROM ubuntu:24.04 AS build-pycairo-wheel
+RUN apt-get update \
+ && apt-get install --no-install-recommends -y python3 python3-pip build-essential cmake pkg-config libcairo2-dev python3-dev \
+ && apt autoclean -y \
+ && apt autoremove -y \
+ && rm -rf /var/lib/apt/lists/*
+#RUN pip install --no-cache-dir --upgrade pip \
+RUN pip install --break-system-packages pycairo==1.29.0 \
+ && mkdir -p /tmp/wheels && mv /root/.cache/pip/wheels/*/*/*/*/*.whl /tmp/wheels/
 
+# ================ Final stage
 FROM ubuntu:24.04
 LABEL name="dataset-service-backend"
 LABEL description="https://github.com/chaimeleon-eu/dataset-service"
@@ -34,6 +48,9 @@ ARG MAIN_DIR="/dataset-service"
 RUN mkdir ${MAIN_DIR} ${MAIN_DIR}/etc ${MAIN_DIR}/log
 WORKDIR ${MAIN_DIR}
 
+COPY --from=build-pycairo-wheel /tmp/wheels /tmp/pycairo-wheel
+RUN pip install --no-cache-dir --break-system-packages --no-index --find-links /tmp/pycairo-wheel pycairo
+
 # First copy and install requirements to avoid rebuild this layer on any change in source code (only rebuild it when requirements change)
 COPY requirements.txt ${MAIN_DIR}/
 #RUN pip install --no-cache-dir --upgrade pip \
@@ -43,7 +60,7 @@ RUN pip install --no-cache-dir --break-system-packages -r requirements.txt
 COPY start_dataset_service.py start_dataset_creation_job.py requirements.txt api-docs/API-reference-v1.yaml VERSION README.md LICENSE ${MAIN_DIR}/
 COPY dataset_service/ ${MAIN_DIR}/dataset_service
 COPY etc/dataset-service.default.yaml ${MAIN_DIR}/etc/
-COPY --from=apidoc /spec/redoc-static.html /var/www/api-doc/index.html
+COPY --from=build-apidoc /spec/redoc-static.html /var/www/api-doc/index.html
 #COPY setup.py ${MAIN_DIR}/setup.py
 
 # RUN pip install setuptools 
