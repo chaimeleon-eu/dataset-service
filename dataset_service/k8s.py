@@ -8,10 +8,10 @@ import json, yaml
 import uuid
 from dataset_service.config import CONFIG_ENV_VAR_NAME
 
-DATASET_CREATION_JOB_PREFIX="creating-dataset-"
-USER_CREATION_JOB_PREFIX="creating-user-"
-SITE_CREATION_JOB_PREFIX="creating-site-"
-SUBPROJECT_CREATION_JOB_PREFIX="creating-subproject-"
+DATASET_CREATION_JOB_PREFIX="crea-dataset-"
+USER_CREATION_JOB_PREFIX="crea-user-"
+SITE_CREATION_JOB_PREFIX="crea-site-"
+SUBPROJECT_CREATION_JOB_PREFIX="crea-subproj-"  # max chars 63-20-20-10 = 13  (63-max_len_proj-max_len_subproj-suffix)
 
 class Job_state(Enum):
     RUNNING = 'running'

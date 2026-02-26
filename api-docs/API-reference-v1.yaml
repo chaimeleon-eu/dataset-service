@@ -2411,7 +2411,7 @@ components:
       type: string
       pattern: '^[a-zA-Z-]+$'
       minLength: 2
-      maxLength: 16
+      maxLength: 20
       description: "The unique code of the project: short name without spaces (usually capital letters and numbers and hyphens instead of spaces)"
       example: "MY-PROJECT"
     

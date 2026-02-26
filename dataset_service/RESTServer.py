@@ -1483,7 +1483,7 @@ def _obtainAndWriteLogoToPngFile(sourceUrl, destinationFilePath):
 def putProject(code):
     if CONFIG is None or not isinstance(bottle.request.body, io.IOBase): raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
-    try: _checkPropertyAsString('projectCode', code, min_length=2, max_length=16, only_alphanum_or_dash=True )
+    try: _checkPropertyAsString('projectCode', code, min_length=2, max_length=20, only_alphanum_or_dash=True )
     except WrongInputException as e: return setErrorResponse(400, str(e))
     ret = _checkUserCanModifyProject(code)
     if isinstance(ret, str): return ret  # return error message
@@ -1751,7 +1751,7 @@ def patchProject(code):
 def getSubprojects(code):
     if CONFIG is None: raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
-    try: _checkPropertyAsString('projectCode', code, min_length=2, max_length=16, only_alphanum_or_dash=True )
+    try: _checkPropertyAsString('projectCode', code, min_length=2, max_length=20, only_alphanum_or_dash=True )
     except WrongInputException as e: return setErrorResponse(400, str(e))
     ret = getTokenFromAuthorizationHeader()
     if isinstance(ret, str): return ret  # return error message
@@ -1771,8 +1771,8 @@ def putSubproject(code, subcode):
     if CONFIG is None or not isinstance(bottle.request.body, io.IOBase): raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     try: 
-        _checkPropertyAsString('projectCode', code, min_length=2, max_length=16, only_alphanum_or_dash=True )
-        _checkPropertyAsString('subprojectCode', subcode, min_length=2, max_length=16, only_alphanum_or_dash=True )
+        _checkPropertyAsString('projectCode', code, min_length=2, max_length=20, only_alphanum_or_dash=True )
+        _checkPropertyAsString('subprojectCode', subcode, min_length=2, max_length=20, only_alphanum_or_dash=True )
     except WrongInputException as e: return setErrorResponse(400, str(e))
     ret = _checkUserCanModifyProject(code)
     if isinstance(ret, str): return ret  # return error message
