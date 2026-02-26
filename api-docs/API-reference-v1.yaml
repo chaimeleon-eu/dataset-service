@@ -2039,6 +2039,15 @@ components:
             "It is a discarded/useless draft", "It contains some rejected subject or study", "It contains corrupted data", "Other".
             And if "Other" is selected, let the user write the reason.
           example: "It is a discarded/useless draft"
+        external:
+          type: boolean
+          description: |
+            If true then the dataset has been temporary transferred from other node.
+            The creation, properties changes and accesses will not be sent to Tracer.
+            Pids can not be added to this dataset, it will not be deposited automatically in Zenodo when published
+            and therefore the most properties can be changed even in the public state.
+            The dataset is assigned to the special project "EXTERNAL-DATASETS" (default name, but configurable by the external_datasets_project_code config param)
+            and no user can be in that project so external dataset are usually public and only the users in the ACL can use it (access the contents).
         corrupted:
           type: boolean
           description: |

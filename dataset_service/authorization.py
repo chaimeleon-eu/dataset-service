@@ -140,19 +140,32 @@ class User:
     def getEditablePropertiesByTheUser(self, dataset):
         editableProperties = []
         if self.canModifyDataset(dataset):
-            if dataset["draft"]: 
-                if not dataset["creating"]:
-                    editableProperties.append("draft")
-                editableProperties.extend(["name", "version", "previousId",
+            if dataset["external"]:
+                # external datasets are not deposited in Zenodo and so the most properties can always be edited
+                editableProperties.extend(["name", "version",
                                            "description", "provenance", "purpose",
                                            "type", "collectionMethod"])
-                # editableProperties.append("project")
+                if dataset["draft"]:
+                    if not dataset["creating"]:
+                        editableProperties.append("draft")
+                else:
+                    if self.isSuperAdminDatasets():
+                        editableProperties.append("public")
+                        if dataset["public"]:
+                            editableProperties.append("publicUse")
             else:
-                if self.isSuperAdminDatasets():
-                    editableProperties.append("public")
-                    editableProperties.append("pids")
-                    if dataset["public"]:
-                        editableProperties.append("publicUse")
+                if dataset["draft"]: 
+                    if not dataset["creating"]:
+                        editableProperties.append("draft")
+                    editableProperties.extend(["name", "version", "previousId",
+                                            "description", "provenance", "purpose",
+                                            "type", "collectionMethod"])
+                else:
+                    if self.isSuperAdminDatasets():
+                        editableProperties.append("public")
+                        editableProperties.append("pids")
+                        if dataset["public"]:
+                            editableProperties.append("publicUse")
             editableProperties.append("invalidated")
             if dataset["invalidated"]:
                 editableProperties.append("invalidationReason")
