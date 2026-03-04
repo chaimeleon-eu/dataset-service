@@ -113,6 +113,10 @@ paths:
                     example: '/api/datasets/f99017af-9015-4222-b064-77f3c1b49d8b'
         '400':
           description: 'invalid input, object invalid'
+          content: 
+            application/json: 
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
     get:
@@ -281,6 +285,12 @@ paths:
                       type: string
                       enum: 
                         - "create"
+        '400':
+          description: "Wrong input"
+          content: 
+            application/json: 
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -307,7 +317,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
-          description: "not found"
+          $ref: '#/components/responses/NotFound'
     patch:
       tags: [datasets]
       summary: Change a property of a dataset by its id
@@ -362,8 +372,12 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '400': 
           description: "Bad request content."
+          content: 
+            application/json: 
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: "Not found."
+          $ref: '#/components/responses/NotFound'
     delete:
       tags: [datasets]
       summary: Delete a dataset by its id
@@ -387,8 +401,12 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '400': 
           description: "Bad request, it cannot be removed."
+          content: 
+            application/json: 
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: "Not found."
+          $ref: '#/components/responses/NotFound'
 
   /datasets/{id}/studies:
     get:
@@ -450,7 +468,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
-          description: "not found"
+          $ref: '#/components/responses/NotFound'
 
   /datasets/{id}/creationStatus:
     get:
@@ -486,7 +504,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
-          description: "not found"
+          $ref: '#/components/responses/NotFound'
 
   /datasets/{id}/checkIntegrity:
     post:
@@ -539,10 +557,16 @@ paths:
       responses:
         '204':
           description: "successful operation"
+        '400':
+          description: "other error"
+          content: 
+            application/json: 
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
-          description: "not found"
+          $ref: '#/components/responses/NotFound'
 
   /datasets/{id}/readjustFilePermissions:
     post:
@@ -566,7 +590,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
-          description: "not found"
+          $ref: '#/components/responses/NotFound'
 
   /datasets/{id}/recollectMetadata:
     post:
@@ -590,7 +614,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
-          description: "not found"
+          $ref: '#/components/responses/NotFound'
 
   /datasets/{id}/accessHistory:
     get:
@@ -654,7 +678,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
-          description: "not found"
+          $ref: '#/components/responses/NotFound'
 
   /datasets/{id}/acl:
     get:
@@ -695,7 +719,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
-          description: "Not found."
+          $ref: '#/components/responses/NotFound'
 
   /datasets/{id}/acl/{username}:
     put:
@@ -727,7 +751,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
-          description: "Not found."
+          $ref: '#/components/responses/NotFound'
     delete:
       tags: [datasets]
       summary: Delete a user from the ACL of a dataset
@@ -755,7 +779,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
-          description: "Not found."
+          $ref: '#/components/responses/NotFound'
 
   /upgradableDatasets:
     get:
@@ -861,6 +885,12 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/UserListItem'
+        '400':
+          description: "Wrong input"
+          content: 
+            application/json: 
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -922,7 +952,13 @@ paths:
                     (usually the site is mandatory only for some roles, those who upload data).
       responses:
         '201':
-          description: item created
+          description: "Item created"
+        '400':
+          description: "Wrong input"
+          content: 
+            application/json: 
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
     get:
@@ -1004,10 +1040,16 @@ paths:
                                         type: array
                                         items:
                                           type: string
+        '400':
+          description: "Wrong input"
+          content: 
+            application/json: 
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
-          description: "not found"
+          $ref: '#/components/responses/NotFound'
 
   /users/{username}/managementJobs:
     get:
@@ -1053,6 +1095,8 @@ paths:
                         - "unknown"
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /users/{username}/managementJobs/{uid}:
     get:
@@ -1085,7 +1129,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
-          description: "not found"
+          $ref: '#/components/responses/NotFound'
 
   /userRoles:
     get:
@@ -1151,6 +1195,12 @@ paths:
       responses:
         '201':
           description: site created or updated
+        '400':
+          description: "Wrong input"
+          content: 
+            application/json: 
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
     get:
@@ -1175,10 +1225,16 @@ paths:
                     properties:
                       code:
                         $ref: '#/components/schemas/SiteCode'
+        '400':
+          description: "Wrong input"
+          content: 
+            application/json: 
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
-          description: "not found"
+          $ref: '#/components/responses/NotFound'
 
   /projects:
     get:
@@ -1246,6 +1302,14 @@ paths:
                           type: string
                           enum: 
                            - "create"
+        '400':
+          description: "Wrong input"
+          content: 
+            application/json: 
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
   
   /projects/{code}:
     put:
@@ -1279,6 +1343,12 @@ paths:
       responses:
         '201':
           description: project created or updated
+        '400':
+          description: "Wrong input"
+          content: 
+            application/json: 
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
     get:
@@ -1332,7 +1402,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
-          description: "not found"
+          $ref: '#/components/responses/NotFound'
     patch:
       tags: [projects]
       summary: Change a property of a project by its code
@@ -1367,12 +1437,16 @@ paths:
       responses:
         '204':
           description: "Successful operation."
-        '401':
-          $ref: '#/components/responses/Unauthorized'
         '400': 
           description: "Bad request content."
+          content: 
+            application/json: 
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
-          description: "Not found."
+          $ref: '#/components/responses/NotFound'
 
   /projects/{code}/logo:
     put:
@@ -1404,10 +1478,14 @@ paths:
       responses:
         '201':
           description: project logo updated
-        '401':
-          $ref: '#/components/responses/Unauthorized'
         '400': 
           description: "Bad request content."
+          content: 
+            application/json: 
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /projects/{code}/config:
     put:
@@ -1429,6 +1507,12 @@ paths:
       responses:
         '201':
           description: "project configuration updated successfully"
+        '400': 
+          description: "Bad request content."
+          content: 
+            application/json: 
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
     get:
@@ -1451,6 +1535,8 @@ paths:
                 $ref: '#/components/schemas/ProjectConfig'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /projects/{code}/subprojects:
     get:
@@ -1503,6 +1589,8 @@ paths:
                       enum: 
                         - "create"
                         - "edit"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /projects/{code}/subprojects/{subcode}:
     put:
@@ -1530,6 +1618,12 @@ paths:
       responses:
         '201':
           description: project created or updated
+        '400': 
+          description: "Bad request content."
+          content: 
+            application/json: 
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -1578,6 +1672,14 @@ paths:
       responses:
         '204':
           description: access granted
+        '400': 
+          description: "Bad request content."
+          content: 
+            application/json: 
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '403':
           description: access denied
           content:
@@ -1589,8 +1691,6 @@ paths:
                   type: string
                   format: uuid
                   example: "00e821c4-e92b-48f7-a034-ba2df547e2bf"
-        '401':
-          $ref: '#/components/responses/Unauthorized'
 
   /datasetAccess/{id}:
     post:
@@ -1638,10 +1738,20 @@ paths:
       responses:
         '201':
           description: item created, access granted
-        '403':
-          description: access denied
+        '400': 
+          description: "Bad request content."
+          content: 
+            application/json: 
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: access denied
+          content: 
+            application/json: 
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
     patch:
       tags: [datasetAccesses]
@@ -1678,7 +1788,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
-          description: "not found"
+          $ref: '#/components/responses/NotFound'
 
 
 components:
@@ -2606,17 +2716,27 @@ components:
           description: "The image used for the container."
           example: "training"
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: "Descriptive message"
+        status_code:
+          type: string
+          description: "HTTP status code"
 
-#   ErrorResponse:
-#     type: object
-#     properties:
-#       error:
-#         type: string
-#         description: descriptive message
-#       status_code:
-#         type: string
-#         description: HTTP status code
-          
   responses:
     Unauthorized:
-      description: "unauthorized user or access token is missing or invalid"
+      description: "Unauthorized user or access token is missing or invalid"
+      content: 
+        application/json: 
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: "Not found"
+      content: 
+        application/json: 
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
