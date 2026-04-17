@@ -69,6 +69,19 @@ paths:
             text/plain:
               schema:
                 type: string
+                example: "1.0.0"
+
+  /health:
+    get:
+      tags: [general]
+      summary: Health check
+      responses:
+        '200':
+          description: "Good status"
+          content:
+            text/plain:
+              schema:
+                type: string
 
   /index:
     get:
@@ -169,7 +182,7 @@ paths:
           required: false
           schema:
             type: boolean
-        - name: tags
+        - name: tag
           description: |
             (Optional filter) If set, only datasets with all those tags will be shown.
             Note as the type is array, you can repeat the parameter in the URL to send more than one tag.

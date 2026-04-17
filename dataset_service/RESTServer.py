@@ -1242,8 +1242,8 @@ def getDatasets():
             searchFilter.public = parse_flag_value(bottle.request.query['public'])
         if 'invalidated' in bottle.request.query:
             searchFilter.invalidated = parse_flag_value(bottle.request.query['invalidated'])
-        if 'tags' in bottle.request.query:
-            tags = bottle.request.query.getall('tags')
+        if 'tag' in bottle.request.query:
+            tags = bottle.request.query.getall('tag')
             _checkPropertyAsArrayOfStrings('tags', tags, item_only_alphanum_or_dash=True)
             searchFilter.tags = set(tags)
         if 'project' in bottle.request.query:
