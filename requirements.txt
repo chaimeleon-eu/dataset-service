@@ -3,7 +3,7 @@ cheroot==11.1.2      # The high-performance, pure-Python HTTP server used by Che
 PyYAML==6.0.3
 kubernetes==26.1.0     # to launch jobs like dataset creation job
 psycopg2-binary==2.9.11         # postgres client
-pyjwt[crypto]==2.11.0      # to validate authentication tokens (crypto is needed to get RS256 algorithm)
-pydicom==3.0.1        # to collect metadata from dicom tags
+pyjwt[crypto]==2.12.1      # to validate authentication tokens (crypto is needed to get RS256 algorithm)
+pydicom==3.0.2        # to collect metadata from dicom tags
 xhtml2pdf==0.2.17      # to generate pdf to publish in zenodo
-Pillow==12.1.1       # to resize and encode logos
+Pillow==12.2.0       # to resize and encode logos

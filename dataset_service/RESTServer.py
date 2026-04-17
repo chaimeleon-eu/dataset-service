@@ -26,6 +26,7 @@ from .storage import DB, DBDatasetsOperator, DBProjectsOperator, DBDatasetAccess
 from .storage import DBDatasetsEUCAIMSearcher, SearchValidationException 
 from . import dataset as dataset_file_system
 from . import utils
+from dataset_service import __version__, __appname__
 
 #LOG = logging.getLogger('module1')
 LOG = logging.root
@@ -232,9 +233,15 @@ def get_header_media_types(header):
 def getHello():
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     bottle.response.content_type = "text/plain"
-    return "Hello from Dataset Service"
+    return "Hello from %s v%s" % (__appname__, __version__)
 # Aternative to decorator:
 # app.route('/api/', method='GET', callback=getHello)
+
+@app.route('/api/version', method='GET')
+def getVersion():
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    bottle.response.content_type = "text/plain"
+    return str(__version__)
 
 @app.route('/health', method='GET')
 def getAlive():

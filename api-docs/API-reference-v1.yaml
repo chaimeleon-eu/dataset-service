@@ -58,6 +58,18 @@ security:
   - bearerAuth: []
 
 paths:
+  /version:
+    get:
+      tags: [general]
+      summary: Version of this backend service
+      responses:
+        '200':
+          description: "The version of the backend service"
+          content:
+            text/plain:
+              schema:
+                type: string
+
   /index:
     get:
       tags: [general]
