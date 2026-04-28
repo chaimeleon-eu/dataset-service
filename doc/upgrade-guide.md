@@ -14,6 +14,28 @@ In case of increments in the SAFECHANGE part of version, as you know, the change
 Note SAFECHANGE version means it's always safe to upgrade, but not always to downgrade. 
 Indeed whenever the DB schema version is increased an error will appear in the log if you try to downgrade.
 
+## Upgrade to 3.22.6
+### Changes in API:
+New operation GET /version.
+Extended the max length of last message of dataset creation (GET /datasets/{id}/creationStatus)
+### Changes in DB:
+DB schema version increased to 44.
+The DB will be automatically migrated and so you will not be able to go back to a previous version.
+
+## Upgrade to 3.22.5
+### Changes in API:
+Extended the maximum length of code for project and subproject, now 20 chars.
+DB schema version increased to 43.
+The DB will be automatically migrated and so you will not be able to go back to a previous version.
+
+## Upgrade to 3.22.3
+### Changes in API:
+New operation GET /index.
+### Changes in config:
+New optional parameter `skip_subproject_id_security_check` for backward compatibility:
+  set it to true only if you have an old datalake containing DICOM files without tag 70D1,2000 
+  or whose value is not set to a valid subproject code.
+
 ## Upgrade to 3.22.2
 ### Changes in DB:
 `public_use` column has been added to `dataset` table.  
