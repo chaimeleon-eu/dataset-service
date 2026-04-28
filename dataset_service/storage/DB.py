@@ -25,7 +25,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 43
+    CURRENT_SCHEMA_VERSION = 44
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -56,6 +56,7 @@ class DB:
             if version < 41: self.updateDB_v40To41()
             if version < 42: self.updateDB_v41To42()
             if version < 43: self.updateDB_v42To43()
+            if version < 44: self.updateDB_v43To44()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -165,7 +166,7 @@ class DB:
             CREATE TABLE dataset_creation_status (
                 dataset_id varchar(40),
                 status varchar(10),
-                last_message varchar(256),
+                last_message varchar(512),
                 constraint pk_dataset_creation_status primary key (dataset_id),
                 constraint fk_dataset foreign key (dataset_id) references dataset(id)
             );
@@ -408,6 +409,10 @@ class DB:
         self.cursor.execute("ALTER TABLE project ALTER COLUMN code TYPE varchar(20)")
         self.cursor.execute("ALTER TABLE subproject ALTER COLUMN project_code TYPE varchar(20)")
         self.cursor.execute("ALTER TABLE subproject ALTER COLUMN code TYPE varchar(20)")
+    
+    def updateDB_v43To44(self):
+        logging.root.info("Updating database from v43 to v44...")
+        self.cursor.execute("ALTER TABLE dataset_creation_status ALTER COLUMN last_message TYPE varchar(512)")
         
 #endregion
 

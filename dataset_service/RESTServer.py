@@ -413,12 +413,10 @@ def _buildDatasetSubjectsListFromCSV(csvfile):
             eform = {}
             for i in range(1, len(header)):
                 eform[header[i]] = row[i]
-
             subjects.append({
                 'subjectName': subjectName,
                 'eForm': eform 
             })
-
     return subjects
 
 @app.route('/api/datasets', method='POST')
@@ -451,6 +449,7 @@ def postDataset():
     read_data = None
     try:
         if isExternal:
+            LOG.debug("Creating dataset as external...")
             # This is for manually create datasets out of the standard ingestion procedure.
             if not "name" in bottle.request.forms: raise WrongInputException("Missing 'name' field in the request form.")
             if not "description" in bottle.request.forms: raise WrongInputException("Missing 'description' field in the request form.")
@@ -467,7 +466,15 @@ def postDataset():
             externalSubfolder = bottle.request.forms.get("externalSubfolder")
             if externalSubfolder is None: raise WrongInputException("Missing 'externalSubfolder' field in the request form.")
             externalDatasetPath = os.path.join(CONFIG.self.datalake_mount_path, CONFIG.self.datalake_external_subpath, externalSubfolder)
-            dataset["studies"] = _buildDatasetStudiesListFromDirectoryStructure(externalDatasetPath)
+            
+            indexFilePath = os.path.join(externalDatasetPath, CONFIG.self.index_file_name)
+            if os.path.exists(indexFilePath):
+                LOG.debug('index file found, loading: ' + indexFilePath)
+                with open(indexFilePath , 'rb') as inputStream:
+                    dataset["studies"] = json.load(inputStream)
+            else:
+                LOG.debug("Loading studies from directories structure in: " + externalDatasetPath)
+                dataset["studies"] = _buildDatasetStudiesListFromDirectoryStructure(externalDatasetPath)
 
             if "clinical_data" in bottle.request.files:
                 clinicalDataFile = bottle.request.files["clinical_data"]
@@ -476,9 +483,14 @@ def postDataset():
                     return setErrorResponse(400, 'File extension not allowed, only CSV is supported.')
                 dataset["subjects"] = _buildDatasetSubjectsListFromCSV(clinicalDataFile.file)
             else:
-                subjects = set([s["subjectName"] for s in dataset["studies"]])
-                dataset["subjects"] = [{'subjectName': s,'eForm': {} } for s in subjects]
-            #return  json.dumps(dataset)
+                eformsFilePath = os.path.join(externalDatasetPath, CONFIG.self.eforms_file_name)
+                if os.path.exists(eformsFilePath):
+                    LOG.debug('E-FORMs file found, loading: ' + eformsFilePath)
+                    with open(eformsFilePath , 'rb') as inputStream:
+                        dataset["subjects"] = json.load(inputStream)
+                else:
+                    subjects = set([s["subjectName"] for s in dataset["studies"]])
+                    dataset["subjects"] = [{'subjectName': s,'eForm': {} } for s in subjects]
         else:
             LOG.debug("Reading request body as JSON...")
             read_data = bottle.request.body.read().decode('UTF-8')

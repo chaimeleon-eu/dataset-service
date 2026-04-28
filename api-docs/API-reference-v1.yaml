@@ -525,6 +525,7 @@ paths:
                      - "error"
                   lastMessage:
                     type: string
+                    maxLength: 512
                     description: "The last message of the process. This can be used to show the work progress to the user."
         '401':
           $ref: '#/components/responses/Unauthorized'

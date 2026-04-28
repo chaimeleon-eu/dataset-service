@@ -3,8 +3,8 @@ import logging
 from dataset_service.POSIX import *
 from dataset_service import dicom, eform
 
-class DatasetException(Exception):
-    pass
+class DatasetException(Exception): pass
+class WrongInputException(Exception): pass
 
 def check_file_system(datalake_mount_path, datasets_mount_path):
     logging.root.info("Checking mount paths...")
@@ -175,7 +175,7 @@ def _getFirstDicomFile(DirPath) -> dicom.Dicom | None:
             dicomFilePath = os.path.join(DirPath, fileName)
             try:
                 return dicom.Dicom(dicomFilePath)
-            except Exception as ex:
+            except WrongInputException as ex:
                 logging.root.error("Error reading DICOM file: " + dicomFilePath)
                 raise ex
     return None
@@ -186,7 +186,7 @@ def _checkMetadataItemAndSave(study, item, newValue, filename):
         study[item] = newValue
     else:   # the item is included in other series, let's check if the value is the same
         if newValue != study[item]:
-            raise Exception("The %s in that series differs from other series: %s" % (item, filename))
+            raise WrongInputException("The %s in that series differs from other series: %s" % (item, filename))
 
 def _addMetadataFromDicomOfASeriesToStudyAndSeries(dcm: dicom.Dicom, study, series):
     fileName = dcm.getFileName()
@@ -194,7 +194,7 @@ def _addMetadataFromDicomOfASeriesToStudyAndSeries(dcm: dicom.Dicom, study, seri
     if ageInDays != None:
         if study["ageInDays"] != None:
             if ageInDays != study["ageInDays"]:
-                raise Exception("The patientAge in that series differs from other series: " + fileName)
+                raise WrongInputException("The patientAge in that series differs from other series: " + fileName)
         else:
             study["ageInDays"], study["ageUnit"] = ageInDays, ageUnit
     

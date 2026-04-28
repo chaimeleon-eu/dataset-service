@@ -235,7 +235,8 @@ class dataset_creation_worker:
             stop = self.updateProgress("Dataset creation finished.")
             if stop: self._cancelProgress(); return
             self._endProgress()
-        except (WrongInputException, tracer.TraceException, dataset_file_system.DatasetException, LoginException) as e:
+        except (WrongInputException, tracer.TraceException, LoginException, 
+                dataset_file_system.DatasetException, dataset_file_system.WrongInputException) as e:
             self._endProgress(errorMessage=str(e))
         except Exception as e:
             self._endProgress(errorMessage="Unexpected error")
