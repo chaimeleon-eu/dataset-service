@@ -1949,7 +1949,9 @@ def putUser(username):
                                                      CONFIG.on_event_scripts.user_management_job_template_file_path)
                 if not ok: 
                     raise K8sException("Unexpected error launching user creation job.")
-
+                # Let's wait 2 seconds for the pod creation 
+                # (the web interface will usually try to get the job log after this and it will not be there until pod created)
+                time.sleep(2)
         LOG.debug('User successfully created or updated.')
         bottle.response.status = 201
     except (WrongInputException, keycloak.KeycloakAdminAPIException) as e:

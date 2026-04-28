@@ -193,7 +193,8 @@ class K8sClient:
             if pod_name is None or not pod_name.startswith(USER_CREATION_JOB_PREFIX + username + "-"): return None
             pod = API.read_namespaced_pod_status(pod_name, self.namespace)
             if not isinstance(pod, client.V1Pod) or not isinstance(pod.status, client.V1PodStatus): return None
-            if pod.status.phase in ['Pending','Unknown']: return None
+            if pod.status.phase == 'Unknown': return None
+            if pod.status.phase  == 'Pending': return "[There is not any output yet, the pod status is pending, try refreshing in few seconds.]"
             limit_bytes = 1024 * 1024  # 1MB
             return API.read_namespaced_pod_log(pod_name, self.namespace, limit_bytes=limit_bytes)
         except ApiException as e:
