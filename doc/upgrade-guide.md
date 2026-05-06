@@ -14,6 +14,17 @@ In case of increments in the SAFECHANGE part of version, as you know, the change
 Note SAFECHANGE version means it's always safe to upgrade, but not always to downgrade. 
 Indeed whenever the DB schema version is increased an error will appear in the log if you try to downgrade.
 
+## Upgrade to 3.23.0
+### Changes in API:
+New operation DELETE /projects/{code}.
+### Changes in on-event-jobs
+The template for subproject-management-job has been updated: 
+  now it can be used to launch a job for deletion 
+  and the placeholder `__OPERATION__` has been added for indicating the case (possible values: `create`, `delete`).
+### Changes in DB:
+DB schema version increased to 45.
+The DB will be automatically migrated and so you will not be able to go back to a previous version.
+
 ## Upgrade to 3.22.6
 ### Changes in API:
 New operation GET /version.
