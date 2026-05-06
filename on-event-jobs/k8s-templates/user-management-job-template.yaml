@@ -22,7 +22,7 @@ spec:
 
       containers:
         - name: user-management
-          image: harbor.chaimeleon-eu.i3m.upv.es/chaimeleon-services/dataset-service-on-event-jobs:1.0
+          image: harbor.chaimeleon-eu.i3m.upv.es/chaimeleon-services/dataset-service-on-event-jobs:1.1
           imagePullPolicy: Always
           workingDir: "/home/ubuntu/scripts"
           command: ["/bin/bash"]
