@@ -327,5 +327,16 @@ class KeycloakAdminAPIClient:
         if parentGroupId is None: 
             logging.root.error("KeycloakAdminAPI error: group path '%s' not found" % (parentGroupId))
             raise KeycloakAdminAPIException('Internal server error: parent group path not found.')
-        logging.root.debug('Creating group in KeycloakAdminAPI...')
+        logging.root.debug('Creating group with KeycloakAdminAPI...')
         self._POST_JSON("groups/"+parentGroupId+"/children", json.dumps({"name": name}))
+
+    def deleteGroup(self, name, parentGroupPath: str):
+        logging.root.debug('Searching group id with KeycloakAdminAPI...')
+        groupPath = parentGroupPath + '/' + name
+        groupId = self._get_group_id(groupPath)
+        if groupId is None: 
+            logging.root.error("KeycloakAdminAPI error: group path '%s' not found" % (groupPath))
+            raise KeycloakAdminAPIException('Internal server error: group path not found.')
+        
+        logging.root.debug('Removing group with KeycloakAdminAPI...')
+        self._DELETE_JSON("groups/"+groupId, "{}")

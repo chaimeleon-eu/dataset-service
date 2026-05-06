@@ -1419,12 +1419,14 @@ paths:
                           Possible values are:
                            * `config` - To show the form with the configuration params for the project.
                            * `viewSubprojects` - To show the list of current subprojects in the project.
+                           * `delete` - To delete the project.
                         example: ["config", "viewSubprojects"]
                         items:
                           type: string
                           enum: 
                            - "config"
                            - "viewSubprojects"
+                           - "delete"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -1471,6 +1473,35 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [projects]
+      summary: Delete a project by its code
+      operationId: deleteProject
+      description:  |
+        Deletes a project in the system. 
+        Only empty projects (without datasets) can be deleted.
+        If there are datasets in the project, they should be tried to be deleted previously.
+        If there are subprojects in the project, they will be deleted.
+        Check if "allowedActionsForTheUser" contains "delete" to know if the user can delete.
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ProjectCode'
+      responses:
+        '204':
+          description: "Successful operation."
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '400': 
+          description: "Bad request, it cannot be removed."
+          content: 
+            application/json: 
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -1724,10 +1755,12 @@ paths:
       summary: Create new access to datasets
       operationId: createDatasetAccess
       description: |
-        It is called when a user access to one or more datasets. The access will be granted (and annotated in tracer) or denied according to the groups of the user."
+        It is called when a user access to one or more datasets. The access will be granted (and annotated in tracer) or denied according to the groups of the user.
       parameters:
         - name: id
-          description: "The id of the datasetAccess, it can be the uid of the kubernetes object (deployment, job, pod...). When the user finishes the access, the DELETE operation should be called with that same id."
+          description: |
+            The id of the datasetAccess, it can be the uid of the kubernetes object (deployment, job, pod...). 
+            When the user finishes the access, the PATCH operation should be called with that same id.
           in: path
           required: true
           schema:

@@ -1,6 +1,8 @@
-# This is the template of the k8s job launched whenever a subproject is created or updated.
+# This is the template of the k8s job launched whenever a subproject is created, updated or deleted.
 # Template variables that will be replaced by the launcher (the Dataset-service):
-#   __PROJECT_CODE__, __SUBPROJECT_CODE__, __SUBPROJECT_NAME__, __SUBPROJECT_DESCRIPTION__, __SUBPROJECT_EXTERNAL_ID__
+#   __OPERATION__, __PROJECT_CODE__, __SUBPROJECT_CODE__, __SUBPROJECT_NAME__, __SUBPROJECT_DESCRIPTION__, __SUBPROJECT_EXTERNAL_ID__
+# __OPERATION__ will be "create" or "delete".
+# __SUBPROJECT_NAME__ and __SUBPROJECT_DESCRIPTION__ will be empty when __OPERATION__ is "delete".
 # NOTE: the script for create (create-project.sh) should be idempotent, the result should be the same if called multiple times.
 
 apiVersion: batch/v1
@@ -22,7 +24,7 @@ spec:
           imagePullPolicy: Always
           workingDir: "/home/ubuntu/scripts"
           command: ["/bin/bash"]
-          args: ["/home/ubuntu/scripts/create-subproject.sh"]
+          args: ["/home/ubuntu/scripts/__OPERATION__-subproject.sh"]
           volumeMounts:
             - mountPath: "/home/ubuntu/scripts"
               subPath: "on-event-jobs/scripts"

@@ -1538,12 +1538,13 @@ def putProject(code):
         _checkPropertyAsObject("projectConfig", projectData["projectConfig"])
 
         with DB(CONFIG.db) as db:
-            LOG.debug("Creating or updating project: %s" % code)
+            LOG.debug("Creating or updating project in database: %s" % code)
             DBProjectsOperator(db).createOrUpdateProject(code, name, shortDescription, externalUrl, logoFileName)
             # project configuration is included in this operation also
             _putProjectConfig(projectData["projectConfig"], code, db)
 
             if AUTH_ADMIN_CLIENT != None and CONFIG.auth.admin_api.parent_group_of_project_groups != "":
+                LOG.debug("Creating the group for project in the auth service...")
                 AUTH_ADMIN_CLIENT.createGroup(CONFIG.auth.token_validation.project_group_prefix+code, 
                                               CONFIG.auth.admin_api.parent_group_of_project_groups)
 
@@ -1820,12 +1821,12 @@ def putSubproject(code, subcode):
             DBProjectsOperator(db).createOrUpdateSubproject(code, subcode, name, description, externalId)
         
         if CONFIG.on_event_scripts.subproject_management_job_template_file_path != "":
-            LOG.debug('Launching project creation job...')
+            LOG.debug('Launching subproject creation job...')
             k8sClient = k8s.K8sClient()
-            ok = k8sClient.add_subproject_creation_job(code, subcode, name, description, externalId, 
-                                                       CONFIG.on_event_scripts.subproject_management_job_template_file_path)
+            ok = k8sClient.add_subproject_management_job(k8s.Job_operation.CREATE, code, subcode, name, description, externalId, 
+                                                         CONFIG.on_event_scripts.subproject_management_job_template_file_path)
             if not ok: 
-                raise K8sException("Unexpected error launching site creation job.")
+                raise K8sException("Unexpected error launching subproject creation job.")
             #ok = k8sClient.wait_for_the_end_of_job()
 
         LOG.debug('Subproject successfully created or updated.')
@@ -1838,6 +1839,57 @@ def putSubproject(code, subcode):
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
         return setErrorResponse(500, "Unexpected error, may be the input is wrong")
+
+@app.route('/api/projects/<code>', method='DELETE')
+def deleteProject(code):
+    ''' Notes: 
+        If the project is managed by QP-Insights
+    '''
+    if CONFIG is None: raise Exception()
+    LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
+    ret = getTokenFromAuthorizationHeader()
+    if isinstance(ret, str): return ret  # return error message
+    user = authorization.User(ret)
+    if not user.canAdminProjects():
+        return setErrorResponse(401, "unauthorized user")
+
+    with DB(CONFIG.db) as db:
+        dbprojects = DBProjectsOperator(db)
+        if not dbprojects.existsProject(code):
+            return setErrorResponse(404, "not found")
+        searchFilter = authorization.Search_filter(projects=set([code]))
+        #searchFilter.adjustByUser(user)
+        datasets, total =  DBDatasetsOperator(db).getDatasets(0, 0, '', searchFilter, '', '')
+        if total > 0: 
+            return setErrorResponse(400, "The project is not empty, try to delete the datasets of the project previously.")
+
+        if CONFIG.on_event_scripts.subproject_management_job_template_file_path != "":
+            subprojects = dbprojects.getSubprojects(code)
+            for sp in subprojects:
+                LOG.debug('Launching deletion job for subproject: ' + sp["code"])
+                k8sClient = k8s.K8sClient()
+                ok = k8sClient.add_subproject_management_job(k8s.Job_operation.DELETE, code, sp["code"], "", "", sp["externalId"] or "", 
+                                                             CONFIG.on_event_scripts.subproject_management_job_template_file_path)
+                if not ok: 
+                    raise K8sException("Unexpected error launching subproject deletion job.")
+                #ok = k8sClient.wait_for_the_end_of_job()
+
+        LOG.debug("Removing project and subprojects in the database...")
+        dbprojects.deleteProject(code)
+
+        LOG.debug("Removing project logo file...")
+        logoFileName = code + ".png"
+        destinationFilePath = os.path.join(CONFIG.self.static_files_logos_dir_path, logoFileName)
+        if os.path.exists(destinationFilePath): 
+            os.unlink(destinationFilePath)
+        
+        if AUTH_ADMIN_CLIENT != None and CONFIG.auth.admin_api.parent_group_of_project_groups != "":
+            LOG.debug("Removing the group for project in the auth service...")
+            AUTH_ADMIN_CLIENT.deleteGroup(CONFIG.auth.token_validation.project_group_prefix+code, 
+                                          CONFIG.auth.admin_api.parent_group_of_project_groups)
+
+    LOG.debug('Project successfully removed.')
+    bottle.response.status = 204
 
 
 @app.route('/api/user/<userName>', method='POST')

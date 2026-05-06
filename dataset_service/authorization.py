@@ -264,8 +264,8 @@ class User:
             allowedActions.append("config")
         if self.canViewSubprojects():
             allowedActions.append("viewSubprojects")
-        # if self.canDeleteProject(projectCode):
-        #     allowedActions.append("delete")
+        if self.canAdminProjects():
+            allowedActions.append("delete")
         # if self.canManageMembers(projectCode):
         #     allowedActions.append("manageMembers")
         return allowedActions

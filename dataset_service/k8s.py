@@ -18,12 +18,17 @@ SITE_CREATION_JOB_PREFIX="crea-site-"
 
 SUBPROJECT_MANAGEMENT_JOB_TYPE_LABEL="subproject-management"
 SUBPROJECT_CREATION_JOB_PREFIX="crea-subproj-"  # max chars 63-20-20-10 = 13  (63-max_len_proj-max_len_subproj-suffix)
+SUBPROJECT_DELETION_JOB_PREFIX="del-subproj-"  # max chars 63-20-20-10 = 13  (63-max_len_proj-max_len_subproj-suffix)
 
 class Job_state(Enum):
     RUNNING = 'running'
     SUCCEEDED = 'succeeded'
     FAILED = 'failed'
     UNKNOWN = 'unknown'
+
+class Job_operation(Enum):
+    CREATE = "create"
+    DELETE = "delete"
 
 class K8sClient:
     def __init__(self):
@@ -238,11 +243,12 @@ class K8sClient:
             return False
         return True
 
-    def add_subproject_creation_job(self, code: str, subcode: str, name: str, description: str, externalId: str, job_template_file_path: str):
+    def add_subproject_management_job(self, operation: Job_operation, code: str, subcode: str, name: str, description: str, externalId: str, job_template_file_path: str):
         API = client.ApiClient()
         try:
             with open(job_template_file_path) as f:
                 job_template = f.read()
+            job_template = job_template.replace("__OPERATION__", operation.value)
             job_template = job_template.replace("__PROJECT_CODE__", code)
             job_template = job_template.replace("__SUBPROJECT_CODE__", subcode)
             job_template = job_template.replace("__SUBPROJECT_NAME__", name)
@@ -255,7 +261,8 @@ class K8sClient:
         logging.root.info("Project management job template loaded from file: " + job_template_file_path)
         if not "metadata" in job or not isinstance(job["metadata"], dict): job["metadata"] = {}
         random_uuid = str(uuid.uuid4())[:8]
-        job['metadata']['name'] = SUBPROJECT_CREATION_JOB_PREFIX + code.lower() + "-" + subcode.lower() + "-" + random_uuid
+        name_prefix = SUBPROJECT_CREATION_JOB_PREFIX if operation == Job_operation.CREATE else SUBPROJECT_DELETION_JOB_PREFIX
+        job['metadata']['name'] = name_prefix + code.lower() + "-" + subcode.lower() + "-" + random_uuid
         job['metadata']['namespace'] = self.namespace
         job['metadata']['labels'] = {
             'job-type': SUBPROJECT_MANAGEMENT_JOB_TYPE_LABEL,

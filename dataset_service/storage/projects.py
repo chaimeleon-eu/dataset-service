@@ -102,3 +102,6 @@ class DBProjectsOperator():
                     zenodoAccessToken = row[3], zenodoAuthor = row[4], 
                     zenodoCommunity = row[5], zenodoGrant = row[6])
     
+    def deleteProject(self, projectCode):
+        self.cursor.execute("DELETE FROM subproject WHERE project_code=%s;", (projectCode,))
+        self.cursor.execute("DELETE FROM project WHERE code=%s;", (projectCode,))
