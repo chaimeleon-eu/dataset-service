@@ -12,9 +12,7 @@ def execute_cmd(cmd_string, fetch=True):
     p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     out, err = p.communicate()
     rc = p.returncode
-    output = err
-    if rc == 0:
-        output= out
+    output = out if rc == 0 else err
     if fetch:
         output = output.decode("utf-8").split('\n')
     return output, rc

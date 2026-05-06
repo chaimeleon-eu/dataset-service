@@ -9,8 +9,14 @@ import uuid
 from dataset_service.config import CONFIG_ENV_VAR_NAME
 
 DATASET_CREATION_JOB_PREFIX="crea-dataset-"
+
+USER_MANAGEMENT_JOB_TYPE_LABEL="user-management"
 USER_CREATION_JOB_PREFIX="crea-user-"
+
+SITE_MANAGEMENT_JOB_TYPE_LABEL="site-management"
 SITE_CREATION_JOB_PREFIX="crea-site-"
+
+SUBPROJECT_MANAGEMENT_JOB_TYPE_LABEL="subproject-management"
 SUBPROJECT_CREATION_JOB_PREFIX="crea-subproj-"  # max chars 63-20-20-10 = 13  (63-max_len_proj-max_len_subproj-suffix)
 
 class Job_state(Enum):
@@ -142,8 +148,8 @@ class K8sClient:
             job_template = job_template.replace("__TENANT_SITE__", site_param)
             job_template = job_template.replace("__TENANT_PROJECTS__", projects_param)
             job = yaml.load(job_template, Loader=yaml.SafeLoader)
-        except:
-            logging.root.error("ERROR: User management job template file not found or wrong content: " + job_template_file_path)
+        except Exception as e:
+            logging.root.error("ERROR: User management job template file not found or wrong content: %s\n%s" % (job_template_file_path, e))
             return False
         logging.root.info("User management job template loaded from file: " + job_template_file_path)
         if not "metadata" in job or not  isinstance(job["metadata"], dict): job["metadata"] = {}
@@ -151,7 +157,7 @@ class K8sClient:
         job['metadata']['name'] = USER_CREATION_JOB_PREFIX + username + "-" + random_uuid
         job['metadata']['namespace'] = self.namespace
         job['metadata']['labels'] = {
-            'job-type': 'user-creation',
+            'job-type': USER_MANAGEMENT_JOB_TYPE_LABEL,
             'username': username
         }
         try:
@@ -166,7 +172,7 @@ class K8sClient:
         API = client.BatchV1Api()
         creationJobs = []
         try:
-            jobList = API.list_namespaced_job(self.namespace, label_selector="job-type=user-creation, username="+username)
+            jobList = API.list_namespaced_job(self.namespace, label_selector="job-type="+USER_MANAGEMENT_JOB_TYPE_LABEL+", username="+username)
             for j in jobList.items:
                 #if str(j.metadata.name).startswith(USER_CREATION_JOB_PREFIX + username + "-"):
                 creationJobs.append({
@@ -186,10 +192,10 @@ class K8sClient:
         if len(pod_list.items) == 0: return None
         return pod_list.items[0].metadata.name
 
-    def get_user_creation_job_logs(self, username, selectorUid) -> str | None:
+    def get_user_creation_job_logs(self, username, jobUid) -> str | None:
         API = client.CoreV1Api()
         try:
-            pod_name = self._get_name_of_first_pod_of_job(API, selectorUid)
+            pod_name = self._get_name_of_first_pod_of_job(API, jobUid)
             if pod_name is None or not pod_name.startswith(USER_CREATION_JOB_PREFIX + username + "-"): return None
             pod = API.read_namespaced_pod_status(pod_name, self.namespace)
             if not isinstance(pod, client.V1Pod) or not isinstance(pod.status, client.V1PodStatus): return None
@@ -212,8 +218,8 @@ class K8sClient:
             job_template = job_template.replace("__SITE_CONTACT_PERSON_NAME__", contact_name)
             job_template = job_template.replace("__SITE_CONTACT_PERSON_EMAIL__", contact_email)
             job = yaml.load(job_template, Loader=yaml.SafeLoader)
-        except:
-            logging.root.error("ERROR: Site management job template file not found or wrong content: " + job_template_file_path)
+        except Exception as e:
+            logging.root.error("ERROR: Site management job template file not found or wrong content: %s\n%s" % (job_template_file_path, e))
             return False
         logging.root.info("Site management job template loaded from file: " + job_template_file_path)
         if not "metadata" in job or not isinstance(job["metadata"], dict): job["metadata"] = {}
@@ -221,7 +227,7 @@ class K8sClient:
         job['metadata']['name'] = SITE_CREATION_JOB_PREFIX + code.lower() + "-" + random_uuid
         job['metadata']['namespace'] = self.namespace
         job['metadata']['labels'] = {
-            'job-type': 'site-creation',
+            'job-type': SITE_MANAGEMENT_JOB_TYPE_LABEL,
             'code': code
         }
         try:
@@ -243,8 +249,8 @@ class K8sClient:
             job_template = job_template.replace("__SUBPROJECT_DESCRIPTION__", description)
             job_template = job_template.replace("__SUBPROJECT_EXTERNAL_ID__", externalId)
             job = yaml.load(job_template, Loader=yaml.SafeLoader)
-        except:
-            logging.root.error("ERROR: Project management job template file not found or wrong content: " + job_template_file_path)
+        except Exception as e:
+            logging.root.error("ERROR: Project management job template file not found or wrong content: %s\n%s" % (job_template_file_path, e))
             return False
         logging.root.info("Project management job template loaded from file: " + job_template_file_path)
         if not "metadata" in job or not isinstance(job["metadata"], dict): job["metadata"] = {}
@@ -252,7 +258,7 @@ class K8sClient:
         job['metadata']['name'] = SUBPROJECT_CREATION_JOB_PREFIX + code.lower() + "-" + subcode.lower() + "-" + random_uuid
         job['metadata']['namespace'] = self.namespace
         job['metadata']['labels'] = {
-            'job-type': 'subproject-creation',
+            'job-type': SUBPROJECT_MANAGEMENT_JOB_TYPE_LABEL,
             'code': code
         }
         try:

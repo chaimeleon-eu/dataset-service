@@ -40,6 +40,7 @@ class DBProjectsOperator():
                     externalUrl = row[3], logoFileName = row[4])
     
     def createOrUpdateSubproject(self, projectCode, code, name, description, externalId):
+        if externalId == '': externalId = None
         self.cursor.execute("""
             INSERT INTO subproject (project_code, code, name, description, external_id) 
             VALUES (%s, %s, %s, %s, %s)
@@ -56,12 +57,16 @@ class DBProjectsOperator():
             FROM subproject WHERE project_code = %s;""", (projectCode,))
         res = []
         for row in self.cursor:
-            res.append(dict(code = row[0], name = row[1], description = row[2], externalId = row[3]))
+            externalId = row[3] if row[3]!=None else ''
+            res.append(dict(code = row[0], name = row[1], description = row[2], externalId = externalId))
         return res
 
-    def getSubprojectsIDs(self, code):
-        self.cursor.execute("SELECT external_id FROM subproject WHERE project_code=%s;", (code,))
-        return [row[0] for row in self.cursor]
+    def getSubprojectsIDs(self, projectCode):
+        self.cursor.execute("SELECT external_id FROM subproject WHERE project_code=%s;", (projectCode,))
+        res = []
+        for row in self.cursor:
+            if row[0] != None: res.append(row[0])
+        return res
     
     def setProjectName(self, code, newValue: str | None):
         self.cursor.execute("UPDATE project SET name = %s WHERE code = %s;", (newValue, code))

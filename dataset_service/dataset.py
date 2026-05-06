@@ -23,6 +23,7 @@ def check_file_system(datalake_mount_path, datasets_mount_path):
 
 def remove_dataset(datasets_dir_path, dataset_dir_name):
     dataset_dir_path = os.path.join(datasets_dir_path, dataset_dir_name)
+    # This is will remove the sym links (not the destination files/dirs in datalake).
     shutil.rmtree(dataset_dir_path, ignore_errors=True)
 
 def create_dataset_dir(datasets_dir_path, dataset_dir_name):
