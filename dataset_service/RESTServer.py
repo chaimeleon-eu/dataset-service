@@ -208,7 +208,7 @@ def getTokenOfAUserFromAuthAdminClient(userId) -> str | dict:
     if not ok: return setErrorResponse(401, "invalid access token: missing '%s'" % missingProperty)
     return token
 
-def get_header_media_types(header):
+def get_header_accept_media_types(header):
     """
     Function to get the media types specified in a header.
     Returns a List of strings.
@@ -228,6 +228,20 @@ def get_header_media_types(header):
                 res.append(media_type)
     return res
 
+def _check_header_content_type(requiredContentTypes: list[str]) -> str:
+    content_type = bottle.request.get_header('Content-Type')
+    if not content_type: 
+        raise WrongInputException("invalid or missing 'Content-Type' header, required "
+                                  + " or ".join(["'"+i+"'" for i in requiredContentTypes]))
+    pos = content_type.find(";")
+    if pos != -1:
+        content_type = content_type[:pos]
+    content_type = content_type.strip()
+    if len(requiredContentTypes) > 1: LOG.debug("Content-type in request: %s" % json.dumps(content_type))
+    if not content_type in requiredContentTypes:
+        raise WrongInputException("invalid 'Content-Type' header, required "
+                                  + " or ".join(["'"+i+"'" for i in requiredContentTypes]))
+    return content_type
 
 @app.route('/api/', method='GET')
 def getHello():
@@ -435,19 +449,14 @@ def postDataset():
         return setErrorResponse(401, "unauthorized user")
 
     isExternal = "external" in bottle.request.query and bottle.request.query["external"].lower() == "true"
-
     if isExternal and not user.canCreateExternalDatasets():
         return setErrorResponse(401, "unauthorized user")
-    
-    content_types = get_header_media_types('Content-Type')
-    requiredContentType = 'multipart/form-data' if isExternal else 'application/json'
-    if not requiredContentType in content_types:
-        return setErrorResponse(400, "invalid 'Content-Type' header, required '%s'" % requiredContentType)
 
     datasetDirName = ''
     datasetId = str(uuid.uuid4())
     read_data = None
     try:
+        content_type = _check_header_content_type(['multipart/form-data' if isExternal else 'application/json'])
         if isExternal:
             LOG.debug("Creating dataset as external...")
             # This is for manually create datasets out of the standard ingestion procedure.
@@ -616,7 +625,7 @@ def postDataset():
         if datasetDirName != '': dataset_file_system.remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
         return setErrorResponse(400, str(e))
     except json.decoder.JSONDecodeError as e:
-        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
+        return setErrorResponse(400, "Error decoding the body as JSON: " + str(e))
     except Exception as e:
         LOG.exception(e)
         if read_data != None:
@@ -1167,7 +1176,7 @@ def patchDataset(id):
     except WrongInputException as e:
         return setErrorResponse(400, str(e))
     except json.decoder.JSONDecodeError as e:
-        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
+        return setErrorResponse(400, "Error decoding the body as JSON: " + str(e))
     except pid.PidException as e:
         return setErrorResponse(500, str(e))
 
@@ -1298,9 +1307,9 @@ def eucaimSearchDatasets():
     if bottle.request.get_header("Authorization") != "Secret " + CONFIG.self.eucaim_search_token:
         return setErrorResponse(401, "unauthorized user")
     
-    content_types = get_header_media_types('Content-Type')
-    if not 'application/json' in content_types:
-        return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
+    try:
+        _check_header_content_type(['application/json'])
+    except WrongInputException as e: return setErrorResponse(400, str(e))
     read_data = bottle.request.body.read().decode('UTF-8')
     LOG.debug("BODY: " + read_data)
     try:
@@ -1320,7 +1329,7 @@ def eucaimSearchDatasets():
     except (WrongInputException, SearchValidationException) as e:
         return setErrorResponse(422, "Request validation error: %s" % e)
     except json.decoder.JSONDecodeError as e:
-        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
+        return setErrorResponse(400, "Error decoding the body as JSON: " + str(e))
     except Exception as e:
         LOG.exception(e)
         if read_data != None:
@@ -1509,13 +1518,11 @@ def putProject(code):
     
     if code == CONFIG.self.external_datasets_project_code:
         return setErrorResponse(400, "The project code '%s' is reserved." % CONFIG.self.external_datasets_project_code)
-    content_types = get_header_media_types('Content-Type')
-    if not 'application/json' in content_types:
-        return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
     read_data = None
     logoFileName = code + ".png"   # str(uuid.uuid4())
     destinationFilePath = os.path.join(CONFIG.self.static_files_logos_dir_path, logoFileName)
     try:
+        _check_header_content_type(['application/json'])
         read_data = bottle.request.body.read().decode('UTF-8')
         LOG.debug("BODY: " + read_data)
         projectData = json.loads(read_data)
@@ -1552,10 +1559,9 @@ def putProject(code):
             os.rename(destinationFilePath + ".tmp", destinationFilePath)
         LOG.debug('Project successfully created or updated.')
         bottle.response.status = 201
-    except WrongInputException as e:
-        return setErrorResponse(400, str(e))
+    except WrongInputException as e: return setErrorResponse(400, str(e))
     except json.decoder.JSONDecodeError as e:
-        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
+        return setErrorResponse(400, "Error decoding the body as JSON: " + str(e))
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
@@ -1591,11 +1597,9 @@ def putProjectConfig(code):
     ret = _checkUserCanModifyProject(code)
     if isinstance(ret, str): return ret  # return error message
     
-    content_types = get_header_media_types('Content-Type')
-    if not 'application/json' in content_types:
-        return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
     read_data = None
     try:
+        _check_header_content_type(['application/json'])
         read_data = bottle.request.body.read().decode('UTF-8')
         LOG.debug("BODY: " + read_data)
         projectConfig = json.loads(read_data)
@@ -1604,10 +1608,9 @@ def putProjectConfig(code):
             _putProjectConfig(projectConfig, code, db)
         LOG.debug('Project config successfully updated.')
         bottle.response.status = 201
-    except WrongInputException as e:
-        return setErrorResponse(400, str(e))
+    except WrongInputException as e: return setErrorResponse(400, str(e))
     except json.decoder.JSONDecodeError as e:
-        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
+        return setErrorResponse(400, "Error decoding the body as JSON: " + str(e))
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
@@ -1624,12 +1627,10 @@ def putProjectLogo(code):
     ret = _checkUserCanModifyProject(code)
     if isinstance(ret, str): return ret  # return error message
     
-    content_types = get_header_media_types('Content-Type')
-    LOG.debug("Content-type: %s" % json.dumps(content_types))
     logoFileName = code + ".png"   # str(uuid.uuid4())
     destinationFilePath = os.path.join(CONFIG.self.static_files_logos_dir_path, logoFileName)
     try:
-        if not 'multipart/form-data' in content_types: return WrongInputException("Invalid 'Content-Type' header, required 'multipart/form-data'")
+        content_type = _check_header_content_type(['multipart/form-data'])
         #if not "logo" in bottle.request.files: return WrongInputException("There is no any part in the body with the name 'logo' ")
         #logoFile = bottle.request.files["logo"]
         if len(bottle.request.files) == 0:
@@ -1653,7 +1654,7 @@ def putProjectLogo(code):
             finally:
                 # remove original file if exist
                 if os.path.exists(originalFilePath): os.unlink(originalFilePath)
-        # if 'text/plain' in content_types:
+        # if content_type == 'text/plain':
         #     sourceUrl = bottle.request.body.read().decode('UTF-8')
         #     LOG.debug("URL in body: " + sourceUrl )
         #     if sourceUrl != "":
@@ -1669,8 +1670,7 @@ def putProjectLogo(code):
 
         LOG.debug('Project logo successfully updated.')
         bottle.response.status = 201
-    except WrongInputException as e:
-        return setErrorResponse(400, str(e))
+    except WrongInputException as e: return setErrorResponse(400, str(e))
     except Exception as e:
         LOG.exception(e)
         return setErrorResponse(500, "Unexpected error, may be the input is wrong")
@@ -1756,10 +1756,9 @@ def patchProject(code):
 
         LOG.debug('Project successfully updated.')
         bottle.response.status = 204
-    except WrongInputException as e:
-        return setErrorResponse(400, str(e))
+    except WrongInputException as e: return setErrorResponse(400, str(e))
     except json.decoder.JSONDecodeError as e:
-        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
+        return setErrorResponse(400, "Error decoding the body as JSON: " + str(e))
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
@@ -1799,11 +1798,9 @@ def putSubproject(code, subcode):
     user = ret
     if not user.canAdminProjects(): return setErrorResponse(401, "unauthorized user")
     
-    content_types = get_header_media_types('Content-Type')
-    if not 'application/json' in content_types:
-        return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
     read_data = None
     try:
+        _check_header_content_type(['application/json'])
         read_data = bottle.request.body.read().decode('UTF-8')
         LOG.debug("BODY: " + read_data)
         projectData = json.loads(read_data)
@@ -1831,10 +1828,9 @@ def putSubproject(code, subcode):
 
         LOG.debug('Subproject successfully created or updated.')
         bottle.response.status = 201
-    except WrongInputException as e:
-        return setErrorResponse(400, str(e))
+    except WrongInputException as e: return setErrorResponse(400, str(e))
     except json.decoder.JSONDecodeError as e:
-        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
+        return setErrorResponse(400, "Error decoding the body as JSON: " + str(e))
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
@@ -1842,9 +1838,6 @@ def putSubproject(code, subcode):
 
 @app.route('/api/projects/<code>', method='DELETE')
 def deleteProject(code):
-    ''' Notes: 
-        If the project is managed by QP-Insights
-    '''
     if CONFIG is None: raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ret = getTokenFromAuthorizationHeader()
@@ -1948,11 +1941,9 @@ def putUser(username):
     if not user.canAdminUsers():
         return setErrorResponse(401, "unauthorized user")
 
-    content_types = get_header_media_types('Content-Type')
-    if not 'application/json' in content_types:
-        return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
     read_data = None
     try:
+        _check_header_content_type(['application/json'])
         read_data = bottle.request.body.read().decode('UTF-8')
         LOG.debug("BODY: " + read_data)
         userData = json.loads(read_data)
@@ -2009,7 +2000,7 @@ def putUser(username):
     except (WrongInputException, keycloak.KeycloakAdminAPIException) as e:
         return setErrorResponse(400, str(e))
     except json.decoder.JSONDecodeError as e:
-        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
+        return setErrorResponse(400, "Error decoding the body as JSON: " + str(e))
     except (K8sException, Exception) as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
@@ -2191,11 +2182,9 @@ def putSite(code):
     if not user.canAdminUsers():
         return setErrorResponse(401, "unauthorized user")
 
-    content_types = get_header_media_types('Content-Type')
-    if not 'application/json' in content_types:
-        return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
     read_data = None
     try:
+        _check_header_content_type(['application/json'])
         read_data = bottle.request.body.read().decode('UTF-8')
         LOG.debug("BODY: " + read_data)
         siteData = json.loads(read_data)
@@ -2230,7 +2219,7 @@ def putSite(code):
     except (WrongInputException, keycloak.KeycloakAdminAPIException) as e:
         return setErrorResponse(400, str(e))
     except json.decoder.JSONDecodeError as e:
-        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
+        return setErrorResponse(400, "Error decoding the body as JSON: " + str(e))
     except (K8sException, Exception) as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
@@ -2276,11 +2265,9 @@ def postDatasetAccessCheck():
     if not user.canAdminDatasetAccesses():
         return setErrorResponse(401, "unauthorized user")
 
-    content_types = get_header_media_types('Content-Type')
-    if not 'application/json' in content_types:
-        return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
     read_data = None
     try:
+        _check_header_content_type(['application/json'])
         read_data = bottle.request.body.read().decode('UTF-8')
         LOG.debug("BODY: " + read_data)
         datasetAccess = json.loads(read_data)
@@ -2298,8 +2285,9 @@ def postDatasetAccessCheck():
                 
         LOG.debug('Dataset access granted.')
         bottle.response.status = 204
+    except WrongInputException as e:  return setErrorResponse(400, str(e))
     except json.decoder.JSONDecodeError as e:
-        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
+        return setErrorResponse(400, "Error decoding the body as JSON: " + str(e))
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
@@ -2315,12 +2303,9 @@ def postDatasetAccess(id):
     if not user.canAdminDatasetAccesses():
         return setErrorResponse(401, "unauthorized user")
 
-    content_types = get_header_media_types('Content-Type')
-    if not 'application/json' in content_types:
-        return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
-
     read_data = None
     try:
+        _check_header_content_type(['application/json'])
         read_data = bottle.request.body.read().decode('UTF-8')
         LOG.debug("BODY: " + read_data)
         datasetAccess = json.loads(read_data)
@@ -2382,11 +2367,11 @@ def postDatasetAccess(id):
         
         LOG.debug('Dataset access granted.')
         bottle.response.status = 201
-
+    except WrongInputException as e: return setErrorResponse(400, str(e))
     except LoginException as e:
         return setErrorResponse(500, "Unexpected, error: "+ str(e))
     except json.decoder.JSONDecodeError as e:
-        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
+        return setErrorResponse(400, "Error decoding the body as JSON: " + str(e))
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
@@ -2402,12 +2387,9 @@ def endDatasetAccess(id):
     if not user.canAdminDatasetAccesses():
         return setErrorResponse(401, "unauthorized user")
 
-    content_types = get_header_media_types('Content-Type')
-    if not 'application/json' in content_types:
-        return setErrorResponse(400, "invalid 'Content-Type' header, required 'application/json'")
-
     read_data = None
     try:
+        _check_header_content_type(['application/json'])
         read_data = bottle.request.body.read().decode('UTF-8')
         LOG.debug("BODY: " + read_data)
         DatasetAccessEndData = json.loads(read_data)
@@ -2445,8 +2427,9 @@ def endDatasetAccess(id):
 
         LOG.debug('Dataset access successfully ended.')
         bottle.response.status = 204
+    except WrongInputException as e:  return setErrorResponse(400, str(e))
     except json.decoder.JSONDecodeError as e:
-        return setErrorResponse(400, "Error deconding the body as JSON: " + str(e))
+        return setErrorResponse(400, "Error decoding the body as JSON: " + str(e))
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
