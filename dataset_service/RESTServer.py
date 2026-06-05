@@ -456,59 +456,109 @@ def postDataset():
     datasetId = str(uuid.uuid4())
     read_data = None
     try:
-        content_type = _check_header_content_type(['multipart/form-data' if isExternal else 'application/json'])
-        if isExternal:
-            LOG.debug("Creating dataset as external...")
-            # This is for manually create datasets out of the standard ingestion procedure.
+        content_type = _check_header_content_type(['multipart/form-data'] if isExternal else ['application/json', 'multipart/form-data'])
+        if content_type == 'multipart/form-data':
+            LOG.debug("Reading request body as multipart/form-data...")
             if not "name" in bottle.request.forms: raise WrongInputException("Missing 'name' field in the request form.")
             if not "description" in bottle.request.forms: raise WrongInputException("Missing 'description' field in the request form.")
-
             dataset = dict(
                 name = bottle.request.forms.get("name"),
-                description = bottle.request.forms.get("description"),
-                project = CONFIG.self.external_datasets_project_code
+                description = bottle.request.forms.get("description")
             )
+            if 'version' in bottle.request.forms: dataset['version'] = bottle.request.forms.get('version')
+            if 'project' in bottle.request.forms: dataset['project'] = bottle.request.forms.get('project')
             if 'previousId' in bottle.request.forms: dataset['previousId'] = bottle.request.forms.get('previousId')
-            
-            # External dataset must be previously transferred to the datalake into a subfolder of the external folder.
-            # Example: 0-EXTERNAL-DATA/maastricht-university
-            externalSubfolder = bottle.request.forms.get("externalSubfolder")
-            if externalSubfolder is None: raise WrongInputException("Missing 'externalSubfolder' field in the request form.")
-            externalDatasetPath = os.path.join(CONFIG.self.datalake_mount_path, CONFIG.self.datalake_external_subpath, externalSubfolder)
-            
-            indexFilePath = os.path.join(externalDatasetPath, CONFIG.self.index_file_name)
-            if os.path.exists(indexFilePath):
-                LOG.debug('index file found, loading: ' + indexFilePath)
-                with open(indexFilePath , 'rb') as inputStream:
-                    dataset["studies"] = json.load(inputStream)
-            else:
-                LOG.debug("Loading studies from directories structure in: " + externalDatasetPath)
-                dataset["studies"] = _buildDatasetStudiesListFromDirectoryStructure(externalDatasetPath)
-
-            if "clinical_data" in bottle.request.files:
-                clinicalDataFile = bottle.request.files["clinical_data"]
-                name, ext = os.path.splitext(clinicalDataFile.filename)
-                if ext != '.csv':
-                    return setErrorResponse(400, 'File extension not allowed, only CSV is supported.')
-                dataset["subjects"] = _buildDatasetSubjectsListFromCSV(clinicalDataFile.file)
-            else:
-                eformsFilePath = os.path.join(externalDatasetPath, CONFIG.self.eforms_file_name)
-                if os.path.exists(eformsFilePath):
-                    LOG.debug('E-FORMs file found, loading: ' + eformsFilePath)
-                    with open(eformsFilePath , 'rb') as inputStream:
-                        dataset["subjects"] = json.load(inputStream)
-                else:
-                    subjects = set([s["subjectName"] for s in dataset["studies"]])
-                    dataset["subjects"] = [{'subjectName': s,'eForm': {} } for s in subjects]
+            if 'provenance' in bottle.request.forms: dataset['provenance'] = bottle.request.forms.get('provenance')
+            if 'purpose' in bottle.request.forms: dataset['purpose'] = bottle.request.forms.get('purpose')
+            if 'type' in bottle.request.forms: dataset['type'] = bottle.request.forms.getall('type')
+            if 'collectionMethod' in bottle.request.forms: dataset['collectionMethod'] = bottle.request.forms.getall('collectionMethod')
         else:
             LOG.debug("Reading request body as JSON...")
             read_data = bottle.request.body.read().decode('UTF-8')
             #LOG.debug("BODY: " + read_data)
             dataset = json.loads( read_data )
             if not isinstance(dataset, dict): raise WrongInputException("The body must be a json object.")
+
+        if not "name" in dataset or dataset["name"] is None: raise WrongInputException("'name' property is required.")
+        if not "description" in dataset or dataset["description"] is None: raise WrongInputException("'description' property is required.")
+        _checkPropertyAsString("name", dataset["name"], min_length=3, max_length=256)
+        _checkPropertyAsString("description", dataset["description"])
+        # _checkPropertyAsString("version", dataset["name"], min_length=3, max_length=256)
+        # _checkPropertyAsString("project", dataset["name"], min_length=3, max_length=256)
+        # _checkPropertyAsString("subproject", dataset["name"], min_length=3, max_length=256)
+        # _checkPropertyAsString("previousId", dataset["name"], min_length=3, max_length=256)
+
+        if isExternal:
+            LOG.debug("Creating dataset as external...")
+            # This is for manually create datasets out of the standard ingestion procedure.
+            dataset["project"] = CONFIG.self.external_datasets_project_code
+        else:
             if 'project' in dataset.keys() and dataset['project'] == CONFIG.self.external_datasets_project_code:
                 raise WrongInputException("The project code '%s' is reserved for external datasets." % CONFIG.self.external_datasets_project_code)
 
+        # Get studies list when content is multipart/form-data
+        if content_type == 'multipart/form-data':
+            if isExternal:
+                # External dataset must be previously transferred to the datalake into a subfolder of the external folder.
+                # Example: 0-EXTERNAL-DATA/maastricht-university
+                externalSubfolder = bottle.request.forms.get("externalSubfolder")
+                if externalSubfolder is None: raise WrongInputException("Missing 'externalSubfolder' field in the request form.")
+                externalDatasetPath = os.path.join(CONFIG.self.datalake_mount_path, CONFIG.self.datalake_external_subpath, externalSubfolder)
+                indexFilePath = os.path.join(externalDatasetPath, CONFIG.self.index_file_name)
+                if os.path.exists(indexFilePath):
+                    LOG.debug('index file found, loading: ' + indexFilePath)
+                    with open(indexFilePath , 'rb') as inputStream:
+                        dataset["studies"] = json.load(inputStream)
+                else:
+                    LOG.debug("Loading studies from directories structure in: " + externalDatasetPath)
+                    dataset["studies"] = _buildDatasetStudiesListFromDirectoryStructure(externalDatasetPath)
+            else:
+                if "index" in bottle.request.files:
+                    indexFile = bottle.request.files["index"]
+                    name, ext = os.path.splitext(indexFile.filename)
+                    if ext != '.json':
+                        raise WrongInputException('Wrong extension for the index file, only JSON is supported.')
+                    try:
+                        dataset["studies"] = json.load(indexFile.file)
+                    except json.decoder.JSONDecodeError as e:
+                        raise WrongInputException("Error decoding the index file as JSON: " + str(e))
+                else:
+                    raise WrongInputException("Missing 'index' field as file in the request form.")
+        
+        if not 'studies' in dataset.keys() or not isinstance(dataset["studies"], list): 
+            raise WrongInputException("'studies' property is required and must be an array.")
+        if not isExternal and len(dataset["studies"]) == 0:
+            raise WrongInputException("'studies' property is an empty array.")
+        LOG.debug("%s studies received." % len(dataset["studies"]))
+
+        # Get subjects list when content is multipart/form-data
+        if content_type == 'multipart/form-data':
+            if "clinicalData" in bottle.request.files:
+                clinicalDataFile = bottle.request.files["clinicalData"]
+                name, ext = os.path.splitext(clinicalDataFile.filename)
+                if ext == '.csv':
+                    dataset["subjects"] = _buildDatasetSubjectsListFromCSV(clinicalDataFile.file)
+                elif ext == '.json':
+                    try:
+                        dataset["subjects"] = json.load(clinicalDataFile.file)
+                    except json.decoder.JSONDecodeError as e:
+                        raise WrongInputException("Error decoding the clinical data file as JSON: " + str(e))
+                else:
+                    raise WrongInputException('Wrong extension for the clinical data file, only CSV and JSON are supported.')
+            elif isExternal:
+                eformsFilePath = os.path.join(externalDatasetPath, CONFIG.self.eforms_file_name)
+                if os.path.exists(eformsFilePath):
+                    LOG.debug('E-FORMs file found, loading: ' + eformsFilePath)
+                    with open(eformsFilePath , 'rb') as inputStream:
+                        dataset["subjects"] = json.load(inputStream)
+            
+            if not "subjects" in dataset: # if there are not subjects yet, we create the list with empty content
+                subjects = set([s["subjectName"] for s in dataset["studies"]])
+                dataset["subjects"] = [{'subjectName': s,'eForm': {} } for s in subjects]
+
+        if not 'subjects' in dataset.keys() or not isinstance(dataset["subjects"], list): 
+            raise WrongInputException("'subjects' property is required and must be an array.")
+        
         if not 'version' in dataset.keys(): dataset["version"] = '??'
         if not 'provenance' in dataset.keys(): dataset["provenance"] = '??'
         if not 'purpose' in dataset.keys(): dataset["purpose"] = '??'
@@ -518,14 +568,7 @@ def postDataset():
         if 'collectionMethod' in dataset.keys(): 
             _checkPropertyAsArrayOfStrings('collectionMethod', dataset["collectionMethod"], ITEM_POSSIBLE_VALUES_FOR_COLLECTION_METHOD)
         else: dataset["collectionMethod"] = []
-        if not 'studies' in dataset.keys() or not isinstance(dataset["studies"], list): 
-            raise WrongInputException("'studies' property is required and must be an array.")
-        if not isExternal and len(dataset["studies"]) == 0:
-            raise WrongInputException("'studies' property is an empty array.")
-        LOG.debug("%s studies received." % len(dataset["studies"]))
-        if not 'subjects' in dataset.keys() or not isinstance(dataset["subjects"], list): 
-            raise WrongInputException("'subjects' property is required and must be an array.")
-            
+
         # Integrity checks
         subjects = set()
         study_paths = set()
@@ -540,15 +583,24 @@ def postDataset():
             if not study["subjectName"] in subjects:
                 raise WrongInputException("The study with id '%s' has a 'subjectName' which is not in the " % study["studyId"]
                                             +"'subjects' array of the dataset." )
-            study['pathInDatalake'] = str(study['pathInDatalake']).removesuffix('/')
-            studyDirName = os.path.basename(study['pathInDatalake'])
-            study_path = os.path.join(study["subjectName"], studyDirName)
+            if 'pathInDatalake' in study:
+                study['pathInDatalake'] = str(study['pathInDatalake']).removesuffix('/')
+                studyDirName = os.path.basename(study['pathInDatalake'])
+                study_path = os.path.join(study["subjectName"], studyDirName)
+            elif 'path' in study:
+                if not "previousId" in bottle.request.forms:
+                    raise WrongInputException("One of the studies contains the 'path' field instead of 'pathInDatalake', but the previous dataset is not provided. "
+                                             +"Please specify the previous dataset, or use 'pathInDatake' converting path to be relative to datalake root directory." )
+                study_path = str(study['path']).removesuffix('/')
+            else:
+                raise WrongInputException("Missing field 'pathInDatalake' or 'path' in the study with id '%s'." % study["studyId"])
+
             # example of study_path: 17B76FEW/TCPEDITRICOABDOMINOPLVICO20150129
             if study_path in study_paths:
                 raise WrongInputException("The study with id '%s' seems duplicated, " % study["studyId"]
                                             +"it has the same directory name '%s' as another study of the same subject '%s', " % (studyDirName, study["subjectName"])
                                             +"this will cause a conflict when creating the dataset's directories structure." )
-            else: study_paths.add(study_path)
+            study_paths.add(study_path)
         
 
         with DB(CONFIG.db) as db:
@@ -1075,7 +1127,7 @@ def patchDataset(id):
                 dbdatasets.setDatasetInvalidationReason(datasetId, newValue)
                 # Don't notify the tracer, it is just a note to remember the reason.
             elif property == "name":
-                _checkPropertyAsString("value", newValue, max_length=256)
+                _checkPropertyAsString("value", newValue, min_length=3, max_length=256)
                 dbdatasets.setDatasetName(datasetId, newValue)
                 # Don't notify the tracer, this property can be changed only in draft state
             elif property == "version":

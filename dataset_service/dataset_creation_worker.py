@@ -60,6 +60,20 @@ class dataset_creation_worker:
             dataset = DBDatasetsOperator(db).getDataset(self.datasetId)
         return dataset
 
+    def _obtainPathInDatalakeForStudiesIfMissing(self, studies, previousId):
+        with DB(self.config.db) as db:
+            # prevDataset = DBDatasetsOperator(db).getDataset(previousId)
+            # if prevDataset is None: raise Exception("dataset not found in database")
+            # prevDatasetDirName = previousId
+            # prevDatasetDirPath = os.path.join(self.config.self.datasets_mount_path, prevDatasetDirName)
+            paths = DBDatasetsOperator(db).getPathsOfStudiesFromDataset(previousId, returnDict=True)
+        if not isinstance(paths, dict): raise Exception()
+        for study in studies:
+            if not 'pathInDatalake' in study:
+                path = paths.get(study['studyId'])
+                if path is None: raise WrongInputException("Wrong study id: %s \nIt's not in the previous dataset." % study['studyId'])
+                study['pathInDatalake'] = path
+
     @staticmethod
     def _checkPath(basePath: str, relativePath: str):
         ''' Ensures relativePath is in fact a subpath of basePath. Raises an exception if wrong path.
@@ -152,6 +166,11 @@ class dataset_creation_worker:
                 # this is the normal case
                 with open(studiesTmpFilePath, 'rb') as f:
                     dataset["studies"] = json.load(f)
+
+                # Obtain and add the 'pathInDatalake' property for all studies if only the 'path' is provided (path in dataset).
+                # This may happen when the creation is based on a previous dataset.
+                if "previousId" in dataset:
+                    self._obtainPathInDatalakeForStudiesIfMissing(dataset["studies"], dataset["previousId"])
 
                 # Security check: review all data sent by the user which is involved in path constructions
                 stop = self.updateProgress("Checking studies paths...")

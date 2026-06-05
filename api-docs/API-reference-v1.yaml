@@ -114,12 +114,41 @@ paths:
       tags: [datasets]
       summary: Create a new dataset
       operationId: createDataset
-      description: Creates a new dataset into the system.
+      description: |
+        Creates a new dataset into the system.
+        Note, when content is multipart/form-data, the properties of type array must be sent just repeating them for each value in the array.
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DatasetCreationObject'
+              allOf:
+                - $ref: '#/components/schemas/DatasetCreationObject'
+                - type: object
+                  properties:
+                   studies:
+                     type: array
+                     items:
+                       $ref: '#/components/schemas/StudyCreationObject'
+                   subjects:
+                     type: array
+                     description: 'Subjects of studies and their clinical data.'
+                     items:
+                       $ref: '#/components/schemas/Subject'
+
+          multipart/form-data:
+            schema:
+              allOf: 
+                - $ref: '#/components/schemas/DatasetCreationObject'
+                - type: object
+                  properties:
+                    index:
+                      type: string
+                      format: binary
+                      description: "The contents of the file index.json to upload."
+                    clinicalData:
+                      type: string
+                      format: binary
+                      description: "The contents of the file eforms.json to upload."
       responses:
         '201':
           description: item created
@@ -1989,15 +2018,6 @@ components:
              - "longitudinal"
              - "case-control"
              - "disease-specific"
-        studies:
-          type: array
-          items:
-            $ref: '#/components/schemas/StudyCreationObject'
-        subjects:
-          type: array
-          description: 'Subjects of studies and their clinical data.'
-          items:
-            $ref: '#/components/schemas/Subject'
 
     StudyCreationObject:
       type: object

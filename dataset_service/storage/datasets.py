@@ -385,16 +385,17 @@ class DBDatasetsOperator():
                             series = json.loads(row[5]), url = row[3], hash = row[6], sizeInBytes = row[7]))
         return res, total
 
-    def getPathsOfStudiesFromDataset(self, datasetId):
+    def getPathsOfStudiesFromDataset(self, datasetId, returnDict: bool = False) -> list[str] | dict[str,str]:
         self.cursor.execute(sql.SQL("""
             SELECT study.id, study.path_in_datalake 
             FROM study, dataset_study 
             WHERE dataset_study.dataset_id = %s AND dataset_study.study_id = study.id;"""),
             (datasetId,)
         )
-        res = []
+        res = {} if returnDict else []
         for row in self.cursor:
-            res.append(row[1])
+            if isinstance(res, dict): res[row[0]] = row[1]
+            else: res.append(row[1])
         return res
 
     def getDatasets(self, skip, limit, searchString, searchFilter: authorization.Search_filter, 
