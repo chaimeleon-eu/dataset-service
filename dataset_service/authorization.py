@@ -336,11 +336,19 @@ class Search_filter():
 
 
 class Upgradables_filter():
-    def __init__(self):
+    def __init__(self, project: str | None = None):
         self._userId = None
+        self._project = project
+
+    def setSelectedProject(self, project: str | None):
+        ''' Set selected project to filter '''
+        self._project = project
 
     def getUserId(self):
         return self._userId
+    
+    def getProject(self):
+        return self._project
 
     def adjustByUser(self, user: User):
         if user._token is None: raise Exception()

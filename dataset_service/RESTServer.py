@@ -1391,7 +1391,7 @@ def eucaimSearchDatasets():
 
 @app.route('/api/upgradableDatasets', method='GET')
 def getUpgradableDatasets():
-    if CONFIG is None: raise Exception()
+    if CONFIG is None or not isinstance(bottle.request.query, bottle.FormsDict): raise Exception()
     LOG.debug("Received %s %s" % (bottle.request.method, bottle.request.path))
     ret = getTokenFromAuthorizationHeader()
     if isinstance(ret, str): return ret  # return error message
@@ -1400,7 +1400,15 @@ def getUpgradableDatasets():
         return setErrorResponse(401, "unauthorized user")
 
     searchFilter = authorization.Upgradables_filter()
-    searchFilter.adjustByUser(user)
+    try:
+        if 'project' in bottle.request.query:
+            project = bottle.request.query['project']
+            _checkPropertyAsString('project', project, only_alphanum_or_dash=True)
+            searchFilter.setSelectedProject(project)
+        searchFilter.adjustByUser(user)
+    except WrongInputException as e:
+        return setErrorResponse(400, str(e))
+    
     with DB(CONFIG.db) as db:
         datasets = DBDatasetsOperator(db).getUpgradableDatasets(searchFilter)
     bottle.response.content_type = "application/json"

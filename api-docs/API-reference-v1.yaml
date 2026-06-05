@@ -227,7 +227,7 @@ paths:
             example: ["train-partition", "annotated"]
         - name: project
           description: |
-            (Optional filter) If set, only datasets of that project will be shown. 
+            (Optional filter) If set, only datasets of that project code will be shown. 
             You can do "GET /projects" to obtain all the possible values.
           in: query
           required: false
@@ -844,6 +844,16 @@ paths:
       description: |
         Lists all datasets that can be upgraded by the authenticated user. 
         Upgrade a dataset means create another dataset that improves or correct this one and thus the previousId property of the new one will be filled with the id of this one.
+      parameters:
+        - name: project
+          description: |
+            (Optional filter) If set, only datasets of that project code will be shown. 
+            You can do "GET /projects" to obtain all the possible values.
+          in: query
+          required: false
+          schema:
+            type: string
+            example: MY-PROJECT
       responses:
         '200':
           description: "List successfully retrieved."

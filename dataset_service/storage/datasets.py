@@ -572,6 +572,11 @@ class DBDatasetsOperator():
         if filter.getUserId() != None:
             authorId = sql.Literal(str(filter.getUserId()))
             whereClause = sql.SQL(" AND author_id = ") + authorId
+
+        if filter.getProject() != None:
+            projectCode = sql.Literal(str(filter.getProject()))
+            whereClause = sql.SQL(" AND dataset.project_code = ") + projectCode
+
         self.cursor.execute(sql.SQL("""
             SELECT id, name, version
             FROM dataset
