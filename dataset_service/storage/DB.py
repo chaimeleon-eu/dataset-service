@@ -25,7 +25,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 45
+    CURRENT_SCHEMA_VERSION = 46
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -58,6 +58,7 @@ class DB:
             if version < 43: self.updateDB_v42To43()
             if version < 44: self.updateDB_v43To44()
             if version < 45: self.updateDB_v44To45()
+            if version < 46: self.updateDB_v45To46()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -113,6 +114,7 @@ class DB:
                 name varchar(256) NOT NULL,
                 version varchar(16) NOT NULL DEFAULT '',
                 project_code varchar(80) NOT NULL,
+                subproject_code varchar(80) DEFAULT NULL,
                 previous_id varchar(40) DEFAULT NULL,
                 next_id varchar(40) DEFAULT NULL,
                 author_id varchar(64) NOT NULL,
@@ -419,6 +421,10 @@ class DB:
         logging.root.info("Updating database from v44 to v45...")
         self.cursor.execute("ALTER TABLE subproject ALTER COLUMN external_id SET DEFAULT NULL")
         self.cursor.execute("update subproject set external_id=NULL where external_id=''")
+
+    def updateDB_v45To46(self):
+        logging.root.info("Updating database from v45 to v46...")
+        self.cursor.execute("ALTER TABLE dataset ADD COLUMN subproject_code varchar(80) DEFAULT NULL")
 
 #endregion
 

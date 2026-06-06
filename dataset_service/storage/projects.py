@@ -68,6 +68,10 @@ class DBProjectsOperator():
             if row[0] != None: res.append(row[0])
         return res
     
+    def getSubprojectsCodes(self, projectCode):
+        self.cursor.execute("SELECT code FROM subproject WHERE project_code=%s;", (projectCode,))
+        return [row[0] for row in self.cursor]
+    
     def setProjectName(self, code, newValue: str | None):
         self.cursor.execute("UPDATE project SET name = %s WHERE code = %s;", (newValue, code))
     def setProjectShortDescription(self, code, newValue: str | None):

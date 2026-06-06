@@ -113,13 +113,15 @@ class DBDatasetsOperator():
     
     def createDataset(self, dataset, userId):
         self.cursor.execute("""
-            INSERT INTO dataset (id, name, version, project_code, previous_id, author_id, 
-                                 creation_date, description, provenance, purpose, 
+            INSERT INTO dataset (id, name, version, project_code, subproject_code, 
+                                 previous_id, author_id, creation_date, 
+                                 description, provenance, purpose, 
                                  type, collection_method, public,
                                  studies_count, subjects_count)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s);""",
-            (dataset["id"], dataset["name"], dataset["version"], dataset["project"], dataset["previousId"], userId, 
-             dataset["creationDate"], dataset["description"], dataset["provenance"], dataset["purpose"],
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s);""",
+            (dataset["id"], dataset["name"], dataset["version"], dataset["project"], dataset["subproject"],
+             dataset["previousId"], userId, dataset["creationDate"], 
+             dataset["description"], dataset["provenance"], dataset["purpose"],
              dataset["type"], dataset["collectionMethod"], dataset["public"], 
              dataset["studiesCount"], dataset["subjectsCount"]))
 
@@ -306,7 +308,7 @@ class DBDatasetsOperator():
                    dataset.purpose, dataset.type, dataset.collection_method,
                    dataset.invalidation_reason, dataset.corrupted, dataset.provenance,
                    dataset.diagnosis, dataset.diagnosis_count,
-                   dataset.tags, dataset.times_used, dataset.public_use
+                   dataset.tags, dataset.times_used, dataset.public_use, dataset.subproject_code
             FROM dataset, author 
             WHERE dataset.id=%s AND author.id = dataset.author_id 
             LIMIT 1;""",
@@ -333,7 +335,7 @@ class DBDatasetsOperator():
             prefPid = "custom"
             customPidUrl = row[10]
         
-        ds = dict(id = row[0], name = row[1], version = row[39], project = row[38],
+        ds = dict(id = row[0], name = row[1], version = row[39], project = row[38], subproject = row[51],
                     previousId = row[2], nextId = row[35], 
                     authorId = row[3], authorName = row[4], authorEmail = row[5], 
                     creationDate = creationDate, description = row[7], tags = row[48], 

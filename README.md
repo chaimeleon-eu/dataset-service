@@ -619,6 +619,56 @@ There are other special roles:
  - __admin_datasetAccess__: required for the operations in paths '/datasetAccess' and '/datasetAccessCheck'.
  - __admin_projects__: can create and modify all the projects.
 
+## Projects and subprojects (collections)
+
+A **project** is a group or community of users which work on and share non-public data (or not yet).
+A project usually corresponds to a real research project, or research group, or a consortium of partners where some of them are data providers and others analyse and process the data bundled in datasets.
+
+A project can have one or more **subprojects** which are simply **collections** of data (subjects/studies) in the datalake.
+These collections are separated containers in datalake to classify (better organization) and so ease the dataset creation.
+
+When uploading the data (images or clinical data), the data holder must select the subproject (collection) as the destination for the upload.  
+When creating a new dataset, the dataset manager must select a subproject (collection) in order to list its subjects/studies and make the selection to be included in the dataset.  
+A dataset only can contain data from one subproject (different collections can not be mixed). But once the dataset is created it will be assigned to the project. Users and datasets are assigned to a project, and that determines the view and access permissions.  
+That way, when the data scientist is exploring the catalogue of datasets, (s)he can filter by project. And (s)he will be able to see a non-public dataset only if (s)he is in the same project.
+
+Let's see some examples of projects and subprojects.
+
+Example 1, European founded project with multiple providers and different collections to classify the data by type of cancer:
+  - Project: CHAIMELEON
+  - Subprojects (collections):
+      - Lung
+      - Colon
+      - Prostate
+
+Example 2, a single collection of data from a provider:
+  - Project: GLIOBLASTOMA-HULAFE
+  - Subprojects (collections):
+      - Main
+
+Example 3, a collection of data from a provider classified by sub-collections (the same as example 1 in practice):
+  - Project: PAEDIATRIC-HULAFE
+  - Subprojects (collections):
+      - Neuroblastoma
+      - DIPG
+
+Example 4, a data provider with multiple collections (subprojects) which will be uploaded by the same upload users**.
+  - Project: HULAFE
+  - Subprojects (collections):
+      - GLIOBLASTOMA
+      - ENDOMETRIAL
+      - Neuroblastoma
+      - DIPG
+      - ...
+
+** As the users (with roles/permissions) are assigned to the project, that users will have access to all subprojects. If the provider has always the same uploaders and dataset managers and data scientists (one team) for all the collections, there is no problem to create only one project for all the collections of the provider. But if the provider has different teams for the subprojects and wants to isolate the access, then it should go to the examples 2 or 3 instead of 4.
+
+**In conclusion:**  
+There are two key points:
+ - Create the projects taking into account the people (teams uploading and working with the data) who will be able to access.
+ - Create subprojects (collections) for better organization of the data and so ease the dataset creation.
+
+
 ## Dataset states
 
 Each dataset has some flags (with value true or false) which define its state of visibility, editability and usability.  

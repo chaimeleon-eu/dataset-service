@@ -467,6 +467,7 @@ def postDataset():
             )
             if 'version' in bottle.request.forms: dataset['version'] = bottle.request.forms.get('version')
             if 'project' in bottle.request.forms: dataset['project'] = bottle.request.forms.get('project')
+            if 'subproject' in bottle.request.forms: dataset['subproject'] = bottle.request.forms.get('subproject')
             if 'previousId' in bottle.request.forms: dataset['previousId'] = bottle.request.forms.get('previousId')
             if 'provenance' in bottle.request.forms: dataset['provenance'] = bottle.request.forms.get('provenance')
             if 'purpose' in bottle.request.forms: dataset['purpose'] = bottle.request.forms.get('purpose')
@@ -605,20 +606,28 @@ def postDataset():
 
         with DB(CONFIG.db) as db:
             dbdatasets = DBDatasetsOperator(db)
+            dbprojects = DBProjectsOperator(db)
             LOG.debug("Updating author: %s, %s, %s, %s" % (user.uid, user.username, user.name, user.email))
             dbdatasets.createOrUpdateAuthor(user.uid, user.username, user.name, user.email)
 
             user_projects = _getProjects(user)
             if 'project' in dataset.keys(): 
                 if dataset['project'] != CONFIG.self.external_datasets_project_code and not dataset["project"] in user_projects:
-                    return setErrorResponse(400, "The project (%s) selected for the dataset (dataset.project) does not exist for the user" % dataset["project"])
+                    raise WrongInputException("The project (%s) selected for the dataset (dataset.project) does not exist for the user" % dataset["project"])
             else:
                 dataset["project"] = user_projects.pop()  # we take the first project of user
+            
+            if "subproject" in dataset.keys(): 
+                subprojects = dbprojects.getSubprojectsCodes(dataset["project"])
+                if not dataset["subproject"] in subprojects:
+                    raise WrongInputException("The subproject (%s) selected for the dataset (dataset.project) does not exist for the user" % dataset["subproject"])
+            else:
+                dataset["subproject"] = None
             
             if 'previousId' in dataset.keys():
                 previousDataset = dbdatasets.getDataset(dataset["previousId"])
                 if previousDataset is None:
-                    return setErrorResponse(400, "The dataset selected as previous (%s) does not exist" % dataset["previousId"])
+                    raise WrongInputException("The dataset selected as previous (%s) does not exist" % dataset["previousId"])
                 if not user.canModifyDataset(previousDataset):
                     return setErrorResponse(401, "The dataset selected as previous (%s) " % previousDataset["id"]
                                                + "must be editable by the user (%s)" % user.username)
@@ -638,7 +647,7 @@ def postDataset():
             LOG.debug('Creating dataset in DB...')
             dbdatasets.createDataset(dataset, user.uid)
             if dataset['project'] != CONFIG.self.external_datasets_project_code:    
-                projectConfig = DBProjectsOperator(db).getProjectConfig(dataset["project"])
+                projectConfig = dbprojects.getProjectConfig(dataset["project"])
                 if projectConfig is None: raise Exception("Unexpected error: the project assigned to dataset does not exist.")
                 dbdatasets.setDatasetContactInfo(datasetId, projectConfig["defaultContactInfo"])
                 dbdatasets.setDatasetLicense(datasetId, projectConfig["defaultLicense"]["title"], projectConfig["defaultLicense"]["url"])

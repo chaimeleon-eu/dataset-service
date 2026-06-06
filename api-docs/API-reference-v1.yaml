@@ -1982,10 +1982,17 @@ components:
           example: "20240415"
         project:
           description: |
-            (Optional) The code of the project which the dataset is assigned to.
+            (Optional for backward compatibility, mandatory in the future)
+            The code of the project which the dataset is assigned to.
             If not provided, it is assumed there is only one project in the system, so the first project found for the user will be taken.
           allOf:
             - $ref: '#/components/schemas/ProjectCode'
+        subproject:
+          description: |
+            (Optional for backward compatibility, mandatory in the future)
+            The code of the subproject (collection) where the data is stored within the datalake.
+          allOf:
+            - $ref: '#/components/schemas/SubprojectCode'
         previousId:
           type: string
           format: uuid
@@ -2084,6 +2091,10 @@ components:
           example: "20240415"
         project:
           description: "The code of the project which the dataset is assigned to."
+          allOf:
+            - $ref: '#/components/schemas/ProjectCode'
+        subproject:
+          description: "The code of the subproject (collection) where the data is stored within the datalake."
           allOf:
             - $ref: '#/components/schemas/ProjectCode'
         previousId:
