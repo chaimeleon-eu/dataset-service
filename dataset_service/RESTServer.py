@@ -313,7 +313,6 @@ def getDatalakeInfo(file_path):
 
 
 class WrongInputException(Exception): pass
-class K8sException(Exception): pass
 
 def _checkPropertyAsString(propName:str, value: str, possible_values: list[str] | None = None, min_length: int = 0, max_length: int = 0, 
                            only_alphanum_or_dash: bool = False):
@@ -671,10 +670,11 @@ def postDataset():
             dbdatasets.createDatasetCreationStatus(datasetId, "pending", "Launching dataset creation job...")
             LOG.debug('Launching dataset creation job...')
             k8sClient = k8s.K8sClient()
-            ok = k8sClient.add_dataset_creation_job(datasetId)
-            if not ok: 
+            try:
+                k8sClient.add_dataset_creation_job(datasetId)
+            except k8s.K8sException as e:
                 dbdatasets.setDatasetCreationStatus(datasetId, "error", "Unexpected error launching dataset creation job.")
-                raise K8sException("Unexpected error launching dataset creation job.")
+                raise e
 
         LOG.debug('Dataset successfully created in DB and creation job launched in K8s.')
         bottle.response.status = 201
@@ -682,11 +682,15 @@ def postDataset():
         return json.dumps(dict(apiUrl = "/api/datasets/" + datasetId,
                                url = CONFIG.self.dataset_link_format % datasetId))
 
-    except (WrongInputException, K8sException) as e:
+    except WrongInputException as e:
         if datasetDirName != '': dataset_file_system.remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
         return setErrorResponse(400, str(e))
     except json.decoder.JSONDecodeError as e:
         return setErrorResponse(400, "Error decoding the body as JSON: " + str(e))
+    except k8s.K8sException as e:
+        LOG.exception(e)
+        if datasetDirName != '': dataset_file_system.remove_dataset(CONFIG.self.datasets_mount_path, datasetDirName)
+        return setErrorResponse(500, "Error launching dataset creation job: " + str(e))
     except Exception as e:
         LOG.exception(e)
         if read_data != None:
@@ -847,10 +851,11 @@ def relaunchDatasetCreationJob(id):
         LOG.debug('Updating status in DB...')
         dbdatasets.setDatasetCreationStatus(datasetId, "pending", "Relaunching dataset creation job...")
         LOG.debug('Relaunching dataset creation job in k8s...')
-        ok = k8sClient.add_dataset_creation_job(datasetId)
-        if not ok: 
+        try:
+            k8sClient.add_dataset_creation_job(datasetId)
+        except k8s.K8sException as e:
             dbdatasets.setDatasetCreationStatus(datasetId, "error", "Unexpected error launching dataset creation job.")
-            raise K8sException("Unexpected error launching dataset creation job.")
+            raise e
     LOG.debug('Dataset creation job successfully launched in K8s.')
     bottle.response.status = 204
     
@@ -1091,7 +1096,7 @@ def patchDataset(id):
                     if len(newVersionsOfTheSameDataset) > 1:
                         return setErrorResponse(400, "There are more than one draft datasets selected as the next version for the same dataset: "
                                                 +str(newVersionsOfTheSameDataset) + ". "
-                                                +"Please delete or change the previousId in some of them (only one can be the next version) .")
+                                                +"Please delete or change the previousId in some of them (only one can be the next version).")
                     # The next check can not happen because of the previous check, but it is kept just in case the previous is removed in the future.
                     if previousDataset["nextId"] != None:
                         return setErrorResponse(400, "The previousId (%s) is not valid, " % dataset["previousId"]
@@ -1889,10 +1894,8 @@ def putSubproject(code, subcode):
         if CONFIG.on_event_scripts.subproject_management_job_template_file_path != "":
             LOG.debug('Launching subproject creation job...')
             k8sClient = k8s.K8sClient()
-            ok = k8sClient.add_subproject_management_job(k8s.Job_operation.CREATE, code, subcode, name, description, externalId, 
-                                                         CONFIG.on_event_scripts.subproject_management_job_template_file_path)
-            if not ok: 
-                raise K8sException("Unexpected error launching subproject creation job.")
+            k8sClient.add_subproject_management_job(k8s.Job_operation.CREATE, code, subcode, name, description, externalId, 
+                                                    CONFIG.on_event_scripts.subproject_management_job_template_file_path)
             #ok = k8sClient.wait_for_the_end_of_job()
 
         LOG.debug('Subproject successfully created or updated.')
@@ -1900,6 +1903,9 @@ def putSubproject(code, subcode):
     except WrongInputException as e: return setErrorResponse(400, str(e))
     except json.decoder.JSONDecodeError as e:
         return setErrorResponse(400, "Error decoding the body as JSON: " + str(e))
+    except (k8s.K8sException, k8s.WrongTemplateException) as e:
+        LOG.exception(e)
+        return setErrorResponse(500, "Error launching on event job: " + str(e))
     except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
@@ -1915,43 +1921,45 @@ def deleteProject(code):
     if not user.canAdminProjects():
         return setErrorResponse(401, "unauthorized user")
 
-    with DB(CONFIG.db) as db:
-        dbprojects = DBProjectsOperator(db)
-        if not dbprojects.existsProject(code):
-            return setErrorResponse(404, "not found")
-        searchFilter = authorization.Search_filter(projects=set([code]))
-        #searchFilter.adjustByUser(user)
-        datasets, total =  DBDatasetsOperator(db).getDatasets(0, 0, '', searchFilter, '', '')
-        if total > 0: 
-            return setErrorResponse(400, "The project is not empty, try to delete the datasets of the project previously.")
+    try:
+        with DB(CONFIG.db) as db:
+            dbprojects = DBProjectsOperator(db)
+            if not dbprojects.existsProject(code):
+                return setErrorResponse(404, "not found")
+            searchFilter = authorization.Search_filter(projects=set([code]))
+            #searchFilter.adjustByUser(user)
+            datasets, total =  DBDatasetsOperator(db).getDatasets(0, 0, '', searchFilter, '', '')
+            if total > 0: 
+                return setErrorResponse(400, "The project is not empty, try to delete the datasets of the project previously.")
 
-        if CONFIG.on_event_scripts.subproject_management_job_template_file_path != "":
-            subprojects = dbprojects.getSubprojects(code)
-            for sp in subprojects:
-                LOG.debug('Launching deletion job for subproject: ' + sp["code"])
-                k8sClient = k8s.K8sClient()
-                ok = k8sClient.add_subproject_management_job(k8s.Job_operation.DELETE, code, sp["code"], "", "", sp["externalId"] or "", 
-                                                             CONFIG.on_event_scripts.subproject_management_job_template_file_path)
-                if not ok: 
-                    raise K8sException("Unexpected error launching subproject deletion job.")
-                #ok = k8sClient.wait_for_the_end_of_job()
+            if CONFIG.on_event_scripts.subproject_management_job_template_file_path != "":
+                subprojects = dbprojects.getSubprojects(code)
+                for sp in subprojects:
+                    LOG.debug('Launching deletion job for subproject: ' + sp["code"])
+                    k8sClient = k8s.K8sClient()
+                    k8sClient.add_subproject_management_job(k8s.Job_operation.DELETE, code, sp["code"], "", "", sp["externalId"] or "", 
+                                                            CONFIG.on_event_scripts.subproject_management_job_template_file_path)
+                    #ok = k8sClient.wait_for_the_end_of_job()
 
-        LOG.debug("Removing project and subprojects in the database...")
-        dbprojects.deleteProject(code)
+            LOG.debug("Removing project and subprojects in the database...")
+            dbprojects.deleteProject(code)
 
-        LOG.debug("Removing project logo file...")
-        logoFileName = code + ".png"
-        destinationFilePath = os.path.join(CONFIG.self.static_files_logos_dir_path, logoFileName)
-        if os.path.exists(destinationFilePath): 
-            os.unlink(destinationFilePath)
-        
-        if AUTH_ADMIN_CLIENT != None and CONFIG.auth.admin_api.parent_group_of_project_groups != "":
-            LOG.debug("Removing the group for project in the auth service...")
-            AUTH_ADMIN_CLIENT.deleteGroup(CONFIG.auth.token_validation.project_group_prefix+code, 
-                                          CONFIG.auth.admin_api.parent_group_of_project_groups)
+            LOG.debug("Removing project logo file...")
+            logoFileName = code + ".png"
+            destinationFilePath = os.path.join(CONFIG.self.static_files_logos_dir_path, logoFileName)
+            if os.path.exists(destinationFilePath): 
+                os.unlink(destinationFilePath)
+            
+            if AUTH_ADMIN_CLIENT != None and CONFIG.auth.admin_api.parent_group_of_project_groups != "":
+                LOG.debug("Removing the group for project in the auth service...")
+                AUTH_ADMIN_CLIENT.deleteGroup(CONFIG.auth.token_validation.project_group_prefix+code, 
+                                            CONFIG.auth.admin_api.parent_group_of_project_groups)
 
-    LOG.debug('Project successfully removed.')
-    bottle.response.status = 204
+        LOG.debug('Project successfully removed.')
+        bottle.response.status = 204
+    except (k8s.K8sException, k8s.WrongTemplateException) as e:
+        LOG.exception(e)
+        return setErrorResponse(500, "Error launching on event job: " + str(e))
 
 
 @app.route('/api/user/<userName>', method='POST')
@@ -2057,10 +2065,8 @@ def putUser(username):
                         siteCode = ret["siteCode"]
                 LOG.debug('Launching user creation job...')
                 k8sClient = k8s.K8sClient()
-                ok = k8sClient.add_user_creation_job(username, newRoles, siteCode, newProjects, 
-                                                     CONFIG.on_event_scripts.user_management_job_template_file_path)
-                if not ok: 
-                    raise K8sException("Unexpected error launching user creation job.")
+                k8sClient.add_user_creation_job(username, newRoles, siteCode, newProjects, 
+                                                CONFIG.on_event_scripts.user_management_job_template_file_path)
                 # Let's wait 2 seconds for the pod creation 
                 # (the web interface will usually try to get the job log after this and it will not be there until pod created)
                 time.sleep(2)
@@ -2070,7 +2076,10 @@ def putUser(username):
         return setErrorResponse(400, str(e))
     except json.decoder.JSONDecodeError as e:
         return setErrorResponse(400, "Error decoding the body as JSON: " + str(e))
-    except (K8sException, Exception) as e:
+    except (k8s.K8sException, k8s.WrongTemplateException) as e:
+        LOG.exception(e)
+        return setErrorResponse(500, "Error launching on event job: " + str(e))
+    except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
         return setErrorResponse(500, "Unexpected error, may be the input is wrong")
@@ -2277,10 +2286,8 @@ def putSite(code):
         if CONFIG.on_event_scripts.site_management_job_template_file_path != "":
             LOG.debug('Launching site creation job...')
             k8sClient = k8s.K8sClient()
-            ok = k8sClient.add_site_creation_job(code, name, country, contactName, contactEmail, 
-                                                 CONFIG.on_event_scripts.site_management_job_template_file_path)
-            if not ok: 
-                raise K8sException("Unexpected error launching site creation job.")
+            k8sClient.add_site_creation_job(code, name, country, contactName, contactEmail, 
+                                            CONFIG.on_event_scripts.site_management_job_template_file_path)
             #ok = k8sClient.wait_for_the_end_of_job()
 
         LOG.debug('Site successfully created or updated.')
@@ -2289,7 +2296,10 @@ def putSite(code):
         return setErrorResponse(400, str(e))
     except json.decoder.JSONDecodeError as e:
         return setErrorResponse(400, "Error decoding the body as JSON: " + str(e))
-    except (K8sException, Exception) as e:
+    except (k8s.K8sException, k8s.WrongTemplateException) as e:
+        LOG.exception(e)
+        return setErrorResponse(500, "Error launching on event job: " + str(e))
+    except Exception as e:
         LOG.exception(e)
         if read_data != None: LOG.error("May be the body of the request is wrong: %s" % read_data)
         return setErrorResponse(500, "Unexpected error, may be the input is wrong")

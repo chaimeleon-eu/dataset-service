@@ -20,6 +20,9 @@ SUBPROJECT_MANAGEMENT_JOB_TYPE_LABEL="subproject-management"
 SUBPROJECT_CREATION_JOB_PREFIX="crea-subproj-"  # max chars 63-20-20-10 = 13  (63-max_len_proj-max_len_subproj-suffix)
 SUBPROJECT_DELETION_JOB_PREFIX="del-subproj-"  # max chars 63-20-20-10 = 13  (63-max_len_proj-max_len_subproj-suffix)
 
+class WrongTemplateException(Exception): pass
+class K8sException(Exception): pass
+
 class Job_state(Enum):
     RUNNING = 'running'
     SUCCEEDED = 'succeeded'
@@ -46,7 +49,7 @@ class K8sClient:
         if not isinstance(deployment, client.V1Deployment) or not isinstance(deployment.spec, client.V1DeploymentSpec) \
             or not isinstance(deployment.spec.template, client.V1PodTemplateSpec) \
             or not isinstance(deployment.spec.template.spec, client.V1PodSpec) \
-            or not isinstance(deployment.spec.template.spec.containers, list): return False
+            or not isinstance(deployment.spec.template.spec.containers, list): raise K8sException()
         volumes = deployment.spec.template.spec.volumes
         container_image = deployment.spec.template.spec.containers[0].image
         container_volume_mounts = deployment.spec.template.spec.containers[0].volume_mounts
@@ -99,8 +102,7 @@ class K8sClient:
             #logging.root.debug(api_response)
         except ApiException as e:
             logging.root.error("Exception when calling BatchV1Api->create_namespaced_job: %s\n" % e)
-            return False
-        return True
+            raise K8sException("Exception when calling k8s API, check the logs out to see more details.")
 
     def exist_dataset_creation_job(self, datasetId):
         API = client.BatchV1Api()
@@ -140,13 +142,16 @@ class K8sClient:
 
     def add_user_creation_job(self, username: str, roles: list[str], site: str, projects: list[str], job_template_file_path: str):
         API = client.ApiClient()
-
         projects_param = ":".join(projects)
         roles_param = ":".join(roles)
         site_param = "" if site is None else site
         try:
             with open(job_template_file_path) as f:
                 job_template = f.read()
+        except Exception as e:
+            logging.root.error("User management job template file not found or cannot be accessed: %s\n%s" % (job_template_file_path, e))
+            raise WrongTemplateException("Site management job template file not found or cannot be accessed: %s" % (job_template_file_path))
+        try:
             job_template = job_template.replace("__OPERATION__", "create")
             job_template = job_template.replace("__TENANT_USERNAME__", username)
             job_template = job_template.replace("__TENANT_ROLES__", roles_param)
@@ -154,8 +159,8 @@ class K8sClient:
             job_template = job_template.replace("__TENANT_PROJECTS__", projects_param)
             job = yaml.load(job_template, Loader=yaml.SafeLoader)
         except Exception as e:
-            logging.root.error("ERROR: User management job template file not found or wrong content: %s\n%s" % (job_template_file_path, e))
-            return False
+            logging.root.error("Wrong content in user management job template file: %s\n%s" % (job_template_file_path, e))
+            raise WrongTemplateException("Wrong content in user management job template file, check the logs out to see more details.")
         logging.root.info("User management job template loaded from file: " + job_template_file_path)
         if not "metadata" in job or not  isinstance(job["metadata"], dict): job["metadata"] = {}
         random_uuid = str(uuid.uuid4())[:8]
@@ -170,8 +175,7 @@ class K8sClient:
             #logging.root.debug(api_response)
         except ApiException as e:
             logging.root.error("Exception when calling k8s API -> create_from_yaml: %s\n" % e)
-            return False
-        return True
+            raise K8sException("Exception when calling k8s API, check the logs out to see more details.")
 
     def list_user_creation_jobs(self, username: str):
         API = client.BatchV1Api()
@@ -217,6 +221,10 @@ class K8sClient:
         try:
             with open(job_template_file_path) as f:
                 job_template = f.read()
+        except Exception as e:
+            logging.root.error("Site management job template file not found or cannot be accessed: %s\n%s" % (job_template_file_path, e))
+            raise WrongTemplateException("Site management job template file not found or cannot be accessed: %s" % (job_template_file_path))
+        try:
             job_template = job_template.replace("__SITE_CODE__", code)
             job_template = job_template.replace("__SITE_NAME__", name)
             job_template = job_template.replace("__SITE_COUNTRY__", country)
@@ -224,8 +232,8 @@ class K8sClient:
             job_template = job_template.replace("__SITE_CONTACT_PERSON_EMAIL__", contact_email)
             job = yaml.load(job_template, Loader=yaml.SafeLoader)
         except Exception as e:
-            logging.root.error("ERROR: Site management job template file not found or wrong content: %s\n%s" % (job_template_file_path, e))
-            return False
+            logging.root.error("Wrong content in site management job template file: %s\n%s" % (job_template_file_path, e))
+            raise WrongTemplateException("Wrong content in site management job template file, check the logs out to see more details.")
         logging.root.info("Site management job template loaded from file: " + job_template_file_path)
         if not "metadata" in job or not isinstance(job["metadata"], dict): job["metadata"] = {}
         random_uuid = str(uuid.uuid4())[:8]
@@ -240,14 +248,17 @@ class K8sClient:
             #logging.root.debug(api_response)
         except ApiException as e:
             logging.root.error("Exception when calling k8s API -> create_from_yaml: %s\n" % e)
-            return False
-        return True
+            raise K8sException("Exception when calling k8s API, check the logs out to see more details.")
 
     def add_subproject_management_job(self, operation: Job_operation, code: str, subcode: str, name: str, description: str, externalId: str, job_template_file_path: str):
         API = client.ApiClient()
         try:
             with open(job_template_file_path) as f:
                 job_template = f.read()
+        except Exception as e:
+            logging.root.error("Project management job template file not found or cannot be accessed: %s\n%s" % (job_template_file_path, e))
+            raise WrongTemplateException("Project management job template file not found or cannot be accessed: %s" % (job_template_file_path))
+        try:
             job_template = job_template.replace("__OPERATION__", operation.value)
             job_template = job_template.replace("__PROJECT_CODE__", code)
             job_template = job_template.replace("__SUBPROJECT_CODE__", subcode)
@@ -256,8 +267,8 @@ class K8sClient:
             job_template = job_template.replace("__SUBPROJECT_EXTERNAL_ID__", externalId)
             job = yaml.load(job_template, Loader=yaml.SafeLoader)
         except Exception as e:
-            logging.root.error("ERROR: Project management job template file not found or wrong content: %s\n%s" % (job_template_file_path, e))
-            return False
+            logging.root.error("Wrong content in project management job template file: %s\n%s" % (job_template_file_path, e))
+            raise WrongTemplateException("Wrong content in project management job template file, check the logs out to see more details.")
         logging.root.info("Project management job template loaded from file: " + job_template_file_path)
         if not "metadata" in job or not isinstance(job["metadata"], dict): job["metadata"] = {}
         random_uuid = str(uuid.uuid4())[:8]
@@ -273,5 +284,4 @@ class K8sClient:
             #logging.root.debug(api_response)
         except ApiException as e:
             logging.root.error("Exception when calling k8s API -> create_from_yaml: %s\n" % e)
-            return False
-        return True
+            raise K8sException("Exception when calling k8s API, check the logs out to see more details.")
