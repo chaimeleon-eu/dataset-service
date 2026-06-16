@@ -5,14 +5,25 @@ BIGRELEASE.BREAKINGCHANGE.SAFECHANGE-TAG
 Where increment in: 
  - BIGRELEASE version means major milestone with big changes.
  - BREAKINGCHANGE version means it IS NOT SAFE to upgrade without manually do some actions to migrate API clients or config file or database contents.
- - SAFECHANGE version means it IS SAFE to upgrade without manually change any of the clients, previous config or database contents (it will be migrated automatically if required).
+ - SAFECHANGE version means it IS SAFE to upgrade without manually change any of the clients, previous config or database contents 
+   (it will be migrated automatically if required).
  - TAG is optionally added to special versions. Examples: "test3", "beta2", "branch-some-new-function".
 
 All versions with relevant changes are listed in this document with the changes required and not required for migration to each version.
-In case of increments in the SAFECHANGE part of version, as you know, the changes are not strictly required but some of them are included also here and recommended to read in case you want to take advantage of the new functionality.
+In case of increments in the SAFECHANGE part of version, as you know, the changes are not strictly required 
+but some of them are included also here and recommended to read in case you want to take advantage of the new functionality.
 
 Note SAFECHANGE version means it's always safe to upgrade, but not always to downgrade. 
 Indeed whenever the DB schema version is increased an error will appear in the log if you try to downgrade.
+
+## Upgrade to 3.23.1
+### Changes in API:
+POST /datasets now accepts `multipart/form-data` content (usually employed to create a new version of a previous dataset).
+New optional filter parameter `project` in GET /upgradableDatasets.
+New property `subproject` added to POST /datasets and GET /datasets/{id}
+### Changes in DB:
+DB schema version increased to 46.
+The DB will be automatically migrated and so you will not be able to go back to a previous version.
 
 ## Upgrade to 3.23.0
 ### Changes in API:
@@ -27,8 +38,8 @@ The DB will be automatically migrated and so you will not be able to go back to 
 
 ## Upgrade to 3.22.6
 ### Changes in API:
-New operation GET /version.
-Extended the max length of last message of dataset creation (GET /datasets/{id}/creationStatus)
+ - New operation GET /version.
+ - Extended the max length of last message of dataset creation (GET /datasets/{id}/creationStatus)
 ### Changes in DB:
 DB schema version increased to 44.
 The DB will be automatically migrated and so you will not be able to go back to a previous version.
@@ -36,6 +47,7 @@ The DB will be automatically migrated and so you will not be able to go back to 
 ## Upgrade to 3.22.5
 ### Changes in API:
 Extended the maximum length of code for project and subproject, now 20 chars.
+### Changes in DB:
 DB schema version increased to 43.
 The DB will be automatically migrated and so you will not be able to go back to a previous version.
 
@@ -55,12 +67,13 @@ The DB will be automatically migrated and so you will not be able to go back to 
 
 ## Upgrade to 3.22.0
 ### Changes in API:
-In PUT/GET /users/{username}, now the siteCode can be null (users with no site assigned).
-The operation GET /userSites has been changed to GET /sites, and now it returns an array of objects.
-New operations GET /sites and PUT/GET /sites/{code}.
-New operations GET /projects/{code}/subprojects and PUT /projects/{code}/subprojects/{subcode}.
+ - In PUT/GET /users/{username}, now the siteCode can be null (users with no site assigned).
+ - The operation GET /userSites has been changed to GET /sites, and now it returns an array of objects.
+ - New operations GET /sites and PUT/GET /sites/{code}.
+ - New operations GET /projects/{code}/subprojects and PUT /projects/{code}/subprojects/{subcode}.
 ### Changes in config:
-The previous parameter `user_management_scripts` has been changed to `on_event_scripts`to be more general and so include different templates to launch k8s jobs on different events:
+The previous parameter `user_management_scripts` has been changed to `on_event_scripts`to be more general 
+and so include different templates to launch k8s jobs on different events:
 ```
 on_event_scripts:
   user_management_job_template_file_path: ""
@@ -81,10 +94,12 @@ on_event_scripts:
     # Set it to empty string to disable that feature.
 ```
 ### Changes in DB:
-New table `site`. On migration, it will be filled in automatically from all different previous authors's site codes. You may want to manually fill in the rest of properties for each of them (name, country, etc.).
-In the `author` table, the `site_code` column has been adjusted to 16 max length, and can be null now.
-New table `subproject`. If you have some project previously created in the Case Explorer, you must add subprojects with PUT /projects/{code}/subprojects/{subcode}.
-If you don't want subprojects for a project, just add only one with the same subcode as the code of the project.
+ - New table `site`. On migration, it will be filled in automatically from all different previous authors's site codes. 
+   You may want to manually fill in the rest of properties for each of them (name, country, etc.).
+ - In the `author` table, the `site_code` column has been adjusted to 16 max length, and can be null now.
+ - New table `subproject`. If you have some project previously created in the Case Explorer, you must add subprojects with PUT /projects/{code}/subprojects/{subcode}. 
+   If you don't want to define subprojects for a project, just add only one with the same subcode as the code of the project.
+
 DB schema version increased to 41.
 The DB will be automatically migrated and so you will not be able to go back to a previous version.
 
@@ -117,7 +132,8 @@ auth:
 ### Changes in DB:
 In the `author` table:
  - `site_code` column has been added, it will be initialized to empty string for all existent rows, you may want to adjust it for each row.  
- - `gid` column is NULL by default now.  
+ - `gid` column is NULL by default now.
+  
 DB schema version increased to 39.
 The DB will be automatically migrated and so you will not be able to go back to a previous version.
 
