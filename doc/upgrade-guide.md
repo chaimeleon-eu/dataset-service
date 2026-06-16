@@ -16,11 +16,20 @@ but some of them are included also here and recommended to read in case you want
 Note SAFECHANGE version means it's always safe to upgrade, but not always to downgrade. 
 Indeed whenever the DB schema version is increased an error will appear in the log if you try to downgrade.
 
+
+## Upgrade to 3.23.2
+### Changes in API:
+Study id length extended to 64 chars.
+### Changes in DB:
+DB schema version increased to 47.
+The DB will be automatically migrated and so you will not be able to go back to a previous version.
+
 ## Upgrade to 3.23.1
 ### Changes in API:
-POST /datasets now accepts `multipart/form-data` content (usually employed to create a new version of a previous dataset).
-New optional filter parameter `project` in GET /upgradableDatasets.
-New property `subproject` added to POST /datasets and GET /datasets/{id}
+ - POST /datasets now accepts `multipart/form-data` content (usually employed to create a new version of a previous dataset).
+ - New optional filter parameter `project` in GET /upgradableDatasets.
+ - New optional property `subproject` added to POST /datasets and GET /datasets/{id}.
+   It is optional for backward compatibility but mandatory in the future.
 ### Changes in DB:
 DB schema version increased to 46.
 The DB will be automatically migrated and so you will not be able to go back to a previous version.

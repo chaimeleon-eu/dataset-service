@@ -25,7 +25,7 @@ class DB:
         self.cursor.close()
         self.conn.close()
 
-    CURRENT_SCHEMA_VERSION = 46
+    CURRENT_SCHEMA_VERSION = 47
 
     def setup(self):
         version = self.getSchemaVersion()
@@ -59,6 +59,7 @@ class DB:
             if version < 44: self.updateDB_v43To44()
             if version < 45: self.updateDB_v44To45()
             if version < 46: self.updateDB_v45To46()
+            if version < 47: self.updateDB_v46To47()
             ### Finally update schema_version
             self.cursor.execute("UPDATE metadata set schema_version = %d;" % self.CURRENT_SCHEMA_VERSION)
 
@@ -182,7 +183,7 @@ class DB:
                 constraint fk_user foreign key (user_id) references author(id)
             );
             CREATE TABLE study (
-                id varchar(40),
+                id varchar(64),
                 name varchar(128) NOT NULL,
                 subject_name varchar(128) NOT NULL,
                 path_in_datalake varchar(256),
@@ -197,7 +198,7 @@ class DB:
             /* A dataset can contain multiple studies and a study can be contained in multiple datasets. */
             CREATE TABLE dataset_study (
                 dataset_id varchar(40),
-                study_id varchar(40),
+                study_id varchar(64),
                 series text NOT NULL DEFAULT '[]',
                 hash varchar(50) NOT NULL DEFAULT '',
                 size_in_bytes bigint DEFAULT NULL,
@@ -206,7 +207,7 @@ class DB:
                 constraint fk_study foreign key (study_id) references study(id)
             );
             CREATE TABLE series (
-                study_id varchar(40),
+                study_id varchar(64),
                 folder_name varchar(128),
                 body_part varchar(16) DEFAULT NULL,
                 modality varchar(16) DEFAULT NULL,
@@ -218,7 +219,7 @@ class DB:
             );
             CREATE TABLE dataset_study_series (
                 dataset_id varchar(40),
-                study_id varchar(40),
+                study_id varchar(64),
                 series_folder_name varchar(128),
                 constraint pk_dataset_study_series primary key (dataset_id, study_id, series_folder_name),
                 constraint fk_dataset foreign key (dataset_id) references dataset(id),
@@ -425,6 +426,13 @@ class DB:
     def updateDB_v45To46(self):
         logging.root.info("Updating database from v45 to v46...")
         self.cursor.execute("ALTER TABLE dataset ADD COLUMN subproject_code varchar(80) DEFAULT NULL")
+
+    def updateDB_v46To47(self):
+        logging.root.info("Updating database from v46 to v47...")
+        self.cursor.execute("ALTER TABLE study ALTER COLUMN id TYPE varchar(64)")
+        self.cursor.execute("ALTER TABLE dataset_study ALTER COLUMN study_id TYPE varchar(64)")
+        self.cursor.execute("ALTER TABLE series ALTER COLUMN study_id TYPE varchar(64)")
+        self.cursor.execute("ALTER TABLE dataset_study_series ALTER COLUMN study_id TYPE varchar(64)")
 
 #endregion
 
